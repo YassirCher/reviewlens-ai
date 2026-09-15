@@ -47,6 +47,7 @@ class HealthReport:
     status: str
     dependencies: dict[str, DependencyStatus]
     configuration: dict[str, bool]
+    llmops: dict | None = None
 
     @property
     def ready(self) -> bool:
@@ -61,6 +62,7 @@ class HealthReport:
         }
         if detailed:
             payload["configuration"] = self.configuration
+            payload["llmops"] = self.llmops or {}
         return payload
 
 
@@ -152,7 +154,19 @@ def collect_health(config: Settings = settings) -> HealthReport:
         status = "degraded"
     else:
         status = "ready"
-    return HealthReport(status=status, dependencies=dependencies, configuration=configuration)
+    llmops: dict = {}
+    try:
+        from app.llmops.operations import llmops_health
+
+        llmops = llmops_health(config)
+    except Exception as exc:
+        llmops = {"status": "unavailable", "detail": type(exc).__name__}
+    return HealthReport(
+        status=status,
+        dependencies=dependencies,
+        configuration=configuration,
+        llmops=llmops,
+    )
 
 
 def validate_process(role: ProcessRole, config: Settings = settings) -> list[str]:

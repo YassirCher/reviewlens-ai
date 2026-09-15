@@ -1,8 +1,8 @@
 # Runtime Architecture
 
-> **Current implementation:** The original analysis diagram below describes legacy V1. The Target V2 architecture is specified in [context/03_SYSTEM_ARCHITECTURE.md](./context/03_SYSTEM_ARCHITECTURE.md). Its Phase 1 platform foundation and Phase 2 durable execution backbone are implemented; the still-default V1 product flow has not been cut over.
+> **Current implementation:** The original analysis diagram below describes legacy V1. The Target V2 architecture is specified in [context/03_SYSTEM_ARCHITECTURE.md](./context/03_SYSTEM_ARCHITECTURE.md). Its Phase 1 platform, Phase 2 durable runtime, and Phase 3 OpenRouter/LLMOps foundations are implemented; the still-default V1 product flow has not been cut over.
 
-Phase 1 implements the shared FastAPI image, PostgreSQL/Alembic, Redis, Celery worker and scheduler, Neo4j, Qdrant, Markdown volumes, admin-session persistence, audit history, and truthful health boundaries. Phase 2 adds immutable run snapshots, deterministic task DAGs, ordered attempts, leases, cancellation/retry recovery, a transactional dispatch/progress outbox, and Redis Stream progress repaired from PostgreSQL. It intentionally does not expose the public V2 analysis API or execute real YouTube/OpenRouter work yet.
+Phase 1 implements the shared FastAPI image, PostgreSQL/Alembic, Redis, Celery worker and scheduler, Neo4j, Qdrant, Markdown volumes, admin-session persistence, audit history, and truthful health boundaries. Phase 2 adds immutable run snapshots, deterministic task DAGs, ordered attempts, leases, cancellation/retry recovery, a transactional dispatch/progress outbox, and Redis Stream progress repaired from PostgreSQL. Phase 3 adds the separate V2 OpenRouter client, versioned model/endpoint/provider catalogs, endpoint-aware routing validation, account health, transactional run/task/agent/daily reservations, and native token/cost reconciliation. It intentionally does not expose public V2 analysis or model-management APIs yet.
 
 ```text
 Runtime service ---> PostgreSQL transaction
@@ -14,6 +14,11 @@ Runtime service ---> PostgreSQL transaction
 Celery scheduler ---> outbox relay ---> Redis broker / progress streams
 Celery worker ------> leased task ----> committed result ---> next outbox work
                           `-----------> stale lease recovery after interruption
+
+V2 paid call -------> PostgreSQL reservation + pending usage
+                          |-- OpenRouter-only chat or embedding request
+                          |-- actual model/provider/native usage reconciliation
+                          `-- scheduled generation lookup when usage is pending
 ```
 
 ```text

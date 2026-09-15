@@ -127,8 +127,9 @@ def test_runtime_schema_has_constraints_and_defers_later_phase_tables() -> None:
     assert {"lease_expires_at", "heartbeat_at", "error_category", "error_code"} <= set(
         tables["task_attempts"].c.keys()
     )
-    assert "usage_events" not in tables
-    assert "budget_reservations" not in tables
+    # Phase 3 now owns the accounting tables that Phase 2 intentionally deferred.
+    assert "usage_events" in tables
+    assert "budget_reservations" in tables
     assert "reports" not in tables
 
 

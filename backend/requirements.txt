@@ -3,6 +3,7 @@ uvicorn[standard]>=0.35,<1
 pydantic>=2.11,<3
 pydantic-settings>=2.10,<3
 httpx>=0.28,<1
+jsonschema>=4.25,<5
 youtube-transcript-api>=1.2,<2
 SQLAlchemy>=2.0,<2.2
 alembic>=1.15,<2

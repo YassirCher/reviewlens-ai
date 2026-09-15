@@ -1,4 +1,20 @@
 services:
+  openrouter-mock:
+    build:
+      context: ./backend
+      target: test
+    command: ["uvicorn", "tests.openrouter_mock:app", "--host", "0.0.0.0", "--port", "8089"]
+    environment:
+      TZ: UTC
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8089/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    profiles: ["test"]
+    restart: "no"
+
   foundation-tests:
     build:
       context: ./backend
@@ -37,6 +53,8 @@ services:
       neo4j:
         condition: service_healthy
       qdrant:
+        condition: service_healthy
+      openrouter-mock:
         condition: service_healthy
     healthcheck:
       disable: true

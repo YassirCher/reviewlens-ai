@@ -28,6 +28,22 @@ class Settings(BaseSettings):
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     openrouter_catalog_refresh_minutes: int = Field(default=15, ge=1, le=1440)
     openrouter_request_timeout_seconds: int = Field(default=120, ge=1, le=600)
+    openrouter_connect_timeout_seconds: float = Field(default=10, gt=0, le=60)
+    openrouter_write_timeout_seconds: float = Field(default=30, gt=0, le=120)
+    openrouter_pool_timeout_seconds: float = Field(default=10, gt=0, le=60)
+    openrouter_max_attempts: int = Field(default=3, ge=1, le=5)
+    openrouter_retry_base_seconds: float = Field(default=1, ge=0, le=30)
+    openrouter_retry_max_seconds: float = Field(default=15, ge=0, le=120)
+    openrouter_catalog_stale_minutes: int = Field(default=60, ge=15, le=10080)
+    openrouter_manual_refresh_cooldown_seconds: int = Field(default=60, ge=10, le=3600)
+    openrouter_reconciliation_interval_seconds: int = Field(default=60, ge=10, le=3600)
+    openrouter_reconciliation_max_age_minutes: int = Field(default=60, ge=15, le=10080)
+    openrouter_reconciliation_batch_size: int = Field(default=50, ge=1, le=500)
+    openrouter_credit_refresh_minutes: int = Field(default=5, ge=1, le=1440)
+    openrouter_live_smoke_enabled: bool = False
+    openrouter_smoke_chat_model: str = ""
+    openrouter_smoke_embedding_model: str = ""
+    openrouter_smoke_max_cost_microusd: int = Field(default=10_000, ge=1, le=100_000)
 
     xai_api_key: str = ""
     xai_model: str = "grok-4.5"
@@ -174,6 +190,17 @@ class Settings(BaseSettings):
             errors.append("ADMIN_PASSWORD_HASH must be an Argon2id hash")
         if self.min_video_count > self.default_video_count or self.default_video_count > self.max_video_count:
             errors.append("MIN_VIDEO_COUNT <= DEFAULT_VIDEO_COUNT <= MAX_VIDEO_COUNT is required")
+        if self.openrouter_retry_max_seconds < self.openrouter_retry_base_seconds:
+            errors.append(
+                "OPENROUTER_RETRY_MAX_SECONDS must be greater than or equal to "
+                "OPENROUTER_RETRY_BASE_SECONDS"
+            )
+        if (
+            self.openrouter_base_url
+            and not self.is_local_development
+            and not self.openrouter_base_url.startswith("https://")
+        ):
+            errors.append("OPENROUTER_BASE_URL must use HTTPS outside local development and tests")
         return errors
 
 

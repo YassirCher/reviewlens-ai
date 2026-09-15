@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import (
     BigInteger,
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
     Index,
@@ -539,6 +540,288 @@ Index(
     RuntimeOutbox.next_attempt_at,
     RuntimeOutbox.created_at,
     postgresql_where=RuntimeOutbox.status.in_(("pending", "processing")),
+)
+
+
+class OpenRouterCatalogRefresh(UUIDPrimaryKeyMixin, Base):
+    __tablename__ = "openrouter_catalog_refreshes"
+    __table_args__ = (
+        CheckConstraint(
+            "catalog_kind IN ('chat_models', 'embedding_models', 'providers', 'model_endpoints')",
+            name="catalog_kind_valid",
+        ),
+        CheckConstraint("status IN ('running', 'succeeded', 'failed')", name="status_valid"),
+        CheckConstraint("item_count >= 0", name="item_count_nonnegative"),
+    )
+
+    catalog_kind: Mapped[str] = mapped_column(String(40), nullable=False)
+    target_slug: Mapped[str | None] = mapped_column(String(300))
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="running", server_default="running")
+    payload_hash: Mapped[str | None] = mapped_column(String(64))
+    item_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    error_category: Mapped[str | None] = mapped_column(String(80))
+    error_code: Mapped[str | None] = mapped_column(String(120))
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+Index(
+    "ix_openrouter_catalog_refreshes_lookup",
+    OpenRouterCatalogRefresh.catalog_kind,
+    OpenRouterCatalogRefresh.target_slug,
+    OpenRouterCatalogRefresh.started_at,
+)
+
+
+class OpenRouterModelSnapshot(UUIDPrimaryKeyMixin, Base):
+    __tablename__ = "openrouter_model_snapshots"
+    __table_args__ = (
+        UniqueConstraint("refresh_id", "model_kind", "slug"),
+        CheckConstraint("model_kind IN ('chat', 'embedding')", name="model_kind_valid"),
+        CheckConstraint("context_length IS NULL OR context_length >= 0", name="context_length_nonnegative"),
+        CheckConstraint(
+            "max_completion_tokens IS NULL OR max_completion_tokens >= 0",
+            name="max_completion_tokens_nonnegative",
+        ),
+    )
+
+    refresh_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("openrouter_catalog_refreshes.id", ondelete="CASCADE"), nullable=False
+    )
+    model_kind: Mapped[str] = mapped_column(String(20), nullable=False)
+    slug: Mapped[str] = mapped_column(String(300), nullable=False)
+    canonical_slug: Mapped[str] = mapped_column(String(300), nullable=False)
+    author: Mapped[str] = mapped_column(String(160), nullable=False)
+    name: Mapped[str] = mapped_column(String(300), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    created_timestamp: Mapped[int | None] = mapped_column(BigInteger)
+    expiration_date: Mapped[str | None] = mapped_column(String(40))
+    context_length: Mapped[int | None] = mapped_column(Integer)
+    max_completion_tokens: Mapped[int | None] = mapped_column(Integer)
+    input_modalities: Mapped[list] = mapped_column(JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb"))
+    output_modalities: Mapped[list] = mapped_column(JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb"))
+    architecture: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    supported_parameters: Mapped[list] = mapped_column(JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb"))
+    pricing: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    top_provider: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    raw_payload_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+Index("ix_openrouter_model_snapshots_slug", OpenRouterModelSnapshot.slug, OpenRouterModelSnapshot.fetched_at)
+Index("ix_openrouter_model_snapshots_kind", OpenRouterModelSnapshot.model_kind, OpenRouterModelSnapshot.fetched_at)
+
+
+class OpenRouterProviderSnapshot(UUIDPrimaryKeyMixin, Base):
+    __tablename__ = "openrouter_provider_snapshots"
+    __table_args__ = (UniqueConstraint("refresh_id", "slug"),)
+
+    refresh_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("openrouter_catalog_refreshes.id", ondelete="CASCADE"), nullable=False
+    )
+    slug: Mapped[str] = mapped_column(String(160), nullable=False)
+    name: Mapped[str] = mapped_column(String(300), nullable=False)
+    privacy: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    status: Mapped[str | None] = mapped_column(String(80))
+    metadata_json: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    raw_payload_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+Index("ix_openrouter_provider_snapshots_slug", OpenRouterProviderSnapshot.slug, OpenRouterProviderSnapshot.fetched_at)
+
+
+class OpenRouterEndpointSnapshot(UUIDPrimaryKeyMixin, Base):
+    __tablename__ = "openrouter_endpoint_snapshots"
+    __table_args__ = (
+        UniqueConstraint("refresh_id", "model_slug", "endpoint_key"),
+        CheckConstraint("context_length IS NULL OR context_length >= 0", name="context_length_nonnegative"),
+        CheckConstraint(
+            "max_completion_tokens IS NULL OR max_completion_tokens >= 0",
+            name="max_completion_tokens_nonnegative",
+        ),
+    )
+
+    refresh_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("openrouter_catalog_refreshes.id", ondelete="CASCADE"), nullable=False
+    )
+    model_slug: Mapped[str] = mapped_column(String(300), nullable=False)
+    endpoint_key: Mapped[str] = mapped_column(String(400), nullable=False)
+    provider_slug: Mapped[str] = mapped_column(String(160), nullable=False)
+    provider_name: Mapped[str] = mapped_column(String(300), nullable=False)
+    context_length: Mapped[int | None] = mapped_column(Integer)
+    max_completion_tokens: Mapped[int | None] = mapped_column(Integer)
+    quantization: Mapped[str | None] = mapped_column(String(80))
+    supported_parameters: Mapped[list] = mapped_column(JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb"))
+    pricing: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    performance: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    moderation: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    privacy: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    status: Mapped[str | None] = mapped_column(String(80))
+    raw_payload_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+Index("ix_openrouter_endpoint_snapshots_model", OpenRouterEndpointSnapshot.model_slug, OpenRouterEndpointSnapshot.fetched_at)
+Index("ix_openrouter_endpoint_snapshots_provider", OpenRouterEndpointSnapshot.provider_slug, OpenRouterEndpointSnapshot.fetched_at)
+
+
+class OpenRouterAccountState(TimestampMixin, OptimisticLockMixin, Base):
+    __tablename__ = "openrouter_account_state"
+    __table_args__ = (
+        CheckConstraint("id = 1", name="singleton"),
+        CheckConstraint(
+            "status IN ('unknown', 'healthy', 'authentication_blocked', 'payment_blocked', 'unavailable')",
+            name="status_valid",
+        ),
+        CheckConstraint("total_credits_microusd IS NULL OR total_credits_microusd >= 0", name="credits_nonnegative"),
+        CheckConstraint("total_usage_microusd IS NULL OR total_usage_microusd >= 0", name="usage_nonnegative"),
+    )
+
+    id: Mapped[int] = mapped_column(SmallInteger, primary_key=True, default=1)
+    environment: Mapped[str] = mapped_column(String(80), nullable=False)
+    status: Mapped[str] = mapped_column(String(40), nullable=False, default="unknown", server_default="unknown")
+    key_fingerprint: Mapped[str | None] = mapped_column(String(64))
+    total_credits_microusd: Mapped[int | None] = mapped_column(BigInteger)
+    total_usage_microusd: Mapped[int | None] = mapped_column(BigInteger)
+    checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_failure_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error_category: Mapped[str | None] = mapped_column(String(80))
+    error_code: Mapped[str | None] = mapped_column(String(120))
+
+
+class DailyBudgetState(TimestampMixin, OptimisticLockMixin, Base):
+    __tablename__ = "daily_budget_states"
+    __table_args__ = (
+        UniqueConstraint("budget_date", "scope"),
+        CheckConstraint("scope IN ('public')", name="scope_valid"),
+        CheckConstraint("max_cost_microusd >= 0", name="max_cost_nonnegative"),
+        CheckConstraint("reserved_cost_microusd >= 0", name="reserved_cost_nonnegative"),
+        CheckConstraint("consumed_cost_microusd >= 0", name="consumed_cost_nonnegative"),
+    )
+
+    budget_date: Mapped[date] = mapped_column(Date, primary_key=True)
+    scope: Mapped[str] = mapped_column(String(20), primary_key=True, default="public", server_default="public")
+    budget_policy_version_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("budget_policy_versions.id", ondelete="RESTRICT"), nullable=False
+    )
+    max_cost_microusd: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    reserved_cost_microusd: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0, server_default="0")
+    consumed_cost_microusd: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0, server_default="0")
+
+
+class BudgetReservation(UUIDPrimaryKeyMixin, TimestampMixin, OptimisticLockMixin, Base):
+    __tablename__ = "budget_reservations"
+    __table_args__ = (
+        UniqueConstraint("task_attempt_id", "call_key", "retry_number"),
+        CheckConstraint("operation IN ('chat', 'document_embedding', 'query_embedding')", name="operation_valid"),
+        CheckConstraint("status IN ('reserved', 'reconciled', 'released')", name="status_valid"),
+        CheckConstraint("retry_number > 0", name="retry_number_positive"),
+        CheckConstraint("estimated_tokens >= 0", name="estimated_tokens_nonnegative"),
+        CheckConstraint("estimated_cost_microusd >= 0", name="estimated_cost_nonnegative"),
+        CheckConstraint("actual_tokens IS NULL OR actual_tokens >= 0", name="actual_tokens_nonnegative"),
+        CheckConstraint("actual_cost_microusd IS NULL OR actual_cost_microusd >= 0", name="actual_cost_nonnegative"),
+    )
+
+    run_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("analysis_runs.id", ondelete="CASCADE"), nullable=False)
+    task_run_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("task_runs.id", ondelete="CASCADE"), nullable=False)
+    task_attempt_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("task_attempts.id", ondelete="CASCADE"), nullable=False)
+    agent_version_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("agent_versions.id", ondelete="RESTRICT"), nullable=False)
+    model_policy_version_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("model_policy_versions.id", ondelete="RESTRICT"), nullable=False)
+    call_key: Mapped[str] = mapped_column(String(120), nullable=False)
+    operation: Mapped[str] = mapped_column(String(40), nullable=False)
+    retry_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    estimated_tokens: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    estimated_cost_microusd: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    actual_tokens: Mapped[int | None] = mapped_column(BigInteger)
+    actual_cost_microusd: Mapped[int | None] = mapped_column(BigInteger)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="reserved", server_default="reserved")
+    reconciled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+Index("ix_budget_reservations_run_status", BudgetReservation.run_id, BudgetReservation.status)
+
+
+class UsageEvent(UUIDPrimaryKeyMixin, Base):
+    __tablename__ = "usage_events"
+    __table_args__ = (
+        UniqueConstraint("reservation_id"),
+        UniqueConstraint("task_attempt_id", "call_key", "retry_number"),
+        CheckConstraint("operation IN ('chat', 'document_embedding', 'query_embedding')", name="operation_valid"),
+        CheckConstraint("status IN ('pending', 'succeeded', 'failed')", name="status_valid"),
+        CheckConstraint(
+            "usage_status IN ('pending', 'complete', 'reconciled', 'unreconcilable')",
+            name="usage_status_valid",
+        ),
+        CheckConstraint("retry_number > 0", name="retry_number_positive"),
+        CheckConstraint("prompt_tokens IS NULL OR prompt_tokens >= 0", name="prompt_tokens_nonnegative"),
+        CheckConstraint("completion_tokens IS NULL OR completion_tokens >= 0", name="completion_tokens_nonnegative"),
+        CheckConstraint("reasoning_tokens IS NULL OR reasoning_tokens >= 0", name="reasoning_tokens_nonnegative"),
+        CheckConstraint("cached_tokens IS NULL OR cached_tokens >= 0", name="cached_tokens_nonnegative"),
+        CheckConstraint("cache_write_tokens IS NULL OR cache_write_tokens >= 0", name="cache_write_tokens_nonnegative"),
+        CheckConstraint("audio_tokens IS NULL OR audio_tokens >= 0", name="audio_tokens_nonnegative"),
+        CheckConstraint("total_tokens IS NULL OR total_tokens >= 0", name="total_tokens_nonnegative"),
+        CheckConstraint("total_cost_microusd IS NULL OR total_cost_microusd >= 0", name="total_cost_nonnegative"),
+        CheckConstraint("upstream_cost_microusd IS NULL OR upstream_cost_microusd >= 0", name="upstream_cost_nonnegative"),
+        CheckConstraint("queue_time_ms IS NULL OR queue_time_ms >= 0", name="queue_time_nonnegative"),
+        CheckConstraint("time_to_first_token_ms IS NULL OR time_to_first_token_ms >= 0", name="ttft_nonnegative"),
+        CheckConstraint("latency_ms IS NULL OR latency_ms >= 0", name="latency_nonnegative"),
+        CheckConstraint("reconciliation_attempts >= 0", name="reconciliation_attempts_nonnegative"),
+    )
+
+    reservation_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("budget_reservations.id", ondelete="RESTRICT"), nullable=False)
+    run_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("analysis_runs.id", ondelete="CASCADE"), nullable=False)
+    task_run_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("task_runs.id", ondelete="CASCADE"), nullable=False)
+    task_attempt_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("task_attempts.id", ondelete="CASCADE"), nullable=False)
+    agent_version_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("agent_versions.id", ondelete="RESTRICT"), nullable=False)
+    workflow_version_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("workflow_versions.id", ondelete="RESTRICT"), nullable=False)
+    model_policy_version_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("model_policy_versions.id", ondelete="RESTRICT"), nullable=False)
+    embedding_policy_version_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("embedding_policy_versions.id", ondelete="RESTRICT"))
+    call_key: Mapped[str] = mapped_column(String(120), nullable=False)
+    operation: Mapped[str] = mapped_column(String(40), nullable=False)
+    retry_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    app_request_id: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    generation_id: Mapped[str | None] = mapped_column(String(255))
+    requested_models: Mapped[list] = mapped_column(JSONB, nullable=False)
+    actual_model: Mapped[str | None] = mapped_column(String(300))
+    actual_provider: Mapped[str | None] = mapped_column(String(160))
+    prompt_tokens: Mapped[int | None] = mapped_column(BigInteger)
+    completion_tokens: Mapped[int | None] = mapped_column(BigInteger)
+    reasoning_tokens: Mapped[int | None] = mapped_column(BigInteger)
+    cached_tokens: Mapped[int | None] = mapped_column(BigInteger)
+    cache_write_tokens: Mapped[int | None] = mapped_column(BigInteger)
+    audio_tokens: Mapped[int | None] = mapped_column(BigInteger)
+    total_tokens: Mapped[int | None] = mapped_column(BigInteger)
+    total_cost_microusd: Mapped[int | None] = mapped_column(BigInteger)
+    upstream_cost_microusd: Mapped[int | None] = mapped_column(BigInteger)
+    queue_time_ms: Mapped[int | None] = mapped_column(BigInteger)
+    time_to_first_token_ms: Mapped[int | None] = mapped_column(BigInteger)
+    latency_ms: Mapped[int | None] = mapped_column(BigInteger)
+    finish_reason: Mapped[str | None] = mapped_column(String(80))
+    service_tier: Mapped[str | None] = mapped_column(String(80))
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending", server_default="pending")
+    usage_status: Mapped[str] = mapped_column(String(24), nullable=False, default="pending", server_default="pending")
+    error_category: Mapped[str | None] = mapped_column(String(80))
+    error_code: Mapped[str | None] = mapped_column(String(120))
+    reconciliation_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    next_reconciliation_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+Index("ix_usage_events_run_created_at", UsageEvent.run_id, UsageEvent.created_at)
+Index("ix_usage_events_dimensions", UsageEvent.model_policy_version_id, UsageEvent.operation, UsageEvent.created_at)
+Index(
+    "ix_usage_events_pending_reconciliation",
+    UsageEvent.next_reconciliation_at,
+    postgresql_where=UsageEvent.usage_status == "pending",
+)
+Index(
+    "uq_usage_events_generation_id",
+    UsageEvent.generation_id,
+    unique=True,
+    postgresql_where=UsageEvent.generation_id.is_not(None),
 )
 
 

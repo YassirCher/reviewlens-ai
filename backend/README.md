@@ -1,6 +1,6 @@
 # ReviewLens Backend
 
-FastAPI backend containing the legacy V1 analysis flow plus the Phase 1 platform foundation and Phase 2 durable V2 execution backbone.
+FastAPI backend containing the legacy V1 analysis flow plus the Phase 1 platform foundation, Phase 2 durable V2 execution backbone, and Phase 3 OpenRouter/LLMOps core.
 
 ## Local setup
 
@@ -34,7 +34,7 @@ python -m app.cli validate api
 uvicorn app.main:app --reload --port 8000
 ```
 
-The Compose stack runs the migration/seed as a one-shot dependency and launches the same image as separate API, Celery worker, and Celery scheduler processes. Published configuration versions and audit events are immutable at the PostgreSQL layer. Durable V2 runs snapshot the active published workflow and budget, then persist DAG tasks, attempts, cancellation, retries, progress events, and outbox state before Redis/Celery delivery.
+The Compose stack runs the migration/seed as a one-shot dependency and launches the same image as separate API, Celery worker, and Celery scheduler processes. Published configuration versions and audit events are immutable at the PostgreSQL layer. Durable V2 runs snapshot the active published workflow and budget, then persist DAG tasks, attempts, cancellation, retries, progress events, and outbox state before Redis/Celery delivery. V2 chat and embedding calls use the separate `app.llmops` OpenRouter gateway with catalog snapshots, endpoint-aware policy validation, transactional reservations, and immutable final usage attribution.
 
 ## Endpoints
 
@@ -63,14 +63,32 @@ Phase 2 adds no public analysis endpoint. Its deterministic smoke fixture is res
 python -m app.cli runtime-fixture --scenario success --wait
 ```
 
+Phase 3 also adds internal operator/test commands. Catalog refreshes use only the configured V2 OpenRouter base URL; the fixture command is rejected outside `APP_ENV=test`:
+
+```bash
+python -m app.cli openrouter-catalog-refresh
+python -m app.cli llmops-fixture --operation chat
+python -m app.cli llmops-fixture --operation embedding
+```
+
+When a 401 or 402 has durably stopped paid dispatch, repair the key or credits first and then clear the block explicitly with `python -m app.cli openrouter-reset-account`. The optional live smoke path is disabled unless its dedicated opt-in flag and exact chat/embedding model slugs are configured. It also requires a command-line confirmation, disables fallbacks, restricts provider prices, and refuses models whose conservative preflight estimate exceeds `OPENROUTER_SMOKE_MAX_COST_MICROUSD`:
+
+```bash
+python -m app.cli openrouter-live-smoke --confirm-paid-smoke
+```
+
+Normal verification never invokes this command.
+
 ## Verification
 
 ```bash
 python -m pytest tests -q
 ```
 
-With Docker Desktop running, execute the isolated empty-database, auth, durable worker/runtime, and full-stack suite from the repository root:
+With Docker Desktop running, execute the isolated empty-database, auth, durable worker/runtime, mocked OpenRouter, and full-stack suite from the repository root:
 
 ```bash
-python scripts/check_phase2.py
+python scripts/check_phase3.py
 ```
+
+The Phase 3 checker generates an isolated environment with fake keys and routes every OpenRouter request to a local mock. It never reads the repository `.env` or spends OpenRouter credits.

@@ -45,6 +45,18 @@ celery_app.conf.update(
             "task": "reviewlens.runtime.recover",
             "schedule": float(settings.runtime_recovery_interval_seconds),
         },
+        "openrouter-catalog-refresh": {
+            "task": "reviewlens.llmops.refresh_catalogs",
+            "schedule": float(settings.openrouter_catalog_refresh_minutes * 60),
+        },
+        "openrouter-credit-refresh": {
+            "task": "reviewlens.llmops.refresh_credit_state",
+            "schedule": float(settings.openrouter_credit_refresh_minutes * 60),
+        },
+        "openrouter-usage-reconciliation": {
+            "task": "reviewlens.llmops.reconcile_usage",
+            "schedule": float(settings.openrouter_reconciliation_interval_seconds),
+        },
     },
 )
 
@@ -100,3 +112,30 @@ def recover_runtime_task() -> dict[str, int]:
     stale_attempts = recover_stale_attempts()
     repaired_runs = repair_unfinished_runs()
     return {"stale_attempts": stale_attempts, "repaired_runs": repaired_runs}
+
+
+@celery_app.task(name="reviewlens.llmops.refresh_catalogs")
+def refresh_openrouter_catalogs_task() -> dict:
+    import asyncio
+
+    from app.llmops.catalog import refresh_catalogs
+
+    return asyncio.run(refresh_catalogs())
+
+
+@celery_app.task(name="reviewlens.llmops.refresh_credit_state")
+def refresh_openrouter_credit_state_task() -> dict:
+    import asyncio
+
+    from app.llmops.operations import refresh_credit_state
+
+    return asyncio.run(refresh_credit_state())
+
+
+@celery_app.task(name="reviewlens.llmops.reconcile_usage")
+def reconcile_openrouter_usage_task() -> dict[str, int]:
+    import asyncio
+
+    from app.llmops.operations import reconcile_pending_usage
+
+    return asyncio.run(reconcile_pending_usage())

@@ -418,7 +418,6 @@ class ContextAudit:
             ROOT / "README.md": (
                 "legacy v1 proof of concept",
                 "target v2",
-                "phase 2 durable execution backbone are implemented",
                 "v1 public flow remains the default",
                 "context/00_index_and_project_overview.md",
                 "context/codebase/00_codebase_map.md",
@@ -426,7 +425,6 @@ class ContextAudit:
             ROOT / "ARCHITECTURE.md": (
                 "legacy v1",
                 "target v2",
-                "phase 2 durable execution backbone are implemented",
                 "still-default v1 product flow",
                 "context/03_system_architecture.md",
             ),
