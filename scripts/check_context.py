@@ -418,14 +418,16 @@ class ContextAudit:
             ROOT / "README.md": (
                 "legacy v1 proof of concept",
                 "target v2",
-                "v2 is not yet implemented",
+                "only the v2 phase 1 platform foundation is implemented",
+                "v1 public flow remains the default",
                 "context/00_index_and_project_overview.md",
                 "context/codebase/00_codebase_map.md",
             ),
             ROOT / "ARCHITECTURE.md": (
                 "legacy v1",
                 "target v2",
-                "not yet implemented",
+                "only its phase 1 platform foundation is implemented",
+                "still-default v1 product flow",
                 "context/03_system_architecture.md",
             ),
         }

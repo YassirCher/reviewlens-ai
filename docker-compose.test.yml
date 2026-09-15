@@ -1,0 +1,44 @@
+services:
+  foundation-tests:
+    build:
+      context: ./backend
+      target: test
+    env_file:
+      - ${REVIEWLENS_ENV_FILE:-.env}
+    command:
+      - sh
+      - -c
+      - >-
+        alembic downgrade base &&
+        alembic upgrade head &&
+        python -m app.cli seed &&
+        python -m pytest tests -q
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-reviewlens}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-reviewlens}
+      REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@redis:6379/0
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@redis:6379/1
+      NODE_STORAGE_ROOT: /data/workspaces
+      NODE_QUARANTINE_ROOT: /data/quarantine
+      NEO4J_URI: bolt://neo4j:7687
+      QDRANT_URL: http://qdrant:6333
+      TZ: UTC
+      REVIEWLENS_RUN_INTEGRATION: "1"
+      PHASE1_TEST_ADMIN_PASSWORD: ${PHASE1_TEST_ADMIN_PASSWORD:?PHASE1_TEST_ADMIN_PASSWORD is required}
+    volumes:
+      - markdown_workspaces:/data/workspaces
+      - markdown_quarantine:/data/quarantine
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+    restart: "no"
+    profiles: ["test"]

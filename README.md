@@ -1,6 +1,8 @@
 # ReviewLens — Product Review Intelligence POC
 
-> **Implementation status:** The code in this repository is the legacy V1 proof of concept described below. The decision-complete Target V2 rebuild specification is in [context/00_INDEX_AND_PROJECT_OVERVIEW.md](./context/00_INDEX_AND_PROJECT_OVERVIEW.md). The current-to-target source atlas is in [context/codebase/00_CODEBASE_MAP.md](./context/codebase/00_CODEBASE_MAP.md). Open the repository root as an Obsidian vault to navigate both. V2 is not yet implemented.
+> **Implementation status:** The public product remains the legacy V1 proof of concept described below. The decision-complete Target V2 rebuild specification is in [context/00_INDEX_AND_PROJECT_OVERVIEW.md](./context/00_INDEX_AND_PROJECT_OVERVIEW.md). The current-to-target source atlas is in [context/codebase/00_CODEBASE_MAP.md](./context/codebase/00_CODEBASE_MAP.md). Open the repository root as an Obsidian vault to navigate both. Only the V2 Phase 1 platform foundation is implemented so far.
+
+The Phase 1 V2 platform foundation now exists beside V1: PostgreSQL/Alembic persistence, Redis/Celery processes, secure admin sessions, dependency health reporting, and the full local Compose dependency profile. Durable analyses, agents, reports, and the V2 public experience belong to later phases, so the V1 public flow remains the default.
 
 ReviewLens is a full-stack proof of concept that turns the top YouTube reviews for a product into a structured, evidence-backed buying decision.
 
@@ -14,7 +16,7 @@ The user enters a product name, optionally enables YouTube comment analysis, and
 6. Uses an AI provider to analyze each video into a strict schema.
 7. Uses a final consensus pass to produce an overall buy / caveat / mixed / avoid verdict.
 
-## Stack
+## Legacy V1 stack
 
 - **Frontend:** Next.js 16 App Router, React 19, TypeScript, Tailwind CSS 4
 - **Backend:** FastAPI, Pydantic v2, httpx
@@ -23,7 +25,7 @@ The user enters a product name, optionally enables YouTube comment analysis, and
 - **AI providers:** OpenRouter, xAI/Grok, optional OpenAI-compatible adapter
 - **Storage:** none required for V1
 
-## Free-tier strategy
+## Legacy V1 free-tier strategy
 
 The default OpenRouter model is `openrouter/free`. Comments are **off by default**. When comments are enabled, they are included in the same per-video LLM request, so the normal budget remains roughly:
 
@@ -78,14 +80,36 @@ Open `http://localhost:3000`.
 
 ## Docker
 
-After creating `.env`:
+After creating `.env`, configure the required Phase 1 database, Redis, Neo4j, admin, and hashing secrets documented in `.env.example`. Generate the admin password hash without placing a plaintext password in `.env`:
 
 ```bash
-docker compose up --build
+cd backend
+python -m app.cli hash-password
+cd ..
+```
+
+Then start the complete local stack:
+
+```bash
+docker compose up --build --wait
 ```
 
 Frontend: `http://localhost:3000`  
 Backend docs: `http://localhost:8000/docs`
+
+Platform endpoints:
+
+- `GET /health` — stable V1 liveness response
+- `GET /health/live` — process liveness
+- `GET /health/ready` — PostgreSQL/Redis/storage readiness plus projection degradation
+- `/api/v2/admin/session` and `/api/v2/admin/csrf` — secure admin-session foundation
+- `GET /api/v2/admin/system/health` — authenticated dependency detail
+
+Run the isolated Phase 1 migration, integration, full-stack, and degraded-dependency verification with Docker Desktop running:
+
+```bash
+python scripts/check_phase1.py
+```
 
 ## Important behavior
 
