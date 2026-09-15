@@ -1,5 +1,7 @@
 # Runtime Architecture
 
+> **Current implementation:** This diagram describes legacy V1. The Target V2 architecture is specified in [context/03_SYSTEM_ARCHITECTURE.md](./context/03_SYSTEM_ARCHITECTURE.md) and is not yet implemented.
+
 ```text
 Next.js UI
    |

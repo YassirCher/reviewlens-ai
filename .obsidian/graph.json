@@ -1,0 +1,35 @@
+{
+  "collapse-filter": false,
+  "search": "tag:#reviewlens-v2",
+  "showTags": true,
+  "showAttachments": false,
+  "hideUnresolved": true,
+  "showOrphans": false,
+  "collapse-color-groups": true,
+  "colorGroups": [
+    {
+      "query": "tag:#codebase/map OR tag:#codebase/traceability",
+      "color": { "a": 1, "rgb": 16753920 }
+    },
+    {
+      "query": "tag:#codebase/frontend OR tag:#context/frontend",
+      "color": { "a": 1, "rgb": 15054131 }
+    },
+    {
+      "query": "tag:#codebase/backend OR tag:#context/orchestration",
+      "color": { "a": 1, "rgb": 3973631 }
+    },
+    {
+      "query": "tag:#codebase/infrastructure OR tag:#context/platform",
+      "color": { "a": 1, "rgb": 6465215 }
+    },
+    {
+      "query": "tag:#context/knowledge",
+      "color": { "a": 1, "rgb": 2795936 }
+    },
+    {
+      "query": "tag:#context/ai OR tag:#context/llmops",
+      "color": { "a": 1, "rgb": 8684799 }
+    }
+  ]
+}

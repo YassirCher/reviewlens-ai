@@ -1,5 +1,7 @@
 # ReviewLens — Product Review Intelligence POC
 
+> **Implementation status:** The code in this repository is the legacy V1 proof of concept described below. The decision-complete Target V2 rebuild specification is in [context/00_INDEX_AND_PROJECT_OVERVIEW.md](./context/00_INDEX_AND_PROJECT_OVERVIEW.md). The current-to-target source atlas is in [context/codebase/00_CODEBASE_MAP.md](./context/codebase/00_CODEBASE_MAP.md). Open the repository root as an Obsidian vault to navigate both. V2 is not yet implemented.
+
 ReviewLens is a full-stack proof of concept that turns the top YouTube reviews for a product into a structured, evidence-backed buying decision.
 
 The user enters a product name, optionally enables YouTube comment analysis, and ReviewLens:
@@ -95,4 +97,10 @@ Backend docs: `http://localhost:8000/docs`
 
 ## Project documentation
 
-The full conception is under [`context/`](./context). A coding agent should read `context/20_AGENT_BUILD_INSTRUCTIONS.md` first, then the remaining context files.
+The authoritative V2 conception is under [context/](./context). Start with [context/00_INDEX_AND_PROJECT_OVERVIEW.md](./context/00_INDEX_AND_PROJECT_OVERVIEW.md), follow its reading order, and read [context/25_AGENT_BUILD_INSTRUCTIONS.md](./context/25_AGENT_BUILD_INSTRUCTIONS.md) before implementation.
+
+Validate the context metadata, links, Canvas, code maps, terminology, and V1/V2 boundary from the repository root:
+
+```bash
+python scripts/check_context.py
+```

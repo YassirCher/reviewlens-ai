@@ -12,4 +12,5 @@ dist/
 build/
 *.sqlite3
 coverage/
+context/
 .DS_Store
