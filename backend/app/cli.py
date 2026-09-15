@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import argparse
 import getpass
+import json
 import sys
+import time
 
-from app.config import ProcessRole
+from app.config import ProcessRole, settings
 from app.platform.health import (
     collect_health,
     process_dependencies_are_ready,
@@ -14,6 +16,52 @@ from app.platform.health import (
 )
 from app.security import hash_password
 from app.seed import seed_foundation
+
+
+def _runtime_fixture(scenario: str, *, wait: bool, timeout_seconds: int) -> int:
+    from app.db.models import AnalysisRun, TaskRun
+    from app.db.session import session_scope
+    from app.runtime.contracts import RUN_TERMINAL_STATUSES, RunStatus, TaskStatus
+    from app.runtime.fixtures import create_fixture_run
+    from app.runtime.outbox import relay_runtime_outbox
+    from app.runtime.service import reconstruct_run, request_cancellation
+    from sqlalchemy import select
+
+    if settings.app_env.lower() != "test":
+        print("runtime fixtures are only available when APP_ENV=test", file=sys.stderr)
+        return 2
+    with session_scope() as db:
+        run = create_fixture_run(db, scenario)  # type: ignore[arg-type]
+        run_id = run.id
+    relay_runtime_outbox()
+    if not wait:
+        print(json.dumps({"run_id": str(run_id), "status": "queued"}, separators=(",", ":")))
+        return 0
+
+    deadline = time.monotonic() + timeout_seconds
+    cancellation_sent = False
+    while time.monotonic() < deadline:
+        relay_runtime_outbox()
+        with session_scope() as db:
+            current_status = db.scalar(select(AnalysisRun.status).where(AnalysisRun.id == run_id))
+            if scenario == "cancel" and not cancellation_sent:
+                running = db.scalar(
+                    select(TaskRun.id).where(
+                        TaskRun.run_id == run_id,
+                        TaskRun.status == TaskStatus.RUNNING,
+                    )
+                )
+                if running:
+                    request_cancellation(db, run_id)
+                    cancellation_sent = True
+            if current_status and RunStatus(current_status) in RUN_TERMINAL_STATUSES:
+                result = reconstruct_run(db, run_id)
+                print(json.dumps(result, separators=(",", ":"), default=str))
+                expected = RunStatus.CANCELLED if scenario == "cancel" else RunStatus.COMPLETE
+                return 0 if current_status == expected else 1
+        time.sleep(0.2)
+    print(f"fixture run {run_id} did not finish within {timeout_seconds} seconds", file=sys.stderr)
+    return 1
 
 
 def _hash_password() -> int:
@@ -58,6 +106,13 @@ def main() -> int:
     subcommands = parser.add_subparsers(dest="command", required=True)
     subcommands.add_parser("hash-password", help="Generate an Argon2id hash without echoing the password")
     subcommands.add_parser("seed", help="Idempotently seed the Phase 1 foundation")
+    fixture_parser = subcommands.add_parser(
+        "runtime-fixture",
+        help="Run a deterministic Phase 2 fixture (APP_ENV=test only)",
+    )
+    fixture_parser.add_argument("--scenario", choices=("success", "retry_once", "cancel"), required=True)
+    fixture_parser.add_argument("--wait", action="store_true")
+    fixture_parser.add_argument("--timeout-seconds", type=int, default=60)
     for command in ("validate", "healthcheck"):
         command_parser = subcommands.add_parser(command)
         command_parser.add_argument("role", choices=("api", "worker", "scheduler", "migrate"))
@@ -69,6 +124,12 @@ def main() -> int:
         result = seed_foundation()
         print(result)
         return 0
+    if args.command == "runtime-fixture":
+        return _runtime_fixture(
+            args.scenario,
+            wait=args.wait,
+            timeout_seconds=args.timeout_seconds,
+        )
     if args.command == "validate":
         return _validate(args.role)
     if args.command == "healthcheck":

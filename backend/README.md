@@ -1,6 +1,6 @@
 # ReviewLens Backend
 
-FastAPI backend containing the legacy V1 analysis flow and the Phase 1 V2 platform foundation.
+FastAPI backend containing the legacy V1 analysis flow plus the Phase 1 platform foundation and Phase 2 durable V2 execution backbone.
 
 ## Local setup
 
@@ -34,7 +34,7 @@ python -m app.cli validate api
 uvicorn app.main:app --reload --port 8000
 ```
 
-The Compose stack runs the migration/seed as a one-shot dependency and launches the same image as separate API, Celery worker, and Celery scheduler processes. Published configuration versions and audit events are immutable at the PostgreSQL layer.
+The Compose stack runs the migration/seed as a one-shot dependency and launches the same image as separate API, Celery worker, and Celery scheduler processes. Published configuration versions and audit events are immutable at the PostgreSQL layer. Durable V2 runs snapshot the active published workflow and budget, then persist DAG tasks, attempts, cancellation, retries, progress events, and outbox state before Redis/Celery delivery.
 
 ## Endpoints
 
@@ -45,7 +45,7 @@ Legacy V1 remains operational:
 - `POST /api/analyze`
 - `POST /api/analyze/stream`
 
-Phase 1 V2 foundation:
+Implemented V2 platform endpoints:
 
 - `GET /health/live`
 - `GET /health/ready`
@@ -57,14 +57,20 @@ Phase 1 V2 foundation:
 
 Session cookies are HttpOnly, SameSite=Lax, and Secure outside local/test environments. The login endpoint is throttled through Redis; if throttling is unavailable, login fails closed. Health responses expose status rather than credentials or connection strings.
 
+Phase 2 adds no public analysis endpoint. Its deterministic smoke fixture is restricted to `APP_ENV=test` and never calls YouTube or OpenRouter:
+
+```bash
+python -m app.cli runtime-fixture --scenario success --wait
+```
+
 ## Verification
 
 ```bash
 python -m pytest tests -q
 ```
 
-With Docker Desktop running, execute the isolated empty-database, auth, worker/scheduler, full-stack, and degraded-dependency suite from the repository root:
+With Docker Desktop running, execute the isolated empty-database, auth, durable worker/runtime, and full-stack suite from the repository root:
 
 ```bash
-python scripts/check_phase1.py
+python scripts/check_phase2.py
 ```

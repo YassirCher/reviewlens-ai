@@ -67,8 +67,8 @@ Only one phase may be `in progress`. A later phase may receive a minimal enablin
 |---|---|---|---|
 | 0 | V2 contract and repository navigation baseline | complete | Completed 2026-09-15: `python scripts/check_context.py` passed; `git diff --check` passed; `cd backend && python -m pytest tests -q` passed (3 tests); runtime source remained unchanged |
 | 1 | Platform and persistence foundation | complete | Completed 2026-09-15: `python scripts/check_context.py` passed; `git diff --check` passed; `cd backend && .venv/Scripts/python.exe -m pytest tests -q` passed (11 tests, 8 integration tests skipped); `.\backend\.venv\Scripts\python.exe scripts\check_phase1.py` passed (19 isolated PostgreSQL/Redis tests, clean full-stack health, V1 smoke, projection degradation, and Redis/PostgreSQL loss); pre-existing frontend changes remained untouched and `context/` remained untracked |
-| 2 | Durable run and task execution backbone | ready | Phase 1 complete 2026-09-15 |
-| 3 | OpenRouter gateway and LLMOps accounting core | queued | Pending |
+| 2 | Durable run and task execution backbone | complete | Completed 2026-09-15: `python scripts/check_context.py`; `git diff --check`; `cd backend && .venv\Scripts\python.exe -m pytest tests -q`; `python scripts/check_phase2.py` (38 isolated PostgreSQL/Redis/Celery tests, migration downgrade/re-upgrade, full-stack V1 smoke, and deterministic success/retry/cancel fixtures). |
+| 3 | OpenRouter gateway and LLMOps accounting core | ready | Phase 2 completed and verified on 2026-09-15. |
 | 4 | Reconstructable context graph and retrieval | queued | Pending |
 | 5 | Typed YouTube research toolchain | queued | Pending |
 | 6 | Bounded multi-agent analysis workflow | queued | Pending |

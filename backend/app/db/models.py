@@ -291,6 +291,257 @@ class ActiveConfiguration(TimestampMixin, OptimisticLockMixin, Base):
     feature_flags: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
 
 
+class ConfigurationSnapshot(UUIDPrimaryKeyMixin, Base):
+    __tablename__ = "configuration_snapshots"
+
+    workflow_version_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("workflow_versions.id", ondelete="RESTRICT"), nullable=False
+    )
+    budget_policy_version_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("budget_policy_versions.id", ondelete="RESTRICT"), nullable=False
+    )
+    embedding_policy_version_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("embedding_policy_versions.id", ondelete="RESTRICT")
+    )
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    snapshot: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+Index("ix_configuration_snapshots_content_hash", ConfigurationSnapshot.content_hash)
+
+
+class AnalysisRun(UUIDPrimaryKeyMixin, TimestampMixin, OptimisticLockMixin, Base):
+    __tablename__ = "analysis_runs"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('queued', 'running', 'complete', 'partial', 'failed', 'cancelling', 'cancelled')",
+            name="status_valid",
+        ),
+        CheckConstraint("progress_sequence >= 0", name="progress_sequence_nonnegative"),
+    )
+
+    product_input: Mapped[str] = mapped_column(String(500), nullable=False)
+    canonical_product: Mapped[str] = mapped_column(String(500), nullable=False)
+    initiator_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    initiator_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    requested_options: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="queued", server_default="queued")
+    configuration_snapshot_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("configuration_snapshots.id", ondelete="RESTRICT"),
+        nullable=False,
+        unique=True,
+    )
+    progress_sequence: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0, server_default="0")
+    coverage: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    warning_summary: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    error_code: Mapped[str | None] = mapped_column(String(120))
+    deadline_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancellation_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+Index("ix_analysis_runs_status_created_at", AnalysisRun.status, AnalysisRun.created_at)
+Index(
+    "ix_analysis_runs_active",
+    AnalysisRun.created_at,
+    postgresql_where=AnalysisRun.status.in_(("queued", "running", "cancelling")),
+)
+
+
+class RunBudgetState(TimestampMixin, OptimisticLockMixin, Base):
+    __tablename__ = "run_budget_states"
+    __table_args__ = (
+        CheckConstraint("max_tokens IS NULL OR max_tokens >= 0", name="max_tokens_nonnegative"),
+        CheckConstraint("max_cost_microusd IS NULL OR max_cost_microusd >= 0", name="max_cost_nonnegative"),
+        CheckConstraint("reserved_tokens >= 0", name="reserved_tokens_nonnegative"),
+        CheckConstraint("consumed_tokens >= 0", name="consumed_tokens_nonnegative"),
+        CheckConstraint("reserved_cost_microusd >= 0", name="reserved_cost_nonnegative"),
+        CheckConstraint("consumed_cost_microusd >= 0", name="consumed_cost_nonnegative"),
+        CheckConstraint("status IN ('active', 'exhausted', 'closed')", name="status_valid"),
+    )
+
+    run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("analysis_runs.id", ondelete="CASCADE"), primary_key=True
+    )
+    budget_policy_version_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("budget_policy_versions.id", ondelete="RESTRICT"), nullable=False
+    )
+    max_tokens: Mapped[int | None] = mapped_column(BigInteger)
+    max_cost_microusd: Mapped[int | None] = mapped_column(BigInteger)
+    reserved_tokens: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0, server_default="0")
+    consumed_tokens: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0, server_default="0")
+    reserved_cost_microusd: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0, server_default="0")
+    consumed_cost_microusd: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0, server_default="0")
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="active", server_default="active")
+
+
+class TaskRun(UUIDPrimaryKeyMixin, TimestampMixin, OptimisticLockMixin, Base):
+    __tablename__ = "task_runs"
+    __table_args__ = (
+        UniqueConstraint("run_id", "workflow_task_key", "source_key"),
+        CheckConstraint(
+            "status IN ('blocked', 'queued', 'running', 'succeeded', 'failed', 'skipped', "
+            "'cancelling', 'cancelled', 'timed_out')",
+            name="status_valid",
+        ),
+        CheckConstraint("current_attempt >= 0", name="current_attempt_nonnegative"),
+        CheckConstraint("max_attempts > 0", name="max_attempts_positive"),
+        CheckConstraint("timeout_seconds > 0", name="timeout_seconds_positive"),
+        CheckConstraint("weight > 0", name="weight_positive"),
+    )
+
+    run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("analysis_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    workflow_task_key: Mapped[str] = mapped_column(String(120), nullable=False)
+    source_key: Mapped[str | None] = mapped_column(String(320))
+    executor_kind: Mapped[str] = mapped_column(String(40), nullable=False)
+    handler: Mapped[str] = mapped_column(String(160), nullable=False)
+    agent_version_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agent_versions.id", ondelete="RESTRICT")
+    )
+    tool_version_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tool_versions.id", ondelete="RESTRICT")
+    )
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    priority: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    weight: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    timeout_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
+    max_attempts: Mapped[int] = mapped_column(Integer, nullable=False)
+    retry_policy: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    input_payload: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    idempotency_key: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    current_attempt: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    deadline_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+Index("ix_task_runs_status_created_at", TaskRun.status, TaskRun.created_at)
+Index(
+    "ix_task_runs_dispatchable",
+    TaskRun.priority,
+    TaskRun.created_at,
+    postgresql_where=TaskRun.status.in_(("queued", "running")),
+)
+
+
+class TaskDependency(Base):
+    __tablename__ = "task_dependencies"
+    __table_args__ = (
+        CheckConstraint("upstream_task_id <> downstream_task_id", name="not_self_referential"),
+    )
+
+    upstream_task_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("task_runs.id", ondelete="CASCADE"), primary_key=True
+    )
+    downstream_task_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("task_runs.id", ondelete="CASCADE"), primary_key=True
+    )
+
+
+class TaskAttempt(UUIDPrimaryKeyMixin, Base):
+    __tablename__ = "task_attempts"
+    __table_args__ = (
+        UniqueConstraint("task_run_id", "attempt_number"),
+        CheckConstraint("attempt_number > 0", name="attempt_number_positive"),
+        CheckConstraint(
+            "status IN ('running', 'succeeded', 'failed', 'cancelled', 'timed_out')",
+            name="status_valid",
+        ),
+        CheckConstraint("duration_ms IS NULL OR duration_ms >= 0", name="duration_nonnegative"),
+    )
+
+    task_run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("task_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    attempt_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    input_payload: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    output_payload: Mapped[dict | None] = mapped_column(JSONB)
+    output_hash: Mapped[str | None] = mapped_column(String(64))
+    error_category: Mapped[str | None] = mapped_column(String(80))
+    error_code: Mapped[str | None] = mapped_column(String(120))
+    retryable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
+    celery_task_id: Mapped[str | None] = mapped_column(String(255))
+    worker_identity: Mapped[str | None] = mapped_column(String(255))
+    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    duration_ms: Mapped[int | None] = mapped_column(BigInteger)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+Index("ix_task_attempts_status_lease", TaskAttempt.status, TaskAttempt.lease_expires_at)
+
+
+class ProgressEvent(UUIDPrimaryKeyMixin, Base):
+    __tablename__ = "progress_events"
+    __table_args__ = (
+        UniqueConstraint("run_id", "sequence"),
+        CheckConstraint("sequence > 0", name="sequence_positive"),
+    )
+
+    run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("analysis_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    task_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("task_runs.id", ondelete="SET NULL")
+    )
+    sequence: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    event_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    public_payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    admin_metadata: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+Index("ix_progress_events_run_created_at", ProgressEvent.run_id, ProgressEvent.created_at)
+
+
+class RuntimeOutbox(UUIDPrimaryKeyMixin, TimestampMixin, OptimisticLockMixin, Base):
+    __tablename__ = "runtime_outbox"
+    __table_args__ = (
+        CheckConstraint(
+            "kind IN ('task.dispatch', 'task.revoke', 'progress.publish')",
+            name="kind_valid",
+        ),
+        CheckConstraint("status IN ('pending', 'processing', 'published')", name="status_valid"),
+        CheckConstraint("attempts >= 0", name="attempts_nonnegative"),
+    )
+
+    kind: Mapped[str] = mapped_column(String(40), nullable=False)
+    aggregate_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    aggregate_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("analysis_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    task_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("task_runs.id", ondelete="CASCADE")
+    )
+    payload: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    idempotency_key: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending", server_default="pending")
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    next_attempt_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error_code: Mapped[str | None] = mapped_column(String(120))
+
+
+Index(
+    "ix_runtime_outbox_pending",
+    RuntimeOutbox.next_attempt_at,
+    RuntimeOutbox.created_at,
+    postgresql_where=RuntimeOutbox.status.in_(("pending", "processing")),
+)
+
+
 VERSION_TABLE_NAMES = (
     "agent_versions",
     "workflow_versions",

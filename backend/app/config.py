@@ -66,7 +66,14 @@ class Settings(BaseSettings):
     celery_broker_url: str = ""
     celery_result_backend: str = ""
     celery_worker_concurrency: int = Field(default=4, ge=1, le=64)
+    celery_visibility_timeout_seconds: int = Field(default=1200, ge=60, le=86400)
     run_event_stream_ttl_hours: int = Field(default=24, ge=1, le=720)
+    run_event_stream_max_length: int = Field(default=2000, ge=100, le=100000)
+    runtime_outbox_batch_size: int = Field(default=50, ge=1, le=1000)
+    runtime_outbox_lease_seconds: int = Field(default=60, ge=10, le=900)
+    runtime_task_lease_seconds: int = Field(default=240, ge=30, le=1800)
+    runtime_recovery_interval_seconds: int = Field(default=30, ge=5, le=600)
+    runtime_dispatch_lock_seconds: int = Field(default=30, ge=5, le=300)
 
     node_storage_root: str = "/data/workspaces"
     node_quarantine_root: str = "/data/quarantine"

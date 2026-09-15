@@ -70,8 +70,8 @@ def test_v2_configuration_validation_is_role_specific(tmp_path: Path) -> None:
     assert any("cannot contain '*'" in error for error in wildcard_cors.v2_configuration_errors("api"))
 
 
-def test_phase1_schema_excludes_phase2_runtime_tables() -> None:
-    expected = {
+def test_phase1_schema_remains_present_beside_phase2_runtime_tables() -> None:
+    phase1_tables = {
         "admin_users",
         "admin_sessions",
         "anonymous_sessions",
@@ -91,9 +91,17 @@ def test_phase1_schema_excludes_phase2_runtime_tables() -> None:
         "budget_policy_versions",
         "active_configuration",
     }
-    assert set(Base.metadata.tables) == expected
-    assert "analysis_runs" not in Base.metadata.tables
-    assert "task_runs" not in Base.metadata.tables
+    assert phase1_tables <= set(Base.metadata.tables)
+    assert {
+        "configuration_snapshots",
+        "analysis_runs",
+        "run_budget_states",
+        "task_runs",
+        "task_dependencies",
+        "task_attempts",
+        "progress_events",
+        "runtime_outbox",
+    } <= set(Base.metadata.tables)
     assert "projection_outbox" not in Base.metadata.tables
     for table_name in ("admin_sessions", "agent_versions", "workflow_versions", "tool_versions"):
         assert {"created_at", "updated_at", "version"} <= set(Base.metadata.tables[table_name].c.keys())

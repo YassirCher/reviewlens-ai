@@ -43,7 +43,7 @@ def test_empty_database_migration_is_current_and_complete() -> None:
     with get_engine().connect() as connection:
         current_heads = set(MigrationContext.configure(connection).get_current_heads())
         tables = set(inspect(connection).get_table_names())
-    assert current_heads == expected_heads == {"20260915_0001"}
+    assert current_heads == expected_heads == {"20260915_0002"}
     assert {
         "admin_users",
         "admin_sessions",
@@ -56,8 +56,15 @@ def test_empty_database_migration_is_current_and_complete() -> None:
         "embedding_policy_versions",
         "budget_policy_versions",
         "active_configuration",
+        "configuration_snapshots",
+        "analysis_runs",
+        "run_budget_states",
+        "task_runs",
+        "task_dependencies",
+        "task_attempts",
+        "progress_events",
+        "runtime_outbox",
     } <= tables
-    assert "analysis_runs" not in tables
 
 
 def test_seed_is_idempotent() -> None:

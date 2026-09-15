@@ -33,7 +33,7 @@ async def lifespan(_: FastAPI):
 app = FastAPI(
     title="ReviewLens API",
     description="Evidence-backed YouTube product review analysis",
-    version="2.0.0-foundation",
+    version="2.0.0-runtime",
     lifespan=lifespan,
 )
 

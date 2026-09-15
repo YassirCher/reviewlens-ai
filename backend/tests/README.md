@@ -23,3 +23,15 @@
 
 8. Secrets
    - API response never contains environment keys
+
+9. Durable runtime
+   - run, immutable snapshot, DAG tasks, budget state, first event, and outbox commit atomically
+   - duplicate Celery delivery creates one successful attempt/effect
+   - automatic retry appends attempts without overwriting history
+   - stale worker leases resume from PostgreSQL
+
+10. Cancellation and progress
+   - cancellation prevents downstream dispatch
+   - Redis Streams resume after an event sequence
+   - missing/expired Redis history falls back to PostgreSQL
+   - progress is never delivered before its PostgreSQL event commits
