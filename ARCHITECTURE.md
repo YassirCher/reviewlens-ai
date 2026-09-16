@@ -1,8 +1,8 @@
 # Runtime Architecture
 
-> **Current implementation:** The original analysis diagram below describes legacy V1. The Target V2 architecture is specified in [context/03_SYSTEM_ARCHITECTURE.md](./context/03_SYSTEM_ARCHITECTURE.md). Its Phase 1 platform, Phase 2 durable runtime, Phase 3 OpenRouter/LLMOps, Phase 4 context graph/retrieval, and Phase 5 typed research-tool foundations are implemented; the still-default V1 product flow has not been cut over.
+> **Current implementation:** The original analysis diagram below describes legacy V1. The Target V2 architecture is specified in [context/03_SYSTEM_ARCHITECTURE.md](./context/03_SYSTEM_ARCHITECTURE.md). Its Phase 1–6 backend foundation, including the bounded internal analysis workflow, is implemented; the still-default V1 product flow has not been cut over and no public V2 analysis API exists yet.
 
-Phase 1 implements the shared FastAPI image, PostgreSQL/Alembic, Redis, Celery worker and scheduler, Neo4j, Qdrant, Markdown volumes, admin-session persistence, audit history, and truthful health boundaries. Phase 2 adds immutable run snapshots, deterministic task DAGs, ordered attempts, leases, cancellation/retry recovery, a transactional dispatch/progress outbox, and Redis Stream progress repaired from PostgreSQL. Phase 3 adds the separate V2 OpenRouter client, versioned model/endpoint/provider catalogs, endpoint-aware routing validation, account health, transactional run/task/agent/daily reservations, and native token/cost reconciliation. Phase 4 makes PostgreSQL relations and validated, versioned Markdown bodies authoritative; Neo4j and Qdrant are rebuildable projections, and immutable retrieval manifests record bounded provenance-labelled context packets. Phase 5 adds a fixed executable tool registry, immutable run-snapshot authorization, durable invocation audits, Pacific-window YouTube quota reservations, deterministic source selection, transcript/comment lineage, evidence validation, and V2-only scoring. These phases intentionally expose no public V2 analysis or model-management APIs yet.
+Phase 1 implements the shared platform. Phase 2 adds restart-safe orchestration. Phase 3 adds the separate V2 OpenRouter gateway and exact accounting. Phase 4 makes PostgreSQL and versioned Markdown authoritative for context. Phase 5 adds fixed typed research tools and YouTube quota accounting. Phase 6 adds seven immutable role definitions, deterministic dynamic source fan-out/fan-in, context manifests and prompt hashes, one bounded schema-correction attempt, evidence/scoring gates, quality audit, and immutable internal reports. These phases intentionally expose no public V2 analysis or model-management APIs yet.
 
 ```text
 Runtime service ---> PostgreSQL transaction
@@ -36,6 +36,12 @@ Phase 5 tool call --> immutable run snapshot + agent/task allowlist
 YouTube research --> query variants --> raw source nodes --> deterministic ranking
                  --> transcript fallback --> timestamped chunks + lineage
                  `--> optional secondary-trust comment sets
+
+Phase 6 orchestrator --> validate + bounded query plan + deterministic discovery
+                    --> per-source transcript/review (+ optional comments/audience)
+                    --> evidence graph curation --> consensus --> quality audit
+                    --> at most one declared correction/re-audit cycle
+                    `--> immutable internal report or unpublished failed run
 ```
 
 ```text

@@ -130,7 +130,9 @@ def test_runtime_schema_has_constraints_and_defers_later_phase_tables() -> None:
     # Phase 3 now owns the accounting tables that Phase 2 intentionally deferred.
     assert "usage_events" in tables
     assert "budget_reservations" in tables
-    assert "reports" not in tables
+    # Phase 6 now owns immutable internal reports while retaining the Phase 2
+    # runtime tables and constraints exercised above.
+    assert "reports" in tables
 
 
 def test_fixture_installation_rejects_non_test_environments() -> None:

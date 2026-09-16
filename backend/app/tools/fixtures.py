@@ -27,7 +27,7 @@ from app.db.models import (
 from app.knowledge.service import create_workspace
 from app.runtime.contracts import RetryPolicy, WorkflowDag, WorkflowTaskSpec, canonical_json_hash
 from app.runtime.service import create_run, utc_now
-from app.tools.registry import TOOL_SPECS, seed_tool_registry
+from app.tools.registry import TOOL_REGISTRY, seed_tool_registry
 
 ResearchScenario = Literal["complete", "missing_transcript", "comments_off", "partial"]
 
@@ -105,7 +105,7 @@ def create_research_fixture_attempt(
     db.add(agent_version)
     db.flush()
     versions: list[ToolVersion] = []
-    for spec in TOOL_SPECS:
+    for spec in TOOL_REGISTRY.values():
         definition = db.scalar(select(ToolDefinition).where(ToolDefinition.key == spec.key))
         assert definition is not None
         version = db.scalar(

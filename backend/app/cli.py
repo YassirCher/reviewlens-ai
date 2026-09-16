@@ -309,6 +309,143 @@ def _youtube_live_smoke(video_id: str, *, confirmed: bool) -> int:
     return 0
 
 
+def _analysis_config_seed() -> int:
+    from app.analysis.configuration import seed_analysis_configuration
+    from app.db.session import session_scope
+
+    try:
+        with session_scope() as db:
+            result = seed_analysis_configuration(db)
+    except Exception as exc:
+        print(f"Phase 6 configuration seed failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 1
+    print(json.dumps(result, separators=(",", ":")))
+    return 0
+
+
+def _analysis_fixture(scenario: str, *, wait: bool, timeout_seconds: int) -> int:
+    from sqlalchemy import func, select
+
+    from app.analysis.configuration import seed_analysis_configuration
+    from app.db.models import AnalysisRun, Report, TaskAttempt, TaskRun, UsageEvent
+    from app.db.session import session_scope
+    from app.runtime.contracts import RUN_TERMINAL_STATUSES, RunStatus, TaskStatus
+    from app.runtime.outbox import relay_runtime_outbox
+    from app.runtime.service import create_run, request_cancellation
+
+    if settings.app_env.lower() != "test":
+        print("analysis fixtures are only available when APP_ENV=test", file=sys.stderr)
+        return 2
+    comments = scenario == "comments"
+    source_count = 5
+    with session_scope() as db:
+        seed_analysis_configuration(db)
+        run = create_run(
+            db,
+            product_name=f"Phase 6 {scenario.replace('_', ' ')} fixture",
+            initiator_type="system_fixture",
+            requested_options={
+                "scenario": scenario,
+                "source_count": source_count,
+                "language": "en",
+                "analyze_comments": comments,
+                "contacts_mocked_upstreams": True,
+            },
+        )
+        run_id = run.id
+    relay_runtime_outbox(run_id=run_id)
+    if not wait:
+        print(json.dumps({"run_id": str(run_id), "status": "queued"}, separators=(",", ":")))
+        return 0
+
+    deadline = time.monotonic() + timeout_seconds
+    cancellation_sent = False
+    while time.monotonic() < deadline:
+        relay_runtime_outbox(run_id=run_id)
+        with session_scope() as db:
+            current = db.get(AnalysisRun, run_id)
+            if current is None:
+                print("analysis fixture run disappeared", file=sys.stderr)
+                return 1
+            if scenario == "cancel" and not cancellation_sent:
+                running = db.scalar(
+                    select(TaskRun.id).where(
+                        TaskRun.run_id == run_id,
+                        TaskRun.status == TaskStatus.RUNNING,
+                    )
+                )
+                if running:
+                    request_cancellation(db, run_id)
+                    cancellation_sent = True
+            if RunStatus(current.status) in RUN_TERMINAL_STATUSES:
+                report = db.scalar(select(Report).where(Report.run_id == run_id))
+                model_attempts = int(
+                    db.scalar(
+                        select(func.count())
+                        .select_from(UsageEvent)
+                        .where(UsageEvent.run_id == run_id, UsageEvent.operation == "chat")
+                    )
+                    or 0
+                )
+                corrections = int(
+                    db.scalar(
+                        select(func.count())
+                        .select_from(TaskAttempt)
+                        .join(TaskRun, TaskRun.id == TaskAttempt.task_run_id)
+                        .where(TaskRun.run_id == run_id, TaskAttempt.attempt_kind == "correction")
+                    )
+                    or 0
+                )
+                payload = {
+                    "run_id": str(run_id),
+                    "scenario": scenario,
+                    "status": current.status,
+                    "report_id": str(report.id) if report else None,
+                    "report_status": report.payload.get("status") if report else None,
+                    "audit_status": report.audit_status if report else None,
+                    "model_requests": model_attempts,
+                    "correction_attempts": corrections,
+                    "live_calls": 0,
+                }
+                if RunStatus(current.status) == RunStatus.FAILED:
+                    failed_tasks = db.scalars(
+                        select(TaskRun).where(
+                            TaskRun.run_id == run_id,
+                            TaskRun.status.in_((TaskStatus.FAILED, TaskStatus.TIMED_OUT)),
+                        )
+                    ).all()
+                    payload["failed_tasks"] = []
+                    for failed_task in failed_tasks:
+                        latest_attempt = db.scalar(
+                            select(TaskAttempt)
+                            .where(TaskAttempt.task_run_id == failed_task.id)
+                            .order_by(TaskAttempt.attempt_number.desc())
+                            .limit(1)
+                        )
+                        payload["failed_tasks"].append(
+                            {
+                                "task_key": failed_task.workflow_task_key,
+                                "error_code": latest_attempt.error_code if latest_attempt else None,
+                                "error_category": latest_attempt.error_category if latest_attempt else None,
+                            }
+                        )
+                print(json.dumps(payload, separators=(",", ":")))
+                expected = {
+                    "complete": {RunStatus.COMPLETE},
+                    "comments": {RunStatus.COMPLETE},
+                    "partial": {RunStatus.PARTIAL},
+                    "retry_once": {RunStatus.COMPLETE, RunStatus.PARTIAL},
+                    "audit_correction": {RunStatus.COMPLETE, RunStatus.PARTIAL},
+                    "audit_fail": {RunStatus.FAILED},
+                    "cancel": {RunStatus.CANCELLED},
+                }[scenario]
+                published_expected = scenario not in {"audit_fail", "cancel"}
+                return 0 if RunStatus(current.status) in expected and bool(report) == published_expected else 1
+        time.sleep(0.2)
+    print(f"analysis fixture run {run_id} did not finish within {timeout_seconds} seconds", file=sys.stderr)
+    return 1
+
+
 def _hash_password() -> int:
     password = getpass.getpass("Admin password: ")
     confirmation = getpass.getpass("Confirm password: ")
@@ -396,6 +533,21 @@ def main() -> int:
     )
     youtube_smoke.add_argument("--confirm-live-smoke", action="store_true")
     youtube_smoke.add_argument("--video-id", required=True)
+    subcommands.add_parser(
+        "analysis-config-seed",
+        help="Validate and publish the seven bounded Phase 6 agents and workflow",
+    )
+    analysis_fixture = subcommands.add_parser(
+        "analysis-fixture",
+        help="Run the mocked bounded Phase 6 workflow (APP_ENV=test only)",
+    )
+    analysis_fixture.add_argument(
+        "--scenario",
+        choices=("complete", "comments", "partial", "retry_once", "audit_correction", "audit_fail", "cancel"),
+        required=True,
+    )
+    analysis_fixture.add_argument("--wait", action="store_true")
+    analysis_fixture.add_argument("--timeout-seconds", type=int, default=180)
     for command in ("validate", "healthcheck"):
         command_parser = subcommands.add_parser(command)
         command_parser.add_argument("role", choices=("api", "worker", "scheduler", "migrate"))
@@ -427,6 +579,14 @@ def main() -> int:
         return _research_fixture(args.scenario)
     if args.command == "youtube-live-smoke":
         return _youtube_live_smoke(args.video_id, confirmed=args.confirm_live_smoke)
+    if args.command == "analysis-config-seed":
+        return _analysis_config_seed()
+    if args.command == "analysis-fixture":
+        return _analysis_fixture(
+            args.scenario,
+            wait=args.wait,
+            timeout_seconds=args.timeout_seconds,
+        )
     if args.command == "validate":
         return _validate(args.role)
     if args.command == "healthcheck":

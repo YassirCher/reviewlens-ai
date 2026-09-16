@@ -45,10 +45,19 @@
    - PostgreSQL graph/lexical retrieval continues truthfully when either projection is unavailable
 
 12. Typed research tools
-   - exactly the published `1.0.0` static registry is executable; database metadata cannot select handlers or URLs
+   - the original published `1.0.0` registry remains immutable; checked-in compatible successors are executable only through matching run snapshots
    - task/agent snapshot allowlists, roles, workspaces, timeouts, retries, and output caps are enforced
    - every external attempt has a sanitized durable invocation and Pacific-window quota reservation
    - source selection is relevant, diverse, deterministic, and continues past missing transcripts
    - comments are opt-in, bounded, deduplicated, and secondary-trust only
    - transcript chunks preserve timestamp order and source lineage
    - injected source text remains untrusted data; evidence and scoring reject unsupported publication
+
+13. Bounded multi-agent workflow
+   - exactly seven checked-in roles publish only after catalog compatibility and critical evaluations pass
+   - prompts place trusted policy/schema/task data before explicitly delimited untrusted bodies
+   - source and optional comment branches fan out only from declared templates and join under deterministic minimum-success rules
+   - each chat request is snapshot-resolved, fully attributed, budgeted, and limited to one network attempt per durable task attempt
+   - invalid structured output permits one correction without overwriting the failed attempt
+   - deterministic evidence/scoring/audit gates own verdicts and publication; repeated audit failure and cancellation publish nothing
+   - immutable internal reports and complete safe reconstruction retain attempts, manifests, usage, tools, graph hashes, audit, and report identity

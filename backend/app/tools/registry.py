@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -136,7 +136,20 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
     _spec("scoring.preview", "Scoring preview", "Calculate deterministic score, verdict, and confidence boundaries.", ScoringPreviewInput, ScoringPreviewOutput, ToolRisk.PURE, ("compute",), ("deterministic", "consensus_analyst", "quality_auditor"), 5, 1, 100_000, "request_hash"),
 )
 
-TOOL_REGISTRY = {item.key: item for item in TOOL_SPECS}
+TOOL_SUCCESSOR_SPECS: tuple[ToolSpec, ...] = (
+    replace(
+        next(item for item in TOOL_SPECS if item.key == "evidence.validate"),
+        semantic_version="1.1.0",
+        allowed_roles=("deterministic", "review_analyst", "knowledge_curator", "quality_auditor"),
+    ),
+    replace(
+        next(item for item in TOOL_SPECS if item.key == "scoring.preview"),
+        semantic_version="1.1.0",
+        allowed_roles=("deterministic", "review_analyst", "consensus_analyst", "quality_auditor"),
+    ),
+)
+ALL_TOOL_SPECS = (*TOOL_SPECS, *TOOL_SUCCESSOR_SPECS)
+TOOL_REGISTRY = {item.key: item for item in ALL_TOOL_SPECS}
 HANDLER_REGISTRY = {item.handler: item.key for item in TOOL_SPECS}
 
 
@@ -147,7 +160,7 @@ class ToolRegistryConflict(RuntimeError):
 def seed_tool_registry(db: Session) -> dict[str, int]:
     created_definitions = 0
     created_versions = 0
-    for spec in TOOL_SPECS:
+    for spec in ALL_TOOL_SPECS:
         definition = db.scalar(select(ToolDefinition).where(ToolDefinition.key == spec.key))
         if definition is None:
             definition = ToolDefinition(
@@ -176,7 +189,11 @@ def seed_tool_registry(db: Session) -> dict[str, int]:
                 semantic_version=spec.semantic_version,
                 lifecycle="published",
                 content_hash=spec.content_hash,
-                change_note="Phase 5 curated typed tool registry",
+                change_note=(
+                    "Phase 5 curated typed tool registry"
+                    if spec.semantic_version == "1.0.0"
+                    else "Phase 6 compatible role-allowlist successor"
+                ),
                 published_at=datetime.now(timezone.utc),
                 input_schema=payload["input_schema"],
                 output_schema=payload["output_schema"],
@@ -185,6 +202,7 @@ def seed_tool_registry(db: Session) -> dict[str, int]:
                 risk_class=payload["risk_class"],
             )
             db.add(version)
+            db.flush()
             created_versions += 1
         elif version.content_hash != spec.content_hash or version.lifecycle != "published":
             raise ToolRegistryConflict(f"tool version {spec.key}@{spec.semantic_version} conflicts with checked-in registry")

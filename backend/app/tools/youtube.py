@@ -205,7 +205,8 @@ class YouTubeDataClient:
             try:
                 response = await self.client.get(
                     f"{self.config.youtube_base_url.rstrip('/')}/{path}",
-                    params={**params, "key": self.config.youtube_api_key},
+                    params=params,
+                    headers={"X-Goog-Api-Key": self.config.youtube_api_key},
                 )
             except (httpx.ConnectError, httpx.ConnectTimeout):
                 finalize_quota(reservation_id, consumed=False)

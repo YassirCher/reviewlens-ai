@@ -45,6 +45,12 @@ class Settings(BaseSettings):
     openrouter_smoke_embedding_model: str = ""
     openrouter_smoke_max_cost_microusd: int = Field(default=10_000, ge=1, le=100_000)
 
+    # Target V2 agent policy. This must never fall back to the legacy
+    # OPENROUTER_MODEL compatibility setting above.
+    v2_agent_chat_models: str = "deepseek/deepseek-v4-flash"
+    v2_agent_max_concurrency: int = Field(default=4, ge=1, le=32)
+    v2_analysis_run_timeout_seconds: int = Field(default=900, ge=60, le=3600)
+
     xai_api_key: str = ""
     xai_model: str = "grok-4.5"
     openai_api_key: str = ""
@@ -146,6 +152,12 @@ class Settings(BaseSettings):
         return self.app_env.lower() in {"development", "local", "test"}
 
     @property
+    def v2_agent_model_slugs(self) -> tuple[str, ...]:
+        return tuple(
+            dict.fromkeys(item.strip() for item in self.v2_agent_chat_models.split(",") if item.strip())
+        )
+
+    @property
     def node_roots(self) -> tuple[Path, Path]:
         return Path(self.node_storage_root), Path(self.node_quarantine_root)
 
@@ -214,6 +226,12 @@ class Settings(BaseSettings):
                 "OPENROUTER_RETRY_MAX_SECONDS must be greater than or equal to "
                 "OPENROUTER_RETRY_BASE_SECONDS"
             )
+        if not self.v2_agent_model_slugs:
+            errors.append("V2_AGENT_CHAT_MODELS must contain at least one model slug")
+        elif len(self.v2_agent_model_slugs) != 1:
+            errors.append("V2_AGENT_CHAT_MODELS must contain exactly one model slug in Phase 6")
+        elif any("/" not in item for item in self.v2_agent_model_slugs):
+            errors.append("V2_AGENT_CHAT_MODELS must contain canonical author/model slugs")
         if self.youtube_retry_max_seconds < self.youtube_retry_base_seconds:
             errors.append(
                 "YOUTUBE_RETRY_MAX_SECONDS must be greater than or equal to "

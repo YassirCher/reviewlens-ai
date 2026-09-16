@@ -243,8 +243,24 @@ class AgentVersion(VersionMixin, Base):
         UUID(as_uuid=True), ForeignKey("agent_definitions.id", ondelete="CASCADE"), nullable=False
     )
     system_prompt: Mapped[str] = mapped_column(Text, nullable=False)
+    purpose: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    prohibited_behaviors: Mapped[list] = mapped_column(
+        JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
+    )
+    input_schema: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
     output_schema: Mapped[dict] = mapped_column(JSONB, nullable=False)
     retrieval_policy: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    generation_config: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
+    execution_limits: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
+    evaluation_metadata: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
     model_policy_version_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("model_policy_versions.id", ondelete="RESTRICT")
     )
@@ -264,6 +280,35 @@ class AgentVersionTool(Base):
     tool_version_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("tool_versions.id", ondelete="RESTRICT"), primary_key=True
     )
+
+
+class AgentEvaluationResult(UUIDPrimaryKeyMixin, Base):
+    __tablename__ = "agent_evaluation_results"
+    __table_args__ = (
+        CheckConstraint("status IN ('passed', 'failed')", name="status_valid"),
+    )
+
+    agent_version_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agent_versions.id", ondelete="RESTRICT"), nullable=False
+    )
+    model_policy_version_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("model_policy_versions.id", ondelete="RESTRICT"), nullable=False
+    )
+    suite_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    suite_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    metrics: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    issue_codes: Mapped[list] = mapped_column(
+        JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+Index(
+    "ix_agent_evaluation_results_version_created",
+    AgentEvaluationResult.agent_version_id,
+    AgentEvaluationResult.created_at,
+)
 
 
 class WorkflowVersion(VersionMixin, Base):
@@ -343,6 +388,9 @@ class AnalysisRun(UUIDPrimaryKeyMixin, TimestampMixin, OptimisticLockMixin, Base
         nullable=False,
         unique=True,
     )
+    report_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("reports.id", ondelete="RESTRICT", use_alter=True)
+    )
     progress_sequence: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0, server_default="0")
     coverage: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
     warning_summary: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
@@ -402,6 +450,11 @@ class TaskRun(UUIDPrimaryKeyMixin, TimestampMixin, OptimisticLockMixin, Base):
         CheckConstraint("max_attempts > 0", name="max_attempts_positive"),
         CheckConstraint("timeout_seconds > 0", name="timeout_seconds_positive"),
         CheckConstraint("weight > 0", name="weight_positive"),
+        CheckConstraint(
+            "dependency_mode IN ('all_succeeded', 'all_terminal_min_success')",
+            name="dependency_mode_valid",
+        ),
+        CheckConstraint("minimum_successes >= 0", name="minimum_successes_nonnegative"),
     )
 
     run_id: Mapped[uuid.UUID] = mapped_column(
@@ -422,6 +475,11 @@ class TaskRun(UUIDPrimaryKeyMixin, TimestampMixin, OptimisticLockMixin, Base):
     weight: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
     timeout_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
     max_attempts: Mapped[int] = mapped_column(Integer, nullable=False)
+    dependency_mode: Mapped[str] = mapped_column(
+        String(40), nullable=False, default="all_succeeded", server_default="all_succeeded"
+    )
+    minimum_successes: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    optional: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
     retry_policy: Mapped[dict] = mapped_column(JSONB, nullable=False)
     input_payload: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
     idempotency_key: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
@@ -454,6 +512,17 @@ class TaskDependency(Base):
     )
 
 
+class TaskRunTool(Base):
+    __tablename__ = "task_run_tools"
+
+    task_run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("task_runs.id", ondelete="CASCADE"), primary_key=True
+    )
+    tool_version_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tool_versions.id", ondelete="RESTRICT"), primary_key=True
+    )
+
+
 class TaskAttempt(UUIDPrimaryKeyMixin, Base):
     __tablename__ = "task_attempts"
     __table_args__ = (
@@ -464,12 +533,30 @@ class TaskAttempt(UUIDPrimaryKeyMixin, Base):
             name="status_valid",
         ),
         CheckConstraint("duration_ms IS NULL OR duration_ms >= 0", name="duration_nonnegative"),
+        CheckConstraint(
+            "attempt_kind IN ('primary', 'retry', 'correction')",
+            name="attempt_kind_valid",
+        ),
     )
 
     task_run_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("task_runs.id", ondelete="CASCADE"), nullable=False
     )
     attempt_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    attempt_kind: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="primary", server_default="primary"
+    )
+    correction_of_attempt_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("task_attempts.id", ondelete="RESTRICT")
+    )
+    context_manifest_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("context_manifests.id", ondelete="RESTRICT", use_alter=True)
+    )
+    prompt_hash: Mapped[str | None] = mapped_column(String(64))
+    invalid_output_hash: Mapped[str | None] = mapped_column(String(64))
+    validator_results: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
     status: Mapped[str] = mapped_column(String(20), nullable=False)
     input_payload: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
     input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -1184,6 +1271,46 @@ Index(
     ProjectionOutbox.next_attempt_at,
     postgresql_where=ProjectionOutbox.status.in_(("pending", "failed")),
 )
+
+
+class Report(UUIDPrimaryKeyMixin, Base):
+    __tablename__ = "reports"
+    __table_args__ = (
+        CheckConstraint("schema_version > 0", name="schema_version_positive"),
+        CheckConstraint(
+            "audit_status IN ('pass', 'pass_with_warnings', 'fail')",
+            name="audit_status_valid",
+        ),
+        CheckConstraint(
+            "status IN ('draft', 'published', 'revoked')",
+            name="status_valid",
+        ),
+    )
+
+    run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("analysis_runs.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="RESTRICT"), nullable=False
+    )
+    configuration_snapshot_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("configuration_snapshots.id", ondelete="RESTRICT"), nullable=False
+    )
+    report_node_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("context_nodes.id", ondelete="RESTRICT"), nullable=False
+    )
+    schema_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    audit_result: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    audit_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft", server_default="draft")
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+Index("ix_reports_status_created_at", Report.status, Report.created_at)
 
 
 VERSION_TABLE_NAMES = (

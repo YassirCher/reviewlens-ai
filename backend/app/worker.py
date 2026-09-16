@@ -76,6 +76,20 @@ def expire_admin_sessions() -> None:
         revoke_expired_sessions(db)
 
 
+def _safe_runtime_task_result(result: dict) -> dict[str, str | int]:
+    """Discard persisted task output before Celery formats its completion log."""
+    status = result.get("status")
+    allowed = {
+        "succeeded", "failed", "retrying", "cancelled", "timed_out",
+        "queued", "running", "missing", "skipped", "duplicate",
+    }
+    attempt_number = result.get("attempt_number")
+    return {
+        "status": status if status in allowed else "unknown",
+        "attempt_number": attempt_number if type(attempt_number) is int else 0,
+    }
+
+
 @celery_app.task(
     bind=True,
     name="reviewlens.runtime.execute_task",
@@ -87,19 +101,22 @@ def execute_runtime_task(self, task_run_id: str, expected_attempt_number: int) -
 
     task_id = uuid.UUID(task_run_id)
     try:
-        return execute_task_run(
+        result = execute_task_run(
             task_id,
             expected_attempt_number=expected_attempt_number,
             celery_task_id=self.request.id,
             worker_identity=self.request.hostname,
         )
     except SoftTimeLimitExceeded:
-        return fail_active_attempt(
+        result = fail_active_attempt(
             task_id,
             code="task_soft_time_limit",
             category="timeout",
             retryable=True,
         )
+    # Celery logs and may retain task return values. Runtime outputs can contain
+    # untrusted YouTube bodies, so only return a fixed, content-free receipt.
+    return _safe_runtime_task_result(result)
 
 
 @celery_app.task(name="reviewlens.runtime.relay_outbox")

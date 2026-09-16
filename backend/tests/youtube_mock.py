@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import Counter
 from datetime import datetime, timezone
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, Header, HTTPException, Query, Request
 
 app = FastAPI(title="ReviewLens YouTube contract mock")
 CALLS: Counter[str] = Counter()
@@ -33,6 +33,15 @@ def _scenario(value: str) -> str:
         return "missing"
     if "comments off" in lowered:
         return "comments_off"
+    for marker, scenario in (
+        ("retry once", "retry_once"),
+        ("audit correction", "audit_correction"),
+        ("audit fail", "audit_fail"),
+        ("comments", "comments"),
+        ("cancel", "cancel"),
+    ):
+        if marker in lowered:
+            return scenario
     return "complete"
 
 
@@ -43,10 +52,29 @@ def _ids(scenario: str) -> list[str]:
         return ["misscap1", "miss0001", "miss0002", "miss0003", "miss0004", "miss0005", "miss0006"]
     if scenario == "comments_off":
         return [f"off0000{index}" for index in range(1, 8)]
+    phase6_prefixes = {
+        "retry_once": "retry",
+        "audit_correction": "acorr",
+        "audit_fail": "afail",
+        "comments": "comm",
+        "cancel": "cncl",
+    }
+    if scenario in phase6_prefixes:
+        return [f"{phase6_prefixes[scenario]}000{index}" for index in range(1, 8)]
     return [f"full000{index}" for index in range(1, 8)]
 
 
 def _label(video_id: str) -> str:
+    phase6_labels = {
+        "retry": "Phase 6 retry once fixture",
+        "acorr": "Phase 6 audit correction fixture",
+        "afail": "Phase 6 audit fail fixture",
+        "comm": "Phase 6 comments fixture",
+        "cncl": "Phase 6 cancel fixture",
+    }
+    for prefix, label in phase6_labels.items():
+        if video_id.startswith(prefix):
+            return label
     if video_id.startswith("part"):
         return "Phase 5 partial fixture"
     if video_id.startswith("miss"):
@@ -56,8 +84,19 @@ def _label(video_id: str) -> str:
     return "Phase 5 complete fixture"
 
 
+def _require_header_key(request: Request, value: str | None) -> None:
+    if not value or "key" in request.query_params:
+        raise HTTPException(status_code=401, detail="header API key required")
+
+
 @app.get("/youtube/v3/search")
-def search(q: str, maxResults: int = Query(default=20, ge=1, le=50)) -> dict:
+def search(
+    request: Request,
+    q: str,
+    maxResults: int = Query(default=20, ge=1, le=50),
+    x_goog_api_key: str | None = Header(default=None),
+) -> dict:
+    _require_header_key(request, x_goog_api_key)
     CALLS["search"] += 1
     scenario = _scenario(q)
     now = datetime.now(timezone.utc).isoformat()
@@ -78,7 +117,8 @@ def search(q: str, maxResults: int = Query(default=20, ge=1, le=50)) -> dict:
 
 
 @app.get("/youtube/v3/videos")
-def videos(id: str) -> dict:
+def videos(request: Request, id: str, x_goog_api_key: str | None = Header(default=None)) -> dict:
+    _require_header_key(request, x_goog_api_key)
     CALLS["videos"] += 1
     now = datetime.now(timezone.utc).isoformat()
     items = []
@@ -109,7 +149,13 @@ def videos(id: str) -> dict:
 
 
 @app.get("/youtube/v3/commentThreads")
-def comments(videoId: str, maxResults: int = Query(default=30, ge=1, le=100)) -> dict:
+def comments(
+    request: Request,
+    videoId: str,
+    maxResults: int = Query(default=30, ge=1, le=100),
+    x_goog_api_key: str | None = Header(default=None),
+) -> dict:
+    _require_header_key(request, x_goog_api_key)
     CALLS["comments"] += 1
     now = datetime.now(timezone.utc).isoformat()
     items = []

@@ -288,6 +288,13 @@ def build_context_packet(
     rendered_packet = "".join(rendered_parts)
     mode = _mode(workspace, vector_scores is not None)
     policy_payload = request.policy.model_dump(mode="json")
+    for field in (
+        "allowed_node_types",
+        "allowed_trust_levels",
+        "required_seed_node_types",
+        "allowed_relation_types",
+    ):
+        policy_payload[field] = sorted(policy_payload[field])
     manifest = ContextManifest(
         id=uuid.uuid4(),
         workspace_id=workspace.id,

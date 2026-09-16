@@ -186,6 +186,7 @@ class ChatInvocation(StrictModel):
     schema_name: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z][A-Za-z0-9_-]{0,63}$")
     estimated_prompt_tokens: int = Field(ge=0)
     estimated_cost_microusd: int = Field(ge=0)
+    max_network_attempts: int | None = Field(default=None, ge=1, le=5)
 
 
 class EmbeddingInvocation(StrictModel):

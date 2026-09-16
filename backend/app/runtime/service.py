@@ -17,15 +17,24 @@ from app.db.models import (
     AnalysisRun,
     BudgetPolicyVersion,
     ConfigurationSnapshot,
+    ContextEdge,
+    ContextManifest,
+    ContextNode,
+    ContextNodeVersion,
     EmbeddingPolicyVersion,
     ModelPolicyVersion,
     ProgressEvent,
+    Report,
     RunBudgetState,
     RuntimeOutbox,
     TaskAttempt,
     TaskDependency,
     TaskRun,
+    TaskRunTool,
+    ToolInvocation,
     ToolVersion,
+    UsageEvent,
+    Workspace,
     WorkflowVersion,
 )
 from app.db.session import session_scope
@@ -56,11 +65,21 @@ class RuntimeConfigurationError(RuntimeError):
 
 
 class RuntimeTaskError(RuntimeError):
-    def __init__(self, code: str, *, category: str = "internal", retryable: bool = False) -> None:
+    def __init__(
+        self,
+        code: str,
+        *,
+        category: str = "internal",
+        retryable: bool = False,
+        invalid_output_hash: str | None = None,
+        validator_results: dict[str, Any] | None = None,
+    ) -> None:
         super().__init__(code)
         self.code = code
         self.category = category
         self.retryable = retryable
+        self.invalid_output_hash = invalid_output_hash
+        self.validator_results = validator_results or {}
 
 
 class RuntimeTaskCancelled(RuntimeTaskError):
@@ -111,7 +130,10 @@ def _usd_to_micros(value: Decimal) -> int:
     return int((value * Decimal(1_000_000)).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
 
-def build_configuration_snapshot(db: Session) -> tuple[ConfigurationSnapshot, WorkflowDag, BudgetPolicyVersion]:
+def build_configuration_snapshot(
+    db: Session,
+    requested_options: dict[str, Any] | None = None,
+) -> tuple[ConfigurationSnapshot, WorkflowDag, BudgetPolicyVersion]:
     active = db.get(ActiveConfiguration, 1)
     if active is None:
         raise RuntimeConfigurationError("active configuration is missing")
@@ -121,12 +143,32 @@ def build_configuration_snapshot(db: Session) -> tuple[ConfigurationSnapshot, Wo
     _require_published(budget, "active budget policy")
     assert workflow is not None and budget is not None
 
-    dag = WorkflowDag.model_validate(workflow.dag)
+    workflow_template = WorkflowDag.model_validate(workflow.dag)
+    options = requested_options or {}
+    source_count = int(
+        options.get(
+            "source_count",
+            options.get("requested_source_count", budget.default_video_count),
+        )
+    )
+    comments_enabled = bool(options.get("analyze_comments", budget.comments_enabled_default))
+    dag = workflow_template.materialize(
+        source_count=source_count,
+        comments_enabled=comments_enabled,
+    )
     agent_ids = sorted(
         {task.agent_version_id for task in dag.tasks if task.agent_version_id}, key=str
     )
     tool_ids = sorted(
-        {task.tool_version_id for task in dag.tasks if task.tool_version_id}, key=str
+        {
+            tool_id
+            for task in dag.tasks
+            for tool_id in (
+                *((task.tool_version_id,) if task.tool_version_id else ()),
+                *task.allowed_tool_version_ids,
+            )
+        },
+        key=str,
     )
     agents = [db.get(AgentVersion, item) for item in agent_ids]
     tools = [db.get(ToolVersion, item) for item in tool_ids]
@@ -168,11 +210,40 @@ def build_configuration_snapshot(db: Session) -> tuple[ConfigurationSnapshot, Wo
         "workflow": _version_ref(workflow),
         "budget_policy": _version_ref(budget),
         "embedding_policy": embedding,
-        "agents": [_version_ref(item) for item in agents if item],
-        "tools": [_version_ref(item) for item in tools if item],
+        "agents": [
+            {
+                **_version_ref(item),
+                "purpose": item.purpose,
+                "system_prompt_hash": canonical_json_hash(item.system_prompt),
+                "input_schema_hash": canonical_json_hash(item.input_schema),
+                "output_schema_hash": canonical_json_hash(item.output_schema),
+                "retrieval_policy": item.retrieval_policy,
+                "generation_config": item.generation_config,
+                "execution_limits": item.execution_limits,
+                "evaluation_metadata": item.evaluation_metadata,
+            }
+            for item in agents
+            if item
+        ],
+        "tools": [
+            {
+                **_version_ref(item),
+                "semantic_version": item.semantic_version,
+                "limits": item.limits,
+            }
+            for item in tools
+            if item
+        ],
         "model_policies": [_version_ref(item) for item in models if item],
         "feature_flags": active.feature_flags,
+        "workflow_template": workflow_template.model_dump(mode="json"),
         "dag": dag.model_dump(mode="json"),
+        "publication_policy": {
+            "audit_required": True,
+            "allowed_audit_verdicts": ["pass", "pass_with_warnings"],
+            "minimum_valid_sources": 1,
+            "correction_attempts": 1,
+        },
         "budget_limits": {
             "max_tokens": _budget_max_tokens(budget),
             "max_cost_microusd": _usd_to_micros(budget.public_run_cost_cap_usd),
@@ -199,7 +270,8 @@ def create_run(
     requested_options: dict[str, Any] | None = None,
 ) -> AnalysisRun:
     display_product, canonical_product = normalize_product_name(product_name)
-    snapshot, dag, budget = build_configuration_snapshot(db)
+    options = requested_options or {}
+    snapshot, dag, budget = build_configuration_snapshot(db, options)
     now = utc_now()
     run = AnalysisRun(
         id=uuid.uuid4(),
@@ -207,7 +279,7 @@ def create_run(
         canonical_product=canonical_product,
         initiator_type=initiator_type,
         initiator_id=initiator_id,
-        requested_options=requested_options or {},
+        requested_options=options,
         status=RunStatus.QUEUED,
         configuration_snapshot_id=snapshot.id,
         progress_sequence=0,
@@ -238,16 +310,19 @@ def create_run(
             id=uuid.uuid4(),
             run_id=run.id,
             workflow_task_key=spec.task_key,
-            source_key=None,
             executor_kind=spec.executor_kind,
             handler=spec.handler,
             agent_version_id=spec.agent_version_id,
             tool_version_id=spec.tool_version_id,
+            source_key=spec.source_key,
             status=TaskStatus.BLOCKED if spec.dependencies else TaskStatus.QUEUED,
             priority=spec.priority,
             weight=spec.weight,
             timeout_seconds=spec.timeout_seconds,
             max_attempts=spec.retry.max_attempts,
+            dependency_mode=spec.dependency_mode,
+            minimum_successes=spec.minimum_successes,
+            optional=spec.optional,
             retry_policy=spec.retry.model_dump(mode="json"),
             input_payload=spec.input,
             idempotency_key=stable_idempotency_key(run.id, spec.task_key, "root"),
@@ -257,6 +332,15 @@ def create_run(
         tasks_by_key[spec.task_key] = task
         db.add(task)
     db.flush()
+
+    for spec in dag.tasks:
+        task = tasks_by_key[spec.task_key]
+        tool_ids = {
+            *spec.allowed_tool_version_ids,
+            *((spec.tool_version_id,) if spec.tool_version_id else ()),
+        }
+        for tool_id in tool_ids:
+            db.add(TaskRunTool(task_run_id=task.id, tool_version_id=tool_id))
 
     for spec in dag.tasks:
         for upstream_key in spec.dependencies:
@@ -583,7 +667,7 @@ def execute_task_run(
                 detail="The run execution envelope is exhausted.",
                 admin_metadata={"error_category": "budget", "error_code": "budget_exceeded"},
             )
-            _skip_blocked_descendants(db, run, task.id)
+            _evaluate_dependents(db, run, task.id)
             _finalize_run(db, run)
             return {"status": "failed", "error_code": "budget_exceeded"}
         if now >= task.deadline_at or now >= run.deadline_at:
@@ -598,21 +682,40 @@ def execute_task_run(
                 detail="The task deadline elapsed before execution.",
                 admin_metadata={"error_category": "timeout", "error_code": "deadline_elapsed"},
             )
-            _skip_blocked_descendants(db, run, task.id)
+            _evaluate_dependents(db, run, task.id)
             _finalize_run(db, run)
             return {"status": "timed_out"}
 
         attempt_number = task.current_attempt + 1
         attempt_id = uuid.uuid4()
+        previous_attempt = db.scalar(
+            select(TaskAttempt)
+            .where(TaskAttempt.task_run_id == task.id)
+            .order_by(TaskAttempt.attempt_number.desc())
+            .limit(1)
+        )
+        attempt_kind = "primary"
+        correction_of_attempt_id = None
+        attempt_input = dict(task.input_payload)
+        if previous_attempt is not None:
+            attempt_kind = "correction" if previous_attempt.error_category == "validation" else "retry"
+            if attempt_kind == "correction":
+                correction_of_attempt_id = previous_attempt.id
+                attempt_input["correction"] = {
+                    "invalid_output_hash": previous_attempt.invalid_output_hash,
+                    "validator_results": previous_attempt.validator_results,
+                }
         lease_expires = now + timedelta(seconds=config.runtime_task_lease_seconds)
         task.deadline_at = min(run.deadline_at, now + timedelta(seconds=task.timeout_seconds))
         attempt = TaskAttempt(
             id=attempt_id,
             task_run_id=task.id,
             attempt_number=attempt_number,
+            attempt_kind=attempt_kind,
+            correction_of_attempt_id=correction_of_attempt_id,
             status=AttemptStatus.RUNNING,
-            input_payload=task.input_payload,
-            input_hash=canonical_json_hash(task.input_payload),
+            input_payload=attempt_input,
+            input_hash=canonical_json_hash(attempt_input),
             celery_task_id=celery_task_id,
             worker_identity=worker_identity or socket.gethostname(),
             lease_expires_at=lease_expires,
@@ -644,13 +747,22 @@ def execute_task_run(
             admin_metadata={"attempt_number": attempt_number},
         )
         handler = task.handler
-        input_payload = dict(task.input_payload)
+        input_payload = attempt_input
 
     assert attempt_id is not None and run_id is not None
     try:
         from app.tools.registry import HANDLER_REGISTRY
 
-        if handler in HANDLER_REGISTRY:
+        if handler.startswith("analysis."):
+            from app.analysis.executor import execute_analysis_handler
+
+            output = execute_analysis_handler(
+                attempt_id,
+                handler,
+                input_payload,
+                config=config,
+            )
+        elif handler in HANDLER_REGISTRY:
             from app.tools.errors import ToolExecutionError
             from app.tools.runner import execute_registered_tool
 
@@ -769,6 +881,8 @@ def _complete_attempt_failure(
         attempt.error_category = error.category
         attempt.error_code = error.code
         attempt.retryable = error.retryable
+        attempt.invalid_output_hash = error.invalid_output_hash
+        attempt.validator_results = error.validator_results
 
         if error.category == "cancelled" or run.status == RunStatus.CANCELLING:
             attempt.status = AttemptStatus.CANCELLED
@@ -813,7 +927,7 @@ def _complete_attempt_failure(
         terminal = TaskStatus.TIMED_OUT if error.category == "timeout" else TaskStatus.FAILED
         _set_task_status(task, terminal)
         task.completed_at = now
-        _skip_blocked_descendants(db, run, task.id)
+        _evaluate_dependents(db, run, task.id)
         _finalize_run(db, run)
         return {"status": terminal.value, "attempt_number": attempt.attempt_number}
 
@@ -846,6 +960,14 @@ def fail_active_attempt(
 
 
 def _unblock_dependents(db: Session, run: AnalysisRun, upstream_id: uuid.UUID) -> None:
+    _evaluate_dependents(db, run, upstream_id)
+
+
+def _evaluate_dependents(db: Session, run: AnalysisRun, upstream_id: uuid.UUID) -> None:
+    # Runtime sessions disable autoflush so transaction assembly stays explicit.
+    # Persist the upstream terminal transition before dependency status queries;
+    # recursive fan-in evaluation must observe each newly skipped task as well.
+    db.flush()
     downstream_ids = list(
         db.scalars(
             select(TaskDependency.downstream_task_id).where(
@@ -864,9 +986,27 @@ def _unblock_dependents(db: Session, run: AnalysisRun, upstream_id: uuid.UUID) -
                 .where(TaskDependency.downstream_task_id == task.id)
             )
         )
-        if upstream_statuses and all(status == TaskStatus.SUCCEEDED for status in upstream_statuses):
+        statuses = [TaskStatus(status) for status in upstream_statuses]
+        all_terminal = bool(statuses) and all(status in TASK_TERMINAL_STATUSES for status in statuses)
+        succeeded = sum(status == TaskStatus.SUCCEEDED for status in statuses)
+        if task.dependency_mode == "all_terminal_min_success":
+            if not all_terminal:
+                continue
+            if succeeded >= task.minimum_successes:
+                _set_task_status(task, TaskStatus.QUEUED)
+                queue_task_dispatch(db, run, task)
+            else:
+                _set_task_status(task, TaskStatus.SKIPPED)
+                task.completed_at = utc_now()
+                _evaluate_dependents(db, run, task.id)
+            continue
+        if statuses and all(status == TaskStatus.SUCCEEDED for status in statuses):
             _set_task_status(task, TaskStatus.QUEUED)
             queue_task_dispatch(db, run, task)
+        elif any(status in {TaskStatus.FAILED, TaskStatus.TIMED_OUT, TaskStatus.CANCELLED, TaskStatus.SKIPPED} for status in statuses):
+            _set_task_status(task, TaskStatus.SKIPPED)
+            task.completed_at = utc_now()
+            _evaluate_dependents(db, run, task.id)
 
 
 def _skip_blocked_descendants(db: Session, run: AnalysisRun, upstream_id: uuid.UUID) -> None:
@@ -939,6 +1079,28 @@ def _finalize_run(db: Session, run: AnalysisRun) -> None:
         )
         _close_budget(db, run.id)
         return
+    active = statuses & {
+        TaskStatus.BLOCKED,
+        TaskStatus.QUEUED,
+        TaskStatus.RUNNING,
+        TaskStatus.CANCELLING,
+    }
+    report = db.scalar(select(Report).where(Report.run_id == run.id))
+    if not active and report is not None and report.status == "published":
+        target = RunStatus.PARTIAL if report.payload.get("status") == "partial" else RunStatus.COMPLETE
+        _set_run_status(run, target)
+        run.completed_at = now
+        run.report_id = report.id
+        event_type = "run.partial" if target == RunStatus.PARTIAL else "run.completed"
+        append_progress(
+            db,
+            run,
+            event_type=event_type,
+            label="Analysis completed with partial coverage" if target == RunStatus.PARTIAL else "Analysis completed",
+            detail="The evidence-valid internal report passed its publication gate.",
+        )
+        _close_budget(db, run.id)
+        return
     if tasks and all(status == TaskStatus.SUCCEEDED for status in statuses) and len(statuses) == 1:
         _set_run_status(run, RunStatus.COMPLETE)
         run.completed_at = now
@@ -951,12 +1113,6 @@ def _finalize_run(db: Session, run: AnalysisRun) -> None:
         )
         _close_budget(db, run.id)
         return
-    active = statuses & {
-        TaskStatus.BLOCKED,
-        TaskStatus.QUEUED,
-        TaskStatus.RUNNING,
-        TaskStatus.CANCELLING,
-    }
     if not active and statuses & {TaskStatus.FAILED, TaskStatus.TIMED_OUT}:
         if run.status == RunStatus.QUEUED:
             _set_run_status(run, RunStatus.FAILED)
@@ -1021,7 +1177,7 @@ def recover_stale_attempts(config: Settings = settings) -> int:
                 else:
                     _set_task_status(task, TaskStatus.FAILED)
                     task.completed_at = now
-                    _skip_blocked_descendants(db, run, task.id)
+                    _evaluate_dependents(db, run, task.id)
             append_progress(
                 db,
                 run,
@@ -1111,6 +1267,56 @@ def reconstruct_run(db: Session, run_id: uuid.UUID) -> dict[str, Any]:
             .order_by(ProgressEvent.sequence)
         )
     )
+    report = db.scalar(select(Report).where(Report.run_id == run.id))
+    manifests = (
+        list(
+            db.scalars(
+                select(ContextManifest)
+                .where(ContextManifest.task_attempt_id.in_([item.id for item in attempts]))
+                .order_by(ContextManifest.created_at, ContextManifest.id)
+            )
+        )
+        if attempts
+        else []
+    )
+    usage = list(
+        db.scalars(
+            select(UsageEvent)
+            .where(UsageEvent.run_id == run.id)
+            .order_by(UsageEvent.created_at, UsageEvent.id)
+        )
+    )
+    invocations = list(
+        db.scalars(
+            select(ToolInvocation)
+            .where(ToolInvocation.run_id == run.id)
+            .order_by(ToolInvocation.started_at, ToolInvocation.id)
+        )
+    )
+    workspace = db.scalar(select(Workspace).where(Workspace.run_id == run.id))
+    nodes = (
+        list(
+            db.execute(
+                select(ContextNode, ContextNodeVersion)
+                .join(ContextNodeVersion, ContextNodeVersion.id == ContextNode.current_version_id)
+                .where(ContextNode.workspace_id == workspace.id)
+                .order_by(ContextNode.created_at, ContextNode.id)
+            )
+        )
+        if workspace
+        else []
+    )
+    edges = (
+        list(
+            db.scalars(
+                select(ContextEdge)
+                .where(ContextEdge.workspace_id == workspace.id)
+                .order_by(ContextEdge.created_at, ContextEdge.id)
+            )
+        )
+        if workspace
+        else []
+    )
     return {
         "run": {
             "id": str(run.id),
@@ -1121,6 +1327,7 @@ def reconstruct_run(db: Session, run_id: uuid.UUID) -> dict[str, Any]:
             "deadline_at": run.deadline_at.isoformat(),
             "completed_at": run.completed_at.isoformat() if run.completed_at else None,
             "error_code": run.error_code,
+            "report_id": str(run.report_id) if run.report_id else None,
         },
         "configuration_snapshot": {
             "id": str(snapshot.id),
@@ -1142,6 +1349,10 @@ def reconstruct_run(db: Session, run_id: uuid.UUID) -> dict[str, Any]:
                 "status": task.status,
                 "current_attempt": task.current_attempt,
                 "input_hash": canonical_json_hash(task.input_payload),
+                "source_key": task.source_key,
+                "dependency_mode": task.dependency_mode,
+                "minimum_successes": task.minimum_successes,
+                "optional": task.optional,
             }
             for task in tasks
         ],
@@ -1150,11 +1361,21 @@ def reconstruct_run(db: Session, run_id: uuid.UUID) -> dict[str, Any]:
                 "id": str(attempt.id),
                 "task_run_id": str(attempt.task_run_id),
                 "attempt_number": attempt.attempt_number,
+                "attempt_kind": attempt.attempt_kind,
+                "correction_of_attempt_id": (
+                    str(attempt.correction_of_attempt_id) if attempt.correction_of_attempt_id else None
+                ),
                 "status": attempt.status,
                 "input_hash": attempt.input_hash,
                 "output_hash": attempt.output_hash,
                 "error_category": attempt.error_category,
                 "error_code": attempt.error_code,
+                "context_manifest_id": (
+                    str(attempt.context_manifest_id) if attempt.context_manifest_id else None
+                ),
+                "prompt_hash": attempt.prompt_hash,
+                "invalid_output_hash": attempt.invalid_output_hash,
+                "validator_results": attempt.validator_results,
             }
             for attempt in attempts
         ],
@@ -1166,4 +1387,77 @@ def reconstruct_run(db: Session, run_id: uuid.UUID) -> dict[str, Any]:
             {"sequence": event.sequence, "event_type": event.event_type, "payload": event.public_payload}
             for event in events
         ],
+        "context_manifests": [
+            {
+                "id": str(item.id),
+                "task_attempt_id": str(item.task_attempt_id),
+                "retrieval_policy_hash": item.retrieval_policy_hash,
+                "rendered_hash": item.rendered_hash,
+                "estimated_tokens": item.estimated_tokens,
+                "retrieval_mode": item.retrieval_mode,
+            }
+            for item in manifests
+        ],
+        "usage_events": [
+            {
+                "id": str(item.id),
+                "task_attempt_id": str(item.task_attempt_id),
+                "agent_version_id": str(item.agent_version_id),
+                "operation": item.operation,
+                "retry_number": item.retry_number,
+                "status": item.status,
+                "actual_model": item.actual_model,
+                "actual_provider": item.actual_provider,
+                "total_tokens": item.total_tokens,
+                "total_cost_microusd": item.total_cost_microusd,
+            }
+            for item in usage
+        ],
+        "tool_invocations": [
+            {
+                "id": str(item.id),
+                "task_attempt_id": str(item.task_attempt_id),
+                "tool_key": item.tool_key,
+                "status": item.status,
+                "input_hash": item.input_hash,
+                "output_hash": item.output_hash,
+                "error_code": item.error_code,
+            }
+            for item in invocations
+        ],
+        "workspace": {
+            "id": str(workspace.id) if workspace else None,
+            "nodes": [
+                {
+                    "node_id": str(node.id),
+                    "node_type": node.node_type,
+                    "node_version_id": str(version.id),
+                    "body_hash": version.body_hash,
+                }
+                for node, version in nodes
+            ],
+            "edges": [
+                {
+                    "id": str(item.id),
+                    "source_version_id": str(item.source_version_id),
+                    "target_version_id": str(item.target_version_id),
+                    "relation_type": item.relation_type,
+                    "status": item.status,
+                }
+                for item in edges
+            ],
+        },
+        "report": (
+            {
+                "id": str(report.id),
+                "report_node_id": str(report.report_node_id),
+                "schema_version": report.schema_version,
+                "content_hash": report.content_hash,
+                "audit_status": report.audit_status,
+                "audit_result": report.audit_result,
+                "status": report.status,
+            }
+            if report
+            else None
+        ),
     }

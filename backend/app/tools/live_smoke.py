@@ -27,8 +27,8 @@ async def run_youtube_live_smoke(video_id: str, config: Settings = settings) -> 
                 "part": "snippet,contentDetails,status",
                 "id": video_id,
                 "fields": "items(id,contentDetails(caption),status(uploadStatus))",
-                "key": config.youtube_api_key,
             },
+            headers={"X-Goog-Api-Key": config.youtube_api_key},
         )
     if response.is_redirect:
         raise ToolExecutionError("youtube_redirect_rejected", category="security")

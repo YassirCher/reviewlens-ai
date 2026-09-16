@@ -43,7 +43,7 @@ def test_empty_database_migration_is_current_and_complete() -> None:
     with get_engine().connect() as connection:
         current_heads = set(MigrationContext.configure(connection).get_current_heads())
         tables = set(inspect(connection).get_table_names())
-    assert current_heads == expected_heads == {"20260916_0005"}
+    assert current_heads == expected_heads == {"20260916_0006"}
     assert {
         "admin_users",
         "admin_sessions",
@@ -74,6 +74,9 @@ def test_empty_database_migration_is_current_and_complete() -> None:
         "tool_invocations",
         "youtube_quota_states",
         "youtube_quota_reservations",
+        "agent_evaluation_results",
+        "task_run_tools",
+        "reports",
     } <= tables
 
 

@@ -56,7 +56,8 @@ class OpenRouterGateway:
         Draft202012Validator.check_schema(invocation.response_schema)
         last_error: OpenRouterError | None = None
         estimated_tokens = invocation.estimated_prompt_tokens + invocation.policy.max_completion_tokens
-        for retry_number in range(1, self.config.openrouter_max_attempts + 1):
+        max_attempts = invocation.max_network_attempts or self.config.openrouter_max_attempts
+        for retry_number in range(1, max_attempts + 1):
             if _remaining_seconds(invocation.context.deadline_at) <= 0:
                 raise BudgetRejected("paid_call_deadline_elapsed")
             reservation_id, request_id = reserve_request(
@@ -78,7 +79,7 @@ class OpenRouterGateway:
                 )
                 update_account_state(category=exc.category, error_code=exc.provider_code, config=self.config)
                 last_error = exc
-                if not exc.retryable or retry_number >= self.config.openrouter_max_attempts:
+                if not exc.retryable or retry_number >= max_attempts:
                     raise
                 delay = self._delay(retry_number, exc)
                 if delay >= _remaining_seconds(invocation.context.deadline_at):

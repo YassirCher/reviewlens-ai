@@ -21,7 +21,7 @@ from app.tools.contracts import (
     YouTubeVideoMetadata,
 )
 from app.tools.errors import ToolExecutionError
-from app.tools.registry import TOOL_REGISTRY
+from app.tools.registry import TOOL_REGISTRY, TOOL_SPECS, TOOL_SUCCESSOR_SPECS
 from app.tools.scoring import preview_scoring
 from app.tools.youtube import (
     TranscriptProvider,
@@ -69,7 +69,9 @@ def test_registry_is_exactly_the_curated_twelve_tools_with_strict_schemas() -> N
         "evidence.validate",
         "scoring.preview",
     }
-    assert all(spec.semantic_version == "1.0.0" for spec in TOOL_REGISTRY.values())
+    assert all(spec.semantic_version == "1.0.0" for spec in TOOL_SPECS)
+    assert {spec.key for spec in TOOL_SUCCESSOR_SPECS} == {"evidence.validate", "scoring.preview"}
+    assert all(spec.semantic_version == "1.1.0" for spec in TOOL_SUCCESSOR_SPECS)
     assert all(spec.max_concurrency >= 1 for spec in TOOL_REGISTRY.values())
     assert TOOL_REGISTRY["graph.create_nodes"].max_concurrency == 1
     with pytest.raises(ValidationError, match="extra"):
@@ -113,7 +115,8 @@ def test_youtube_client_retries_safe_transient_failure_and_tracks_each_request(m
         nonlocal calls
         calls += 1
         assert request.url.host == "youtube.test"
-        assert request.url.params.get("key") == "fixture-key"
+        assert request.headers["X-Goog-Api-Key"] == "fixture-key"
+        assert "key" not in request.url.params
         if calls == 1:
             return httpx.Response(503, json={"error": {"message": "must-not-be-logged"}})
         return httpx.Response(

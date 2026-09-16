@@ -5,6 +5,7 @@ from app.runtime.contracts import (
     RunStatus,
     TaskStatus,
     WorkflowDag,
+    WorkflowTaskTemplate,
     WorkflowTaskSpec,
 )
 
@@ -13,5 +14,6 @@ __all__ = [
     "RunStatus",
     "TaskStatus",
     "WorkflowDag",
+    "WorkflowTaskTemplate",
     "WorkflowTaskSpec",
 ]
