@@ -244,18 +244,16 @@ def relay_runtime_outbox(
     return {"published": published, "failed": failed}
 
 
-def _postgres_progress(run_id: uuid.UUID, after_sequence: int) -> list[dict[str, Any]]:
+def _postgres_progress(run_id: uuid.UUID, after_sequence: int, limit: int | None = None) -> list[dict[str, Any]]:
     with session_scope() as db:
-        rows = list(
-            db.scalars(
-                select(ProgressEvent)
-                .where(
-                    ProgressEvent.run_id == run_id,
-                    ProgressEvent.sequence > after_sequence,
-                )
-                .order_by(ProgressEvent.sequence)
-            )
+        statement = (
+            select(ProgressEvent)
+            .where(ProgressEvent.run_id == run_id, ProgressEvent.sequence > after_sequence)
+            .order_by(ProgressEvent.sequence)
         )
+        if limit is not None:
+            statement = statement.limit(limit)
+        rows = list(db.scalars(statement))
     return [
         {"sequence": row.sequence, "event_type": row.event_type, "data": row.public_payload}
         for row in rows
@@ -267,9 +265,12 @@ def read_progress(
     *,
     after_sequence: int = 0,
     redis_client: Redis | None = None,
+    limit: int | None = None,
 ) -> dict[str, Any]:
     if after_sequence < 0:
         raise ValueError("after_sequence cannot be negative")
+    if limit is not None and not 1 <= limit <= 1000:
+        raise ValueError("progress limit must be from 1 to 1000")
     with session_scope() as db:
         current_sequence = db.scalar(
             select(AnalysisRun.progress_sequence).where(AnalysisRun.id == run_id)
@@ -285,6 +286,7 @@ def read_progress(
             stream_key(run_id),
             min=f"({after_sequence}-0",
             max="+",
+            count=limit,
         )
         events = [
             {
@@ -294,8 +296,8 @@ def read_progress(
             }
             for _, fields in rows
         ]
-        expected = list(range(after_sequence + 1, current_sequence + 1))
-        if [item["sequence"] for item in events] == expected:
+        expected = list(range(after_sequence + 1, after_sequence + len(events) + 1))
+        if events and [item["sequence"] for item in events] == expected:
             return {"source": "redis", "current_sequence": current_sequence, "events": events}
     except Exception as exc:
         logger.info(
@@ -306,5 +308,5 @@ def read_progress(
     return {
         "source": "postgres",
         "current_sequence": current_sequence,
-        "events": _postgres_progress(run_id, after_sequence),
+        "events": _postgres_progress(run_id, after_sequence, limit),
     }

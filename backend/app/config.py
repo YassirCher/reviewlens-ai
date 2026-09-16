@@ -78,6 +78,10 @@ class Settings(BaseSettings):
     session_secret: str = ""
     public_token_hash_secret: str = ""
     rate_limit_hash_secret: str = ""
+    anonymous_session_cookie: str = "reviewlens_anonymous_session"
+    anonymous_session_idle_hours: int = Field(default=24, ge=1, le=168)
+    anonymous_session_absolute_days: int = Field(default=7, ge=1, le=90)
+    public_queue_capacity: int = Field(default=20, ge=0, le=10000)
     session_idle_minutes: int = Field(default=60, ge=5, le=1440)
     session_absolute_hours: int = Field(default=12, ge=1, le=168)
     admin_login_attempts: int = Field(default=5, ge=2, le=50)

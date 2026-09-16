@@ -19,6 +19,8 @@ from app.observability import configure_logging, request_id_context
 from app.platform.health import collect_health
 
 configure_logging()
+# Access paths contain high-entropy unlisted report tokens; never log them.
+logging.getLogger("uvicorn.access").disabled = True
 logger = logging.getLogger(__name__)
 
 

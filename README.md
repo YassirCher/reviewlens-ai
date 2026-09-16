@@ -1,8 +1,10 @@
 # ReviewLens — Product Review Intelligence POC
 
-> **Implementation status:** The public product remains the legacy V1 proof of concept described below. The decision-complete Target V2 rebuild specification is in [context/00_INDEX_AND_PROJECT_OVERVIEW.md](./context/00_INDEX_AND_PROJECT_OVERVIEW.md). The current-to-target source atlas is in [context/codebase/00_CODEBASE_MAP.md](./context/codebase/00_CODEBASE_MAP.md). Open the repository root as an Obsidian vault to navigate both. V2 Phases 1 through 6 now provide the platform, durable execution, OpenRouter/LLMOps, reconstructable context, typed YouTube research tools, and an internal bounded multi-agent workflow; the V1 public flow remains the default.
+> **Implementation status:** The public product remains the legacy V1 proof of concept described below. The Target V2 rebuild specification is in [context/00_INDEX_AND_PROJECT_OVERVIEW.md](./context/00_INDEX_AND_PROJECT_OVERVIEW.md). Phases 1 through 7 add the V2 backend foundation, bounded analysis workflow, and public API beside V1; the V2 public UI remains Phase 8 work.
 
-The V2 foundation now exists beside V1: PostgreSQL/Alembic persistence, Redis/Celery processes, secure admin sessions, durable run/task/attempt state, exact OpenRouter accounting, an authoritative Markdown/PostgreSQL context graph, fixed typed research tools, and a seven-role internal analysis DAG. Phase 6 snapshots every prompt/schema/policy/tool version, bounds source fan-out and correction attempts, validates central evidence and deterministic scores, and publishes immutable internal reports only after audit gates pass. Public V2 analysis/report/SSE routes and the V2 frontend remain Phase 7 work.
+The V2 foundation now exists beside V1: PostgreSQL/Alembic persistence, Redis/Celery processes, secure sessions, durable run/task/attempt state, exact OpenRouter accounting, an authoritative Markdown/PostgreSQL context graph, fixed typed research tools, and a seven-role analysis DAG. Phase 7 adds anonymous admission, persistent public run/status/SSE contracts, and revocable unlisted reports. The current frontend still calls V1 until Phase 8.
+
+The V1 public flow remains the default. Use [the codebase map](./context/codebase/00_CODEBASE_MAP.md) to navigate the separate V2 implementation.
 
 ReviewLens is a full-stack proof of concept that turns the top YouTube reviews for a product into a structured, evidence-backed buying decision.
 
@@ -122,6 +124,14 @@ python scripts/check_phase6.py
 ```
 
 The checker uses a generated `APP_ENV=test` file and fake upstream keys. It exercises complete, comments, partial, retry, correction, audit-failure, and cancellation paths against isolated storage. It never reads the repository `.env`, contacts live YouTube/OpenRouter, or spends credits.
+
+Phase 7's backend-only public API is verified with generated credentials and the same local mocks:
+
+```bash
+python scripts/check_phase7.py
+```
+
+Initialize the current catalog and published V2 analysis configuration before accepting real public submissions. `POST /api/v2/analyses/preflight` is advisory; `POST /api/v2/analyses` requires `Idempotency-Key`. Anonymous ownership is bound to a signed HttpOnly cookie. Public report URLs are returned through owner-only run status after a validated report is published, and can be revoked immediately. `ANONYMOUS_SESSION_IDLE_HOURS`, `ANONYMOUS_SESSION_ABSOLUTE_DAYS`, and `PUBLIC_QUEUE_CAPACITY` control the new admission boundary; public monetary cost remains private.
 
 ## Important behavior
 

@@ -73,7 +73,12 @@ class AnonymousSession(UUIDPrimaryKeyMixin, TimestampMixin, OptimisticLockMixin,
     identifier_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     quota_counters: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    absolute_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+Index("ix_anonymous_sessions_expiry", AnonymousSession.expires_at)
 
 
 class AuditEvent(UUIDPrimaryKeyMixin, Base):
@@ -184,6 +189,7 @@ class BudgetPolicyVersion(VersionMixin, Base):
         CheckConstraint("public_runs_per_hour >= 0", name="hourly_nonnegative"),
         CheckConstraint("public_runs_per_day >= 0", name="daily_nonnegative"),
         CheckConstraint("public_concurrent_runs >= 0", name="concurrent_nonnegative"),
+        CheckConstraint("public_queue_capacity >= 0", name="queue_capacity_nonnegative"),
         CheckConstraint("min_video_count <= default_video_count", name="min_default_order"),
         CheckConstraint("default_video_count <= max_video_count", name="default_max_order"),
     )
@@ -194,6 +200,7 @@ class BudgetPolicyVersion(VersionMixin, Base):
     public_runs_per_hour: Mapped[int] = mapped_column(Integer, nullable=False)
     public_runs_per_day: Mapped[int] = mapped_column(Integer, nullable=False)
     public_concurrent_runs: Mapped[int] = mapped_column(Integer, nullable=False)
+    public_queue_capacity: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("20"))
     public_run_cost_cap_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
     public_daily_cost_cap_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
     min_video_count: Mapped[int] = mapped_column(SmallInteger, nullable=False)
@@ -1311,6 +1318,49 @@ class Report(UUIDPrimaryKeyMixin, Base):
 
 
 Index("ix_reports_status_created_at", Report.status, Report.created_at)
+
+
+class RunSubmission(UUIDPrimaryKeyMixin, Base):
+    __tablename__ = "run_submissions"
+    __table_args__ = (
+        UniqueConstraint("actor_type", "actor_id", "idempotency_key", name="uq_run_submissions_actor_key"),
+        UniqueConstraint("run_id", name="uq_run_submissions_run"),
+        CheckConstraint("actor_type IN ('public', 'admin')", name="actor_type_valid"),
+    )
+
+    actor_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    actor_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(160), nullable=False)
+    request_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    ip_hash: Mapped[str | None] = mapped_column(String(64))
+    run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("analysis_runs.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+Index("ix_run_submissions_ip_created", RunSubmission.ip_hash, RunSubmission.created_at)
+
+
+class ReportPublication(UUIDPrimaryKeyMixin, Base):
+    __tablename__ = "report_publications"
+    __table_args__ = (
+        UniqueConstraint("report_id", name="uq_report_publications_report"),
+        UniqueConstraint("token_hash", name="uq_report_publications_token_hash"),
+    )
+
+    report_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("reports.id", ondelete="RESTRICT"), nullable=False
+    )
+    run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("analysis_runs.id", ondelete="RESTRICT"), nullable=False
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    graph_payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    published_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 VERSION_TABLE_NAMES = (

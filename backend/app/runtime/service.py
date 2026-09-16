@@ -133,6 +133,8 @@ def _usd_to_micros(value: Decimal) -> int:
 def build_configuration_snapshot(
     db: Session,
     requested_options: dict[str, Any] | None = None,
+    *,
+    initiator_type: str = "public",
 ) -> tuple[ConfigurationSnapshot, WorkflowDag, BudgetPolicyVersion]:
     active = db.get(ActiveConfiguration, 1)
     if active is None:
@@ -246,7 +248,10 @@ def build_configuration_snapshot(
         },
         "budget_limits": {
             "max_tokens": _budget_max_tokens(budget),
-            "max_cost_microusd": _usd_to_micros(budget.public_run_cost_cap_usd),
+            "max_cost_microusd": (
+                _usd_to_micros(budget.public_run_cost_cap_usd)
+                if initiator_type != "admin" else None
+            ),
         },
     }
     snapshot = ConfigurationSnapshot(
@@ -271,7 +276,7 @@ def create_run(
 ) -> AnalysisRun:
     display_product, canonical_product = normalize_product_name(product_name)
     options = requested_options or {}
-    snapshot, dag, budget = build_configuration_snapshot(db, options)
+    snapshot, dag, budget = build_configuration_snapshot(db, options, initiator_type=initiator_type)
     now = utc_now()
     run = AnalysisRun(
         id=uuid.uuid4(),
@@ -1087,6 +1092,9 @@ def _finalize_run(db: Session, run: AnalysisRun) -> None:
     }
     report = db.scalar(select(Report).where(Report.run_id == run.id))
     if not active and report is not None and report.status == "published":
+        from app.public.reports import publish_report
+
+        publish_report(db, report, run)
         target = RunStatus.PARTIAL if report.payload.get("status") == "partial" else RunStatus.COMPLETE
         _set_run_status(run, target)
         run.completed_at = now

@@ -1,8 +1,8 @@
 # Runtime Architecture
 
-> **Current implementation:** The original analysis diagram below describes legacy V1. The Target V2 architecture is specified in [context/03_SYSTEM_ARCHITECTURE.md](./context/03_SYSTEM_ARCHITECTURE.md). Its Phase 1–6 backend foundation, including the bounded internal analysis workflow, is implemented; the still-default V1 product flow has not been cut over and no public V2 analysis API exists yet.
+> **Current implementation:** The original analysis diagram below describes legacy V1. The Target V2 architecture is specified in [context/03_SYSTEM_ARCHITECTURE.md](./context/03_SYSTEM_ARCHITECTURE.md). Phases 1–7 implement the V2 backend foundation and public API beside the still-default V1 product flow; the V2 frontend is Phase 8 work.
 
-Phase 1 implements the shared platform. Phase 2 adds restart-safe orchestration. Phase 3 adds the separate V2 OpenRouter gateway and exact accounting. Phase 4 makes PostgreSQL and versioned Markdown authoritative for context. Phase 5 adds fixed typed research tools and YouTube quota accounting. Phase 6 adds seven immutable role definitions, deterministic dynamic source fan-out/fan-in, context manifests and prompt hashes, one bounded schema-correction attempt, evidence/scoring gates, quality audit, and immutable internal reports. These phases intentionally expose no public V2 analysis or model-management APIs yet.
+Phase 1 implements the shared platform. Phase 2 adds restart-safe orchestration. Phase 3 adds the separate V2 OpenRouter gateway and exact accounting. Phase 4 makes PostgreSQL and versioned Markdown authoritative for context. Phase 5 adds fixed typed research tools and YouTube quota accounting. Phase 6 adds seven immutable role definitions, deterministic source fan-out/fan-in, and audited internal reports. Phase 7 adds signed anonymous ownership, transactional quota admission, owner-only durable progress, and immutable public report/graph projections whose access can be revoked. Admin model-management APIs and the V2 product UI remain later phases.
 
 ```text
 Runtime service ---> PostgreSQL transaction

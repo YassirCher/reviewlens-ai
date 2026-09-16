@@ -54,8 +54,16 @@ Implemented V2 platform endpoints:
 - `DELETE /api/v2/admin/session` with `X-CSRF-Token`
 - `GET /api/v2/admin/csrf`
 - `GET /api/v2/admin/system/health`
+- `POST /api/v2/analyses/preflight`
+- `POST /api/v2/analyses` with `Idempotency-Key`
+- `GET /api/v2/analyses/{run_id}` and `/events` with resumable `Last-Event-ID`
+- `POST /api/v2/analyses/{run_id}/cancel`
+- `GET /api/v2/reports/{public_token}` and `/graph`
+- `POST /api/v2/admin/analyses` and `/admin/reports/{report_id}/revoke` with CSRF
 
 Session cookies are HttpOnly, SameSite=Lax, and Secure outside local/test environments. The login endpoint is throttled through Redis; if throttling is unavailable, login fails closed. Health responses expose status rather than credentials or connection strings.
+
+Phase 7 public submissions use signed anonymous cookies, a persistent idempotency record, Redis/SQL admission limits, a queue cap seeded into the published budget policy, and the existing OpenRouter daily ledger. The V2 API returns only allowlisted report/graph data and native token totals, never public dollar costs. The unlisted report token is 256-bit secret-derived, stored only as a keyed hash, recoverable to the owner through status, and revocable by the admin. Public URLs are excluded from access logs. Run `python scripts/check_phase7.py` from the repository root for isolated migration, API, security, mocked workflow, and Compose checks.
 
 Phase 2 adds no public analysis endpoint. Its deterministic smoke fixture is restricted to `APP_ENV=test` and never calls YouTube or OpenRouter:
 
