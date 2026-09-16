@@ -1,8 +1,8 @@
 # ReviewLens — Product Review Intelligence POC
 
-> **Implementation status:** The public product remains the legacy V1 proof of concept described below. The decision-complete Target V2 rebuild specification is in [context/00_INDEX_AND_PROJECT_OVERVIEW.md](./context/00_INDEX_AND_PROJECT_OVERVIEW.md). The current-to-target source atlas is in [context/codebase/00_CODEBASE_MAP.md](./context/codebase/00_CODEBASE_MAP.md). Open the repository root as an Obsidian vault to navigate both. V2 Phases 1 through 3 now provide the platform, durable execution, and OpenRouter/LLMOps foundations; the V1 public flow remains the default.
+> **Implementation status:** The public product remains the legacy V1 proof of concept described below. The decision-complete Target V2 rebuild specification is in [context/00_INDEX_AND_PROJECT_OVERVIEW.md](./context/00_INDEX_AND_PROJECT_OVERVIEW.md). The current-to-target source atlas is in [context/codebase/00_CODEBASE_MAP.md](./context/codebase/00_CODEBASE_MAP.md). Open the repository root as an Obsidian vault to navigate both. V2 Phases 1 through 5 now provide the platform, durable execution, OpenRouter/LLMOps, reconstructable context, and typed YouTube research-tool foundations; the V1 public flow remains the default.
 
-The V2 foundation now exists beside V1: PostgreSQL/Alembic persistence, Redis/Celery processes, secure admin sessions, dependency health reporting, durable run/task/attempt state, immutable configuration snapshots, transactional dispatch/progress outboxes, cancellation/retry recovery, resumable Redis progress backed by PostgreSQL, and a separate OpenRouter-only V2 gateway with catalog snapshots, policy validation, reservations, reconciliation, and per-request usage. The current fixture workflows are test infrastructure only; operational agents, public V2 analysis endpoints, reports, and the V2 public experience remain later work.
+The V2 foundation now exists beside V1: PostgreSQL/Alembic persistence, Redis/Celery processes, secure admin sessions, dependency health reporting, durable run/task/attempt state, immutable configuration snapshots, transactional dispatch/progress outboxes, cancellation/retry recovery, resumable Redis progress backed by PostgreSQL, a separate OpenRouter-only V2 gateway with exact accounting, an authoritative Markdown/PostgreSQL context graph with rebuildable Neo4j/Qdrant projections, and fixed schema-validated YouTube/graph/vector/evidence/scoring tools with invocation and quota accounting. The current fixture workflows are test infrastructure only; operational agents, public V2 analysis endpoints, reports, and the V2 public experience remain later work.
 
 ReviewLens is a full-stack proof of concept that turns the top YouTube reviews for a product into a structured, evidence-backed buying decision.
 
@@ -105,13 +105,13 @@ Platform endpoints:
 - `/api/v2/admin/session` and `/api/v2/admin/csrf` — secure admin-session foundation
 - `GET /api/v2/admin/system/health` — authenticated dependency detail
 
-Run the isolated Phase 3 migrations, durable-runtime/accounting integration, mocked OpenRouter contract suite, and full-stack verification with Docker Desktop running:
+Run the isolated Phase 5 migration cycle, typed-tool/research integration suite, local YouTube mock, and full-stack verification with Docker Desktop running:
 
 ```bash
-python scripts/check_phase3.py
+python scripts/check_phase5.py
 ```
 
-The checker uses a generated `APP_ENV=test` file and fake upstream keys. It exercises both the Phase 2 runtime fixtures and Phase 3 chat/embedding fixtures against a local OpenRouter mock without contacting YouTube or OpenRouter.
+The checker uses a generated `APP_ENV=test` file and fake upstream keys. It runs all earlier contracts plus the complete, missing-transcript, comments-off, and partial research fixtures against isolated storage and local upstream mocks. It never reads the repository `.env`, contacts live YouTube, or spends OpenRouter credits.
 
 ## Important behavior
 

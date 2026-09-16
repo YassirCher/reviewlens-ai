@@ -132,6 +132,18 @@ def build_configuration_snapshot(db: Session) -> tuple[ConfigurationSnapshot, Wo
     tools = [db.get(ToolVersion, item) for item in tool_ids]
     for agent in agents:
         _require_published(agent, "workflow agent")
+    if agent_ids:
+        from app.db.models import AgentVersionTool
+
+        allowlisted_tool_ids = set(
+            db.scalars(
+                select(AgentVersionTool.tool_version_id).where(
+                    AgentVersionTool.agent_version_id.in_(agent_ids)
+                )
+            )
+        )
+        tool_ids = sorted(set(tool_ids) | allowlisted_tool_ids, key=str)
+        tools = [db.get(ToolVersion, item) for item in tool_ids]
     for tool in tools:
         _require_published(tool, "workflow tool")
 
@@ -636,15 +648,30 @@ def execute_task_run(
 
     assert attempt_id is not None and run_id is not None
     try:
-        from app.runtime.fixtures import execute_deterministic_handler
+        from app.tools.registry import HANDLER_REGISTRY
 
-        output = execute_deterministic_handler(
-            handler,
-            input_payload,
-            attempt_number=attempt_number,
-            should_cancel=lambda: task_is_cancelled(run_id, task_id),
-            heartbeat=lambda: heartbeat_attempt(attempt_id, config),
-        )
+        if handler in HANDLER_REGISTRY:
+            from app.tools.errors import ToolExecutionError
+            from app.tools.runner import execute_registered_tool
+
+            try:
+                output = execute_registered_tool(attempt_id, handler, input_payload, config=config)
+            except ToolExecutionError as exc:
+                raise RuntimeTaskError(
+                    exc.code,
+                    category=exc.category,
+                    retryable=exc.retryable,
+                ) from exc
+        else:
+            from app.runtime.fixtures import execute_deterministic_handler
+
+            output = execute_deterministic_handler(
+                handler,
+                input_payload,
+                attempt_number=attempt_number,
+                should_cancel=lambda: task_is_cancelled(run_id, task_id),
+                heartbeat=lambda: heartbeat_attempt(attempt_id, config),
+            )
     except RuntimeTaskCancelled as exc:
         return _complete_attempt_failure(task_id, attempt_id, exc, config=config)
     except RuntimeTaskError as exc:

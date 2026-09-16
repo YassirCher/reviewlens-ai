@@ -102,7 +102,7 @@ def test_phase1_schema_remains_present_beside_phase2_runtime_tables() -> None:
         "progress_events",
         "runtime_outbox",
     } <= set(Base.metadata.tables)
-    assert "projection_outbox" not in Base.metadata.tables
+    assert "projection_outbox" in Base.metadata.tables
     for table_name in ("admin_sessions", "agent_versions", "workflow_versions", "tool_versions"):
         assert {"created_at", "updated_at", "version"} <= set(Base.metadata.tables[table_name].c.keys())
 

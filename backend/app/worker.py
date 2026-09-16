@@ -57,6 +57,10 @@ celery_app.conf.update(
             "task": "reviewlens.llmops.reconcile_usage",
             "schedule": float(settings.openrouter_reconciliation_interval_seconds),
         },
+        "context-markdown-reconciliation": {
+            "task": "reviewlens.context.reconcile_markdown",
+            "schedule": float(settings.context_reconciliation_interval_seconds),
+        },
     },
 )
 
@@ -108,10 +112,16 @@ def relay_runtime_outbox_task() -> dict[str, int]:
 @celery_app.task(name="reviewlens.runtime.recover")
 def recover_runtime_task() -> dict[str, int]:
     from app.runtime.service import recover_stale_attempts, repair_unfinished_runs
+    from app.tools.runner import recover_stale_invocations
 
     stale_attempts = recover_stale_attempts()
     repaired_runs = repair_unfinished_runs()
-    return {"stale_attempts": stale_attempts, "repaired_runs": repaired_runs}
+    stale_invocations = recover_stale_invocations()
+    return {
+        "stale_attempts": stale_attempts,
+        "repaired_runs": repaired_runs,
+        "stale_invocations": stale_invocations,
+    }
 
 
 @celery_app.task(name="reviewlens.llmops.refresh_catalogs")
@@ -139,3 +149,25 @@ def reconcile_openrouter_usage_task() -> dict[str, int]:
     from app.llmops.operations import reconcile_pending_usage
 
     return asyncio.run(reconcile_pending_usage())
+
+
+@celery_app.task(name="reviewlens.context.reconcile_markdown")
+def reconcile_markdown_task() -> dict[str, int]:
+    from sqlalchemy import select
+
+    from app.db.models import Workspace
+    from app.knowledge.service import reconcile_workspace
+
+    checked = 0
+    failed = 0
+    with session_scope() as db:
+        workspace_ids = list(db.scalars(select(Workspace.id).where(Workspace.status != "deleted")))
+    for workspace_id in workspace_ids:
+        try:
+            with session_scope() as db:
+                result = reconcile_workspace(db, workspace_id)
+                checked += result["valid"]
+                failed += result["missing"] + result["mismatched"]
+        except Exception:
+            failed += 1
+    return {"workspaces": len(workspace_ids), "checked": checked, "failed": failed}

@@ -98,10 +98,29 @@ class Settings(BaseSettings):
     neo4j_password: str = ""
     qdrant_url: str = ""
     qdrant_api_key: str = ""
+    context_reconciliation_interval_seconds: int = Field(default=300, ge=30, le=86400)
+    projection_outbox_batch_size: int = Field(default=50, ge=1, le=1000)
+    projection_backlog_alert_threshold: int = Field(default=100, ge=1, le=100000)
+    context_node_preview_characters: int = Field(default=512, ge=0, le=4000)
 
     youtube_candidate_cap: int = Field(default=40, ge=5, le=100)
-    comments_fetch_limit: int = Field(default=30, ge=0, le=100)
-    comments_retain_limit: int = Field(default=20, ge=0, le=100)
+    comments_fetch_limit: int = Field(default=30, ge=0, le=30)
+    comments_retain_limit: int = Field(default=20, ge=0, le=20)
+    youtube_base_url: str = "https://www.googleapis.com/youtube/v3"
+    youtube_request_timeout_seconds: float = Field(default=20, gt=0, le=120)
+    youtube_transcript_timeout_seconds: float = Field(default=45, gt=0, le=180)
+    youtube_network_max_attempts: int = Field(default=3, ge=1, le=3)
+    youtube_retry_base_seconds: float = Field(default=1, ge=0, le=30)
+    youtube_retry_max_seconds: float = Field(default=8, ge=0, le=60)
+    youtube_search_query_limit: int = Field(default=4, ge=1, le=4)
+    youtube_search_daily_call_limit: int = Field(default=100, ge=0, le=100000)
+    youtube_data_daily_unit_limit: int = Field(default=10000, ge=0, le=10000000)
+    youtube_min_review_duration_seconds: int = Field(default=180, ge=30, le=3600)
+    youtube_min_relevance_score: float = Field(default=0.5, ge=0, le=1)
+    youtube_transcript_chunk_target_characters: int = Field(default=6000, ge=500, le=50000)
+    youtube_transcript_chunk_max_characters: int = Field(default=8000, ge=500, le=100000)
+    youtube_tool_max_output_bytes: int = Field(default=1000000, ge=1000, le=10000000)
+    youtube_live_smoke_enabled: bool = False
     default_video_count: int = Field(default=5, ge=3, le=8)
     min_video_count: int = Field(default=3, ge=1, le=8)
     max_video_count: int = Field(default=8, ge=3, le=12)
@@ -195,6 +214,21 @@ class Settings(BaseSettings):
                 "OPENROUTER_RETRY_MAX_SECONDS must be greater than or equal to "
                 "OPENROUTER_RETRY_BASE_SECONDS"
             )
+        if self.youtube_retry_max_seconds < self.youtube_retry_base_seconds:
+            errors.append(
+                "YOUTUBE_RETRY_MAX_SECONDS must be greater than or equal to "
+                "YOUTUBE_RETRY_BASE_SECONDS"
+            )
+        if self.youtube_transcript_chunk_target_characters > self.youtube_transcript_chunk_max_characters:
+            errors.append(
+                "YOUTUBE_TRANSCRIPT_CHUNK_TARGET_CHARACTERS must not exceed "
+                "YOUTUBE_TRANSCRIPT_CHUNK_MAX_CHARACTERS"
+            )
+        if (
+            self.youtube_base_url.rstrip("/") != "https://www.googleapis.com/youtube/v3"
+            and self.app_env.lower() != "test"
+        ):
+            errors.append("YOUTUBE_BASE_URL may only be overridden when APP_ENV=test")
         if (
             self.openrouter_base_url
             and not self.is_local_development

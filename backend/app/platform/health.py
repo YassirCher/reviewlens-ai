@@ -48,6 +48,8 @@ class HealthReport:
     dependencies: dict[str, DependencyStatus]
     configuration: dict[str, bool]
     llmops: dict | None = None
+    knowledge: dict | None = None
+    research: dict | None = None
 
     @property
     def ready(self) -> bool:
@@ -63,6 +65,8 @@ class HealthReport:
         if detailed:
             payload["configuration"] = self.configuration
             payload["llmops"] = self.llmops or {}
+            payload["knowledge"] = self.knowledge or {}
+            payload["research"] = self.research or {}
         return payload
 
 
@@ -161,11 +165,27 @@ def collect_health(config: Settings = settings) -> HealthReport:
         llmops = llmops_health(config)
     except Exception as exc:
         llmops = {"status": "unavailable", "detail": type(exc).__name__}
+    knowledge: dict = {}
+    try:
+        from app.knowledge.health import knowledge_health
+
+        knowledge = knowledge_health(config)
+    except Exception as exc:
+        knowledge = {"status": "unavailable", "detail": type(exc).__name__}
+    research: dict = {}
+    try:
+        from app.tools.health import research_health
+
+        research = research_health(config)
+    except Exception as exc:
+        research = {"status": "unavailable", "detail": type(exc).__name__}
     return HealthReport(
         status=status,
         dependencies=dependencies,
         configuration=configuration,
         llmops=llmops,
+        knowledge=knowledge,
+        research=research,
     )
 
 

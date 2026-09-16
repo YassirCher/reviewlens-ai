@@ -165,6 +165,150 @@ def _runtime_fixture(scenario: str, *, wait: bool, timeout_seconds: int) -> int:
     return 1
 
 
+def _context_fixture(scenario: str) -> int:
+    from app.db.models import Workspace
+    from app.db.session import session_scope
+    from app.knowledge.fixtures import create_context_fixture
+    from app.knowledge.projections import rebuild_neo4j_projection, rebuild_qdrant_projection
+    from app.knowledge.service import export_workspace, reconcile_workspace
+
+    if settings.app_env.lower() != "test":
+        print("context fixtures are only available when APP_ENV=test", file=sys.stderr)
+        return 2
+    with session_scope() as db:
+        fixture = create_context_fixture(db)
+
+    projection_result: dict = {"mode": "degraded", "neo4j_nodes": 0, "qdrant_points": 0}
+    if scenario == "roundtrip":
+        async def vectorizer(values: tuple[str, ...]) -> tuple[tuple[float, ...], ...]:
+            return tuple((1.0, float(index + 1), float(len(value) % 17)) for index, value in enumerate(values))
+
+        with session_scope() as db:
+            neo4j_result = rebuild_neo4j_projection(db, fixture.workspace_id)
+            qdrant_result = asyncio.run(
+                rebuild_qdrant_projection(
+                    db,
+                    fixture.workspace_id,
+                    fixture.embedding_policy_version_id,
+                    vectorizer,
+                )
+            )
+            projection_result = {
+                "mode": "ready",
+                "neo4j_nodes": neo4j_result["nodes"],
+                "qdrant_points": qdrant_result["points"],
+            }
+    else:
+        with session_scope() as db:
+            workspace = db.get(Workspace, fixture.workspace_id)
+            assert workspace is not None
+            workspace.neo4j_status = "degraded"
+            workspace.qdrant_status = "degraded"
+            workspace.status = "degraded"
+
+    with session_scope() as db:
+        reconciliation = reconcile_workspace(db, fixture.workspace_id)
+        export = export_workspace(db, fixture.workspace_id)
+    print(
+        json.dumps(
+            {
+                "status": "succeeded",
+                "scenario": scenario,
+                "workspace_id": str(fixture.workspace_id),
+                "nodes": fixture.node_count,
+                "edges": fixture.edge_count,
+                "retrieval_mode": fixture.retrieval_mode,
+                "manifest_id": str(fixture.manifest_id),
+                "reconciliation": reconciliation,
+                "export_created": export.exists(),
+                "projection": projection_result,
+            },
+            separators=(",", ":"),
+        )
+    )
+    return 0
+
+
+def _research_fixture(scenario: str) -> int:
+    from sqlalchemy import func, select
+
+    from app.db.models import ContextNode, ToolInvocation
+    from app.db.session import session_scope
+    from app.tools.contracts import ResearchQueryPlan
+    from app.tools.fixtures import create_research_fixture_attempt, finish_research_fixture
+    from app.tools.research import execute_research
+
+    if settings.app_env.lower() != "test":
+        print("research fixtures are only available when APP_ENV=test", file=sys.stderr)
+        return 2
+    with session_scope() as db:
+        run, task, attempt = create_research_fixture_attempt(db, scenario)  # type: ignore[arg-type]
+        run_id, task_id, attempt_id = run.id, task.id, attempt.id
+        analyze_comments = bool(run.requested_options.get("analyze_comments"))
+        product = run.product_input
+    plan = ResearchQueryPlan(
+        canonical_product=product,
+        queries=(f"{product} review", f"{product} long term review"),
+        requested_source_count=5,
+        requested_language="en",
+        analyze_comments=analyze_comments,
+    )
+    try:
+        result = asyncio.run(execute_research(attempt_id, plan))
+    except Exception as exc:
+        print(f"Research fixture failed: {type(exc).__name__}", file=sys.stderr)
+        return 1
+    with session_scope() as db:
+        finish_research_fixture(
+            db,
+            run_id,
+            task_id,
+            attempt_id,
+            result.model_dump(mode="json"),
+        )
+        invocation_count = db.scalar(
+            select(func.count()).select_from(ToolInvocation).where(ToolInvocation.run_id == run_id)
+        )
+        node_count = db.scalar(
+            select(func.count()).select_from(ContextNode).where(
+                ContextNode.workspace_id == result.workspace_id
+            )
+        )
+    print(
+        json.dumps(
+            {
+                "status": "succeeded",
+                "scenario": scenario,
+                "run_id": str(run_id),
+                "requested_sources": result.requested_source_count,
+                "selected_sources": len(result.selected_sources),
+                "warnings": list(result.warning_codes),
+                "tool_invocations": invocation_count,
+                "context_nodes": node_count,
+                "comments_enabled": analyze_comments,
+                "paid_calls": 0,
+            },
+            separators=(",", ":"),
+        )
+    )
+    return 0
+
+
+def _youtube_live_smoke(video_id: str, *, confirmed: bool) -> int:
+    from app.tools.live_smoke import run_youtube_live_smoke
+
+    if not confirmed:
+        print("youtube-live-smoke requires --confirm-live-smoke", file=sys.stderr)
+        return 2
+    try:
+        result = asyncio.run(run_youtube_live_smoke(video_id))
+    except Exception as exc:
+        print(f"YouTube live smoke failed: {type(exc).__name__}", file=sys.stderr)
+        return 1
+    print(json.dumps(result, separators=(",", ":")))
+    return 0
+
+
 def _hash_password() -> int:
     password = getpass.getpass("Admin password: ")
     confirmation = getpass.getpass("Confirm password: ")
@@ -232,6 +376,26 @@ def main() -> int:
         help="Run a Phase 3 mocked gateway fixture (APP_ENV=test only)",
     )
     llmops_fixture.add_argument("--operation", choices=("chat", "embedding"), required=True)
+    context_fixture = subcommands.add_parser(
+        "context-fixture",
+        help="Run a deterministic Phase 4 graph/retrieval fixture (APP_ENV=test only)",
+    )
+    context_fixture.add_argument("--scenario", choices=("roundtrip", "degraded"), required=True)
+    research_fixture = subcommands.add_parser(
+        "research-fixture",
+        help="Run a deterministic Phase 5 research fixture (APP_ENV=test only)",
+    )
+    research_fixture.add_argument(
+        "--scenario",
+        choices=("complete", "missing_transcript", "comments_off", "partial"),
+        required=True,
+    )
+    youtube_smoke = subcommands.add_parser(
+        "youtube-live-smoke",
+        help="Run an explicitly enabled one-video YouTube metadata/transcript smoke",
+    )
+    youtube_smoke.add_argument("--confirm-live-smoke", action="store_true")
+    youtube_smoke.add_argument("--video-id", required=True)
     for command in ("validate", "healthcheck"):
         command_parser = subcommands.add_parser(command)
         command_parser.add_argument("role", choices=("api", "worker", "scheduler", "migrate"))
@@ -257,6 +421,12 @@ def main() -> int:
         return _openrouter_live_smoke(confirmed=args.confirm_paid_smoke)
     if args.command == "llmops-fixture":
         return _llmops_fixture(args.operation)
+    if args.command == "context-fixture":
+        return _context_fixture(args.scenario)
+    if args.command == "research-fixture":
+        return _research_fixture(args.scenario)
+    if args.command == "youtube-live-smoke":
+        return _youtube_live_smoke(args.video_id, confirmed=args.confirm_live_smoke)
     if args.command == "validate":
         return _validate(args.role)
     if args.command == "healthcheck":

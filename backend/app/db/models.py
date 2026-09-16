@@ -11,6 +11,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     Numeric,
@@ -207,12 +208,20 @@ class ToolVersion(VersionMixin, Base):
     __tablename__ = "tool_versions"
     __table_args__ = (
         UniqueConstraint("definition_id", "version_number"),
+        UniqueConstraint("definition_id", "semantic_version"),
         CheckConstraint("version_number > 0", name="version_number_positive"),
         CheckConstraint("lifecycle IN ('draft', 'published', 'retired')", name="lifecycle_valid"),
+        CheckConstraint(
+            "semantic_version ~ '^[0-9]+\\.[0-9]+\\.[0-9]+$'",
+            name="semantic_version_valid",
+        ),
     )
 
     definition_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("tool_definitions.id", ondelete="CASCADE"), nullable=False
+    )
+    semantic_version: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="1.0.0", server_default="1.0.0"
     )
     input_schema: Mapped[dict] = mapped_column(JSONB, nullable=False)
     output_schema: Mapped[dict] = mapped_column(JSONB, nullable=False)
@@ -543,6 +552,104 @@ Index(
 )
 
 
+class ToolInvocation(UUIDPrimaryKeyMixin, Base):
+    __tablename__ = "tool_invocations"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('running', 'succeeded', 'failed', 'cancelled', 'timed_out')",
+            name="status_valid",
+        ),
+        CheckConstraint("retry_count >= 0", name="retry_count_nonnegative"),
+        CheckConstraint("duration_ms IS NULL OR duration_ms >= 0", name="duration_nonnegative"),
+    )
+
+    run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("analysis_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    task_run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("task_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    task_attempt_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("task_attempts.id", ondelete="RESTRICT"), nullable=False
+    )
+    agent_version_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agent_versions.id", ondelete="RESTRICT")
+    )
+    tool_version_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tool_versions.id", ondelete="RESTRICT"), nullable=False
+    )
+    tool_key: Mapped[str] = mapped_column(String(120), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    output_hash: Mapped[str | None] = mapped_column(String(64))
+    safe_metadata: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="running", server_default="running"
+    )
+    error_category: Mapped[str | None] = mapped_column(String(80))
+    error_code: Mapped[str | None] = mapped_column(String(120))
+    retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    duration_ms: Mapped[int | None] = mapped_column(BigInteger)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+Index("ix_tool_invocations_attempt_created", ToolInvocation.task_attempt_id, ToolInvocation.created_at)
+Index("ix_tool_invocations_status_started", ToolInvocation.status, ToolInvocation.started_at)
+
+
+class YouTubeQuotaState(TimestampMixin, OptimisticLockMixin, Base):
+    __tablename__ = "youtube_quota_states"
+    __table_args__ = (
+        CheckConstraint("bucket IN ('search', 'data_api')", name="bucket_valid"),
+        CheckConstraint("limit_units >= 0", name="limit_nonnegative"),
+        CheckConstraint("reserved_units >= 0", name="reserved_nonnegative"),
+        CheckConstraint("consumed_units >= 0", name="consumed_nonnegative"),
+        CheckConstraint("reserved_units + consumed_units <= limit_units", name="within_limit"),
+    )
+
+    bucket: Mapped[str] = mapped_column(String(32), primary_key=True)
+    quota_date: Mapped[date] = mapped_column(Date, primary_key=True)
+    limit_units: Mapped[int] = mapped_column(Integer, nullable=False)
+    reserved_units: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    consumed_units: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+
+
+class YouTubeQuotaReservation(UUIDPrimaryKeyMixin, Base):
+    __tablename__ = "youtube_quota_reservations"
+    __table_args__ = (
+        UniqueConstraint("tool_invocation_id", "network_attempt"),
+        CheckConstraint("network_attempt > 0", name="attempt_positive"),
+        CheckConstraint("bucket IN ('search', 'data_api')", name="bucket_valid"),
+        CheckConstraint("units > 0", name="units_positive"),
+        CheckConstraint("status IN ('reserved', 'consumed', 'released')", name="status_valid"),
+    )
+
+    tool_invocation_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tool_invocations.id", ondelete="CASCADE"), nullable=False
+    )
+    network_attempt: Mapped[int] = mapped_column(Integer, nullable=False)
+    bucket: Mapped[str] = mapped_column(String(32), nullable=False)
+    quota_date: Mapped[date] = mapped_column(Date, nullable=False)
+    units: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="reserved", server_default="reserved"
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    finalized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = __table_args__ + (
+        ForeignKeyConstraint(
+            ["bucket", "quota_date"],
+            ["youtube_quota_states.bucket", "youtube_quota_states.quota_date"],
+            ondelete="RESTRICT",
+        ),
+    )
+
+
 class OpenRouterCatalogRefresh(UUIDPrimaryKeyMixin, Base):
     __tablename__ = "openrouter_catalog_refreshes"
     __table_args__ = (
@@ -822,6 +929,260 @@ Index(
     UsageEvent.generation_id,
     unique=True,
     postgresql_where=UsageEvent.generation_id.is_not(None),
+)
+
+
+class Workspace(UUIDPrimaryKeyMixin, TimestampMixin, OptimisticLockMixin, Base):
+    __tablename__ = "workspaces"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('active', 'degraded', 'quarantined', 'deleted')",
+            name="status_valid",
+        ),
+        CheckConstraint(
+            "neo4j_status IN ('pending', 'ready', 'degraded', 'rebuilding')",
+            name="neo4j_status_valid",
+        ),
+        CheckConstraint(
+            "qdrant_status IN ('pending', 'ready', 'degraded', 'rebuilding')",
+            name="qdrant_status_valid",
+        ),
+    )
+
+    run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("analysis_runs.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
+    root_path: Mapped[str] = mapped_column(String(500), nullable=False, unique=True)
+    schema_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="active", server_default="active")
+    neo4j_status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending", server_default="pending")
+    qdrant_status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending", server_default="pending")
+    last_reconciled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    projection_error_code: Mapped[str | None] = mapped_column(String(120))
+
+
+class ContextNode(UUIDPrimaryKeyMixin, TimestampMixin, OptimisticLockMixin, Base):
+    __tablename__ = "context_nodes"
+    __table_args__ = (
+        CheckConstraint(
+            "node_type IN ('product', 'source', 'transcript', 'transcript_chunk', 'comment_set', "
+            "'source_analysis', 'audience_signal', 'evidence', 'claim', 'finding', 'comparison', "
+            "'verdict', 'report', 'agent_memory', 'run_summary')",
+            name="node_type_valid",
+        ),
+        CheckConstraint("status IN ('active', 'quarantined', 'deleted')", name="status_valid"),
+        UniqueConstraint("current_version_id", name="uq_context_nodes_current_version_id"),
+        ForeignKeyConstraint(
+            ["id", "current_version_id"],
+            ["context_node_versions.node_id", "context_node_versions.id"],
+            name="fk_context_nodes_current_owned_version",
+            ondelete="RESTRICT",
+            use_alter=True,
+        ),
+    )
+
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    node_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="active", server_default="active")
+    current_version_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+Index("ix_context_nodes_workspace_type", ContextNode.workspace_id, ContextNode.node_type, ContextNode.status)
+
+
+class ContextNodeVersion(UUIDPrimaryKeyMixin, Base):
+    __tablename__ = "context_node_versions"
+    __table_args__ = (
+        UniqueConstraint("node_id", "version_number", name="uq_context_node_versions_node_version"),
+        UniqueConstraint("node_id", "id", name="uq_context_node_versions_node_identity"),
+        UniqueConstraint("workspace_id", "body_path", name="uq_context_node_versions_workspace_path"),
+        CheckConstraint("version_number > 0", name="version_number_positive"),
+        CheckConstraint(
+            "trust_level IN ('primary_source', 'secondary_source', 'derived', 'operational')",
+            name="trust_level_valid",
+        ),
+        CheckConstraint("confidence >= 0 AND confidence <= 100", name="confidence_range"),
+        CheckConstraint("validation_status = 'valid'", name="validation_status_valid"),
+        CheckConstraint(
+            "public_visibility IN ('public', 'admin', 'private')",
+            name="public_visibility_valid",
+        ),
+    )
+
+    node_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("context_nodes.id", ondelete="CASCADE"), nullable=False
+    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    title: Mapped[str] = mapped_column(String(300), nullable=False)
+    body_path: Mapped[str] = mapped_column(String(800), nullable=False)
+    body_hash: Mapped[str] = mapped_column(String(71), nullable=False)
+    frontmatter_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    trust_level: Mapped[str] = mapped_column(String(40), nullable=False)
+    source_uri: Mapped[str | None] = mapped_column(String(2000))
+    source_language: Mapped[str | None] = mapped_column(String(40))
+    confidence: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    tags: Mapped[list] = mapped_column(JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb"))
+    provenance: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    validation_status: Mapped[str] = mapped_column(String(20), nullable=False, default="valid", server_default="valid")
+    public_visibility: Mapped[str] = mapped_column(String(20), nullable=False, default="admin", server_default="admin")
+    created_by_attempt_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("task_attempts.id", ondelete="RESTRICT")
+    )
+    created_by_admin_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("admin_users.id", ondelete="RESTRICT")
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+Index("ix_context_node_versions_workspace_created", ContextNodeVersion.workspace_id, ContextNodeVersion.created_at)
+Index("ix_context_node_versions_title_search", ContextNodeVersion.title)
+
+
+class ContextEdge(UUIDPrimaryKeyMixin, TimestampMixin, OptimisticLockMixin, Base):
+    __tablename__ = "context_edges"
+    __table_args__ = (
+        CheckConstraint("source_version_id <> target_version_id", name="not_self_referential"),
+        CheckConstraint(
+            "relation_type IN ('ABOUT', 'DERIVED_FROM', 'CONTAINS', 'SUPPORTS', 'CONTRADICTS', "
+            "'AGREES_WITH', 'MENTIONS', 'SUMMARIZES', 'GENERATED_IN', 'EVALUATED_BY', "
+            "'USED_AS_CONTEXT', 'NEXT_VERSION_OF')",
+            name="relation_type_valid",
+        ),
+        CheckConstraint("confidence >= 0 AND confidence <= 100", name="confidence_range"),
+        CheckConstraint("status IN ('active', 'revoked')", name="status_valid"),
+    )
+
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    source_version_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("context_node_versions.id", ondelete="RESTRICT"), nullable=False
+    )
+    target_version_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("context_node_versions.id", ondelete="RESTRICT"), nullable=False
+    )
+    relation_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    properties: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    confidence: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    created_by_attempt_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("task_attempts.id", ondelete="RESTRICT")
+    )
+    created_by_admin_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("admin_users.id", ondelete="RESTRICT")
+    )
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="active", server_default="active")
+    idempotency_key: Mapped[str] = mapped_column(String(64), nullable=False)
+
+
+Index(
+    "uq_context_edges_active_idempotency",
+    ContextEdge.idempotency_key,
+    unique=True,
+    postgresql_where=ContextEdge.status == "active",
+)
+Index("ix_context_edges_source_relation", ContextEdge.source_version_id, ContextEdge.relation_type)
+Index("ix_context_edges_target_relation", ContextEdge.target_version_id, ContextEdge.relation_type)
+
+
+class ContextManifest(UUIDPrimaryKeyMixin, Base):
+    __tablename__ = "context_manifests"
+    __table_args__ = (
+        CheckConstraint(
+            "retrieval_mode IN ('hybrid', 'degraded_qdrant', 'degraded_neo4j', 'postgres_only', 'direct')",
+            name="retrieval_mode_valid",
+        ),
+        CheckConstraint("token_budget > 0", name="token_budget_positive"),
+        CheckConstraint("estimated_tokens >= 0", name="estimated_tokens_nonnegative"),
+        CheckConstraint("actual_tokens IS NULL OR actual_tokens >= 0", name="actual_tokens_nonnegative"),
+    )
+
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    task_attempt_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("task_attempts.id", ondelete="RESTRICT"), nullable=False
+    )
+    retrieval_policy_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    embedding_policy_version_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("embedding_policy_versions.id", ondelete="RESTRICT")
+    )
+    retrieval_mode: Mapped[str] = mapped_column(String(32), nullable=False)
+    query_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    token_budget: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    estimated_tokens: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    actual_tokens: Mapped[int | None] = mapped_column(BigInteger)
+    rendered_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+Index("ix_context_manifests_attempt_created", ContextManifest.task_attempt_id, ContextManifest.created_at)
+
+
+class ContextManifestItem(UUIDPrimaryKeyMixin, Base):
+    __tablename__ = "context_manifest_items"
+    __table_args__ = (
+        UniqueConstraint("manifest_id", "position", name="uq_context_manifest_items_manifest_position"),
+        UniqueConstraint("manifest_id", "node_version_id", name="uq_context_manifest_items_manifest_node"),
+        CheckConstraint("position >= 0", name="position_nonnegative"),
+        CheckConstraint("estimated_tokens >= 0", name="estimated_tokens_nonnegative"),
+        CheckConstraint("rendered_start >= 0", name="rendered_start_nonnegative"),
+        CheckConstraint("rendered_end >= rendered_start", name="rendered_range_valid"),
+    )
+
+    manifest_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("context_manifests.id", ondelete="CASCADE"), nullable=False
+    )
+    node_version_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("context_node_versions.id", ondelete="RESTRICT"), nullable=False
+    )
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    body_hash: Mapped[str] = mapped_column(String(71), nullable=False)
+    selection_reason: Mapped[str] = mapped_column(String(120), nullable=False)
+    score_components: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    estimated_tokens: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    rendered_start: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    rendered_end: Mapped[int] = mapped_column(BigInteger, nullable=False)
+
+
+class ProjectionOutbox(UUIDPrimaryKeyMixin, TimestampMixin, OptimisticLockMixin, Base):
+    __tablename__ = "projection_outbox"
+    __table_args__ = (
+        CheckConstraint("target IN ('neo4j', 'qdrant')", name="target_valid"),
+        CheckConstraint("operation IN ('upsert', 'delete', 'rebuild')", name="operation_valid"),
+        CheckConstraint("status IN ('pending', 'processing', 'published', 'failed')", name="status_valid"),
+        CheckConstraint("attempts >= 0", name="attempts_nonnegative"),
+    )
+
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    target: Mapped[str] = mapped_column(String(20), nullable=False)
+    aggregate_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    aggregate_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    aggregate_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    operation: Mapped[str] = mapped_column(String(20), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending", server_default="pending")
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error_category: Mapped[str | None] = mapped_column(String(80))
+    error_code: Mapped[str | None] = mapped_column(String(120))
+    idempotency_key: Mapped[str] = mapped_column(String(160), nullable=False, unique=True)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+Index(
+    "ix_projection_outbox_pending",
+    ProjectionOutbox.target,
+    ProjectionOutbox.next_attempt_at,
+    postgresql_where=ProjectionOutbox.status.in_(("pending", "failed")),
 )
 
 

@@ -13,6 +13,8 @@ from app.services.audit_service import add_audit_event
 
 
 def seed_foundation(config: Settings = settings) -> str:
+    from app.tools.registry import seed_tool_registry
+
     errors = config.v2_configuration_errors("migrate")
     if errors:
         raise RuntimeError("Invalid V2 configuration: " + "; ".join(errors))
@@ -68,4 +70,5 @@ def seed_foundation(config: Settings = settings) -> str:
             )
         elif account_state.environment != config.app_env:
             raise RuntimeError("OpenRouter account state belongs to a different APP_ENV")
+        seed_tool_registry(db)
     return result
