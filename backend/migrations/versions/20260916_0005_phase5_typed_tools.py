@@ -196,6 +196,19 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # Phase 4 has no semantic-version column. Dropping it after compatible
+    # successor versions were published would make re-upgrade assign 1.0.0
+    # to every row and silently destroy version identity.
+    bind = op.get_bind()
+    populated_successors = bind.execute(sa.text(
+        "SELECT EXISTS (SELECT 1 FROM tool_versions "
+        "WHERE semantic_version <> '1.0.0')"
+    )).scalar()
+    if populated_successors:
+        raise RuntimeError(
+            "Cannot downgrade Phase 5 while successor tool versions exist; "
+            "run migration-cycle tests before seeding or use an empty database"
+        )
     op.execute(
         "DROP TRIGGER IF EXISTS trg_youtube_quota_reservations_restricted_update "
         "ON youtube_quota_reservations"

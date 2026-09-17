@@ -173,13 +173,23 @@ def build_public_projection(db: Session, report: Report, run: AnalysisRun) -> tu
             evidence = evidence_by_id[eid]
             if not any(node["id"] == eid for node in graph_nodes):
                 graph_nodes.append({"id": eid, "type": "evidence", "label": evidence["text"]})
-            graph_edges.append({"source": eid, "target": fid, "type": "SUPPORTS"})
+            graph_edges.append({"source": eid, "target": fid, "type": "CONTRADICTS" if evidence["support_type"] == "contradicts" else "SUPPORTS"})
         return {"id": fid, "statement": item.statement, "source_ids": ids, "evidence_ids": refs}
 
     pros = [visible_finding(item, "pro", idx) for idx, item in enumerate(validated.consensus_pros)]
     cons = [visible_finding(item, "con", idx) for idx, item in enumerate(validated.consensus_cons)]
     disagreements = []
-    for item in validated.disagreements:
+    for index, item in enumerate(validated.disagreements):
+        disagreement_id = public_id(report.id, "finding", f"disagreement:{index}")
+        graph_nodes.append({"id": disagreement_id, "type": "finding", "label": item.topic, "polarity": "disagreement"})
+        for source_id in item.side_a_source_ids:
+            sid = source_ids.get(str(source_id))
+            if sid:
+                graph_edges.append({"source": sid, "target": disagreement_id, "type": "SUPPORTS"})
+        for source_id in item.side_b_source_ids:
+            sid = source_ids.get(str(source_id))
+            if sid:
+                graph_edges.append({"source": sid, "target": disagreement_id, "type": "CONTRADICTS"})
         disagreements.append(
             {
                 "topic": item.topic,

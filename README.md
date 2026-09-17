@@ -1,8 +1,8 @@
 # ReviewLens — Product Review Intelligence POC
 
-> **Implementation status:** The public product remains the legacy V1 proof of concept described below. The Target V2 rebuild specification is in [context/00_INDEX_AND_PROJECT_OVERVIEW.md](./context/00_INDEX_AND_PROJECT_OVERVIEW.md). Phases 1 through 7 add the V2 backend foundation, bounded analysis workflow, and public API beside V1; the V2 public UI remains Phase 8 work.
+> **Implementation status:** `/` remains the legacy V1 proof of concept described below. The Target V2 rebuild specification is in [context/00_INDEX_AND_PROJECT_OVERVIEW.md](./context/00_INDEX_AND_PROJECT_OVERVIEW.md). Phases 1–7 provide the V2 backend; the Phase 8 public experience is available separately at `/research`. Default-root cutover is reserved for Phase 11.
 
-The V2 foundation now exists beside V1: PostgreSQL/Alembic persistence, Redis/Celery processes, secure sessions, durable run/task/attempt state, exact OpenRouter accounting, an authoritative Markdown/PostgreSQL context graph, fixed typed research tools, and a seven-role analysis DAG. Phase 7 adds anonymous admission, persistent public run/status/SSE contracts, and revocable unlisted reports. The current frontend still calls V1 until Phase 8.
+The V2 foundation now exists beside V1: PostgreSQL/Alembic persistence, Redis/Celery processes, secure sessions, durable run/task/attempt state, exact OpenRouter accounting, an authoritative Markdown/PostgreSQL context graph, fixed typed research tools, and a seven-role analysis DAG. Phase 7 adds anonymous admission, persistent public run/status/SSE contracts, and revocable unlisted reports. Phase 8 connects those contracts to the preview intake, owner-only progress, public report, and evidence map without changing V1 behavior.
 
 The V1 public flow remains the default. Use [the codebase map](./context/codebase/00_CODEBASE_MAP.md) to navigate the separate V2 implementation.
 
@@ -130,6 +130,16 @@ Phase 7's backend-only public API is verified with generated credentials and the
 ```bash
 python scripts/check_phase7.py
 ```
+
+The V2 preview starts at `/research`, with owner-session progress at `/analysis/{run_id}` and unlisted, revocable reports at `/r/{public_token}`. Report pages render uncached through server-only `V2_API_INTERNAL_URL` (Compose sets `http://api:8000`); browsers use `NEXT_PUBLIC_API_BASE_URL` for credentialed run requests. There is no V2 model/provider picker. The V1 homepage at `/` remains unchanged apart from a preview link.
+
+With Docker Desktop available, verify the Phase 8 mocked Compose/backend and browser journey with:
+
+```bash
+python scripts/check_phase8.py
+```
+
+For local frontend checks, run `npm run lint`, `npx tsc --noEmit`, `npm run test:unit`, and `npm run test:e2e` from `frontend/`. The browser suite uses a local V2 API mock; neither verifier reads the repository `.env` or makes live/paid YouTube or OpenRouter calls.
 
 Initialize the current catalog and published V2 analysis configuration before accepting real public submissions. `POST /api/v2/analyses/preflight` is advisory; `POST /api/v2/analyses` requires `Idempotency-Key`. Anonymous ownership is bound to a signed HttpOnly cookie. Public report URLs are returned through owner-only run status after a validated report is published, and can be revoked immediately. `ANONYMOUS_SESSION_IDLE_HOURS`, `ANONYMOUS_SESSION_ABSOLUTE_DAYS`, and `PUBLIC_QUEUE_CAPACITY` control the new admission boundary; public monetary cost remains private.
 

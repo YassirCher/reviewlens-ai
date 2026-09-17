@@ -3,17 +3,21 @@ from __future__ import annotations
 import asyncio
 import os
 import uuid
+from dataclasses import replace
 
 import pytest
 from sqlalchemy import select
 from sqlalchemy.exc import DBAPIError
 
 from app.analysis.configuration import seed_analysis_configuration
+from app.analysis import configuration as analysis_configuration
+from app.analysis.registry import AGENT_SPECS, _retrieval
 from app.config import settings
 from app.db.models import AgentEvaluationResult, AgentVersion, ConfigurationSnapshot, TaskRun
 from app.db.session import session_scope
 from app.llmops.catalog import refresh_catalogs
 from app.runtime.service import create_run
+from app.knowledge.contracts import NodeType
 
 pytestmark = pytest.mark.skipif(
     os.getenv("REVIEWLENS_RUN_INTEGRATION") != "1"
@@ -81,3 +85,36 @@ def test_phase6_seed_snapshot_and_database_immutability() -> None:
         agent = db.get(AgentVersion, agent_id)
         assert snapshot is not None and len(snapshot.snapshot["agents"]) == 6
         assert agent is not None and agent.system_prompt == original_prompt
+
+
+def test_phase8_curator_policy_publishes_compatible_version_without_rewriting_old_snapshot(monkeypatch: pytest.MonkeyPatch) -> None:
+    asyncio.run(refresh_catalogs())
+    older = tuple(
+        replace(spec, retrieval_policy=_retrieval((NodeType.PRODUCT, NodeType.SOURCE), tokens=5000))
+        if spec.key == "source_curator" else spec
+        for spec in AGENT_SPECS
+    )
+    monkeypatch.setattr(analysis_configuration, "AGENT_SPECS", older)
+    with session_scope() as db:
+        prior = seed_analysis_configuration(db)
+        run = create_run(
+            db, product_name="Phase 8 snapshot fixture", initiator_type="system_fixture",
+            requested_options={"source_count": 5, "analyze_comments": False},
+        )
+        snapshot_id = run.configuration_snapshot_id
+    monkeypatch.setattr(analysis_configuration, "AGENT_SPECS", AGENT_SPECS)
+    with session_scope() as db:
+        current = seed_analysis_configuration(db)
+        repeat = seed_analysis_configuration(db)
+        frozen = db.get(ConfigurationSnapshot, snapshot_id)
+        old_agent = db.get(AgentVersion, uuid.UUID(prior["agent_versions"]["source_curator"]))
+        new_agent = db.get(AgentVersion, uuid.UUID(current["agent_versions"]["source_curator"]))
+    assert current == repeat
+    assert old_agent is not None and new_agent is not None
+    assert old_agent.id != new_agent.id and old_agent.lifecycle == new_agent.lifecycle == "published"
+    assert old_agent.retrieval_policy["input_token_budget"] == 5000
+    assert new_agent.retrieval_policy["input_token_budget"] == 400
+    assert prior["workflow_version_id"] != current["workflow_version_id"]
+    assert frozen is not None
+    assert any(item["id"] == str(old_agent.id) and item["content_hash"] == old_agent.content_hash for item in frozen.snapshot["agents"])
+    assert all(item["id"] != str(new_agent.id) for item in frozen.snapshot["agents"])

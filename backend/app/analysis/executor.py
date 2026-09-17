@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
+from dataclasses import replace
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation, ROUND_CEILING
 from typing import Any
@@ -25,7 +26,7 @@ from app.analysis.contracts import (
     SourceCuration,
 )
 from app.analysis.prompting import build_prompt_envelope
-from app.analysis.registry import AGENT_REGISTRY, AgentSpec
+from app.analysis.registry import AGENT_REGISTRY, AgentSpec, UNIVERSAL_POLICY
 from app.config import Settings, settings
 from app.db.models import (
     AgentDefinition,
@@ -540,7 +541,16 @@ def _agent_task_input(spec: AgentSpec, task: TaskRun, run: AnalysisRun) -> tuple
     if spec.key == "source_curator":
         discovery = _task_output(run.id, "discover_candidates") or {}
         clean = [
-            {key: value for key, value in item.items() if key in CandidateContext.model_fields}
+            {
+                **{key: value for key, value in item.items() if key in CandidateContext.model_fields},
+                # Retain both ends of a long title so trailing model identifiers stay
+                # visible. Full metadata remains in the authoritative source node.
+                "title": (
+                    item["title"][:125] + " … " + item["title"][-30:]
+                    if len(item["title"]) > 160 else item["title"]
+                ),
+                "channel_title": item.get("channel_title", "")[:80],
+            }
             for item in discovery.get("candidates", [])
         ]
         seeds = (
@@ -687,6 +697,29 @@ async def _call_agent(
     *,
     config: Settings,
 ) -> BaseModel:
+    # Published agent versions, not the newest checked-in registry, govern runs
+    # already in flight when a compatible successor is seeded.
+    with session_scope() as db:
+        version = db.get(AgentVersion, task.agent_version_id)
+        if version is None or version.content_hash != next(
+            (item["content_hash"] for item in snapshot.snapshot.get("agents", []) if item["id"] == str(version.id)),
+            None,
+        ):
+            raise RuntimeTaskError("agent_snapshot_mismatch", category="configuration")
+        prefix = UNIVERSAL_POLICY + "\n\n"
+        if not version.system_prompt.startswith(prefix):
+            raise RuntimeTaskError("agent_snapshot_prompt_invalid", category="configuration")
+        spec = replace(
+            spec,
+            role_prompt=version.system_prompt[len(prefix):],
+            prohibited_behaviors=tuple(version.prohibited_behaviors),
+            retrieval_policy=RetrievalPolicy.model_validate(version.retrieval_policy),
+            max_input_tokens=int(version.execution_limits["max_input_tokens"]),
+            max_output_tokens=int(version.generation_config["max_output_tokens"]),
+            max_reasoning_tokens=int(version.generation_config["max_reasoning_tokens"]),
+            max_total_tokens=int(version.execution_limits["max_total_tokens"]),
+            timeout_seconds=int(version.execution_limits["timeout_seconds"]),
+        )
     try:
         validated_input = spec.input_model.model_validate(payload)
     except ValidationError as exc:

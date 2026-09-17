@@ -145,7 +145,10 @@ AGENT_SPECS: tuple[AgentSpec, ...] = (
         output_model=SourceCuration,
         role_prompt="Classify every supplied candidate, preserve deterministic exclusions, and recommend a diverse ordered eligible list.",
         tool_keys=("youtube.video_details", "graph.get_nodes", "graph.query_relations"),
-        retrieval_policy=_retrieval((NodeType.PRODUCT, NodeType.SOURCE), tokens=5000),
+        # Candidate metadata is already present in the structured task input. Pulling
+        # every raw source node a second time made real 20–40 candidate prompts exceed
+        # the immutable input limit before the model call.
+        retrieval_policy=_retrieval((NodeType.PRODUCT,), tokens=400, hops=0),
         max_input_tokens=7000,
         max_output_tokens=3500,
         max_reasoning_tokens=1500,

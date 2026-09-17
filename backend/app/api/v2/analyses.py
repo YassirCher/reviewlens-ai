@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.api.v2.dependencies import get_v2_db, get_v2_redis, require_admin
 from app.config import settings
-from app.db.models import AnalysisRun, Report, ReportPublication, TaskRun
+from app.db.models import AnalysisRun, Report, ReportPublication, TaskAttempt, TaskRun
 from app.db.session import session_scope
 from app.errors import V2Error
 from app.public.admission import client_ip_hash, create_analysis, preflight, resolve_session
@@ -113,9 +113,7 @@ def _status(db: Session, run: AnalysisRun) -> StatusResponse:
     elif isinstance(run.warning_summary, dict):
         warnings = [str(key) for key in run.warning_summary if isinstance(key, str) and len(key) <= 120]
     usage = usage_summary(db, run.id)
-    public_failure = None
-    if run.status == "failed":
-        public_failure = {"code": "analysis_failed", "message": "The analysis could not be completed. Try again later."}
+    public_failure = _public_failure(db, run, tasks) if run.status == "failed" else None
     return StatusResponse(
         run_id=run.id,
         status=run.status,
@@ -144,6 +142,29 @@ def _status(db: Session, run: AnalysisRun) -> StatusResponse:
         report_url=report_url,
         progress_sequence=run.progress_sequence,
     )
+
+
+def _public_failure(db: Session, run: AnalysisRun, tasks: list[TaskRun]) -> dict[str, str]:
+    """Allowlist safe explanations; never serialize task inputs or upstream errors."""
+    attempts = list(db.scalars(
+        select(TaskAttempt).join(TaskRun, TaskRun.id == TaskAttempt.task_run_id)
+        .where(TaskRun.run_id == run.id)
+    ))
+    codes = {attempt.error_code for attempt in attempts if attempt.status == "failed"}
+    if "youtube_no_candidates" in codes:
+        return {"code": "no_relevant_videos", "message": "No relevant review videos were found. Try a more specific product model."}
+    transcript_tasks = [task for task in tasks if task.workflow_task_key.startswith("fetch_transcript.source_")]
+    if transcript_tasks:
+        by_task = {task.id: task for task in transcript_tasks}
+        transcript_outputs = [
+            attempt.output_payload for attempt in attempts
+            if attempt.task_run_id in by_task and attempt.status == "succeeded" and isinstance(attempt.output_payload, dict)
+        ]
+        if transcript_outputs and len(transcript_outputs) == len(transcript_tasks) and all(not output.get("available") for output in transcript_outputs):
+            return {"code": "no_transcripts", "message": "Review videos were found, but usable captions were unavailable. Try another product or model."}
+    if any(attempt.error_category == "budget" for attempt in attempts if attempt.status == "failed"):
+        return {"code": "analysis_capacity_reached", "message": "Research capacity was reached before a report could be completed. Try again later."}
+    return {"code": "analysis_failed", "message": "The analysis could not be completed. Try again later."}
 
 
 @router.post("/analyses/preflight", response_model=PreflightResponse)
@@ -341,7 +362,9 @@ def read_report_graph(
     offset = _parse_cursor(cursor, publication.report_id, type_filter)
     page = nodes[offset:offset + limit]
     visible = {node["id"] for node in page}
-    edges = [edge for edge in graph["edges"] if edge["source"] in visible and edge["target"] in visible][:200]
+    # Include connections crossing page boundaries. Clients may fetch later node
+    # pages and join by public opaque IDs without losing those relationships.
+    edges = [edge for edge in graph["edges"] if edge["source"] in visible or edge["target"] in visible][:200]
     next_cursor = _cursor(publication.report_id, offset + limit, type_filter) if offset + limit < len(nodes) else None
     response.headers.update(_NO_STORE)
     return GraphResponse(nodes=tuple(page), edges=tuple(edges), next_cursor=next_cursor)

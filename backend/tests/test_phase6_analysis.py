@@ -11,6 +11,7 @@ from pydantic import ValidationError
 
 from app.analysis.contracts import AudienceAnalysisDraft, AuditResult, QueryPlan, SourceAnalysisDraft
 from app.analysis.prompting import build_prompt_envelope
+from app.analysis.executor import _agent_task_input
 from app.analysis.registry import AGENT_REGISTRY, AGENT_SPECS, evaluate_agent_spec
 from app.config import Settings
 from app.db.base import Base
@@ -21,6 +22,7 @@ from app.tools.errors import ToolExecutionError
 from app.tools.runner import _admit_invocation
 from app.tools.registry import TOOL_REGISTRY
 from app.tools.youtube import product_relevance
+from app.knowledge.retrieval import estimate_tokens
 from app.worker import _safe_runtime_task_result
 from tests.youtube_mock import _ids as mock_youtube_ids
 from tests.youtube_mock import _label as mock_youtube_label
@@ -80,7 +82,7 @@ def test_registry_contains_exactly_the_seven_target_roles() -> None:
     )
     assert {spec.key: spec.content_hash for spec in AGENT_SPECS} == {
         "research_coordinator": "29a6c7d8d25d2416ae95b1fe30f221ea72fb61e43696e19298ec73d83271144c",
-        "source_curator": "2390eb77caa86c1ff610d373161568a66c63f7fc84692e5230953f950d975b1f",
+        "source_curator": "016af8cb78b150fedb16a95ff057b1365d24349b65a2df9f60b8c7b30310ab90",
         "review_analyst": "37ccc8d8e4af796e470eafdc7a98cd22d6179168d4798cb45e770da3ecd8733d",
         "audience_analyst": "228b832c0b0a9ea0c2a6019580425f41ae5163868398e1405256eba2ea0e18d5",
         "knowledge_curator": "8a940f59f78a2a337fa4a3462f03f30507f998d712444f788f3364cb4a6869e0",
@@ -88,6 +90,32 @@ def test_registry_contains_exactly_the_seven_target_roles() -> None:
         "quality_auditor": "aac8dbb1f13723269b4643b62de0d891a819df5585c67f869f4576c1784e1115",
     }
     assert all(evaluate_agent_spec(spec)["status"] == "passed" for spec in AGENT_SPECS)
+
+
+def test_source_curator_keeps_all_forty_candidates_within_snapshotted_input_limit(monkeypatch: pytest.MonkeyPatch) -> None:
+    spec = AGENT_REGISTRY["source_curator"]
+    product_id = uuid.uuid4()
+    candidates = [
+        {
+            "video_id": f"video{i:06d}", "source_node_id": str(uuid.uuid4()),
+            "title": "A review of the product and extended testing " * 12 + f" model {i}",
+            "channel_id": f"channel-{i}", "channel_title": "Independent reviewer " * 8,
+            "duration_seconds": 900, "view_count": 1_000_000,
+            "caption_available": True, "deterministic_score": 0.8,
+            "deterministic_exclusion": None,
+        }
+        for i in range(40)
+    ]
+    monkeypatch.setattr("app.analysis.executor._task_output", lambda *_: {
+        "canonical_product": "Test model", "product_node_id": str(product_id), "candidates": candidates,
+    })
+    payload, seeds = _agent_task_input(spec, SimpleNamespace(input_payload={}), SimpleNamespace(id=uuid.uuid4()))
+    assert len(payload["candidates"]) == 40
+    assert {item["video_id"] for item in payload["candidates"]} == {item["video_id"] for item in candidates}
+    assert seeds == (product_id,)
+    validated = spec.input_model.model_validate(payload)
+    envelope = build_prompt_envelope(spec, task_instruction=spec.purpose, task_input=validated.model_dump(mode="json"), context_manifest_id=None, rendered_context="")
+    assert estimate_tokens(envelope.system) + estimate_tokens(envelope.user) + spec.retrieval_policy.input_token_budget <= spec.max_input_tokens
 
 
 def test_tool_admission_waits_for_a_slot_without_relaxing_the_limit(monkeypatch) -> None:

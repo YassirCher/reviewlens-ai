@@ -13,5 +13,8 @@ dist/
 build/
 *.sqlite3
 coverage/
+test-results/
+playwright-report/
+*.tsbuildinfo
 context/
 .DS_Store

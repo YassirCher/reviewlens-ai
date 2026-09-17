@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { ArrowRight, Bot, Braces, Check, CircleHelp, Github, MessageSquareText, Search, ShieldCheck, Sparkles, Youtube } from "lucide-react";
 import { analyzeProduct, getConfig } from "@/lib/api";
 import type { AnalysisResponse, AppConfig, ProgressState, ProviderChoice } from "@/lib/types";
@@ -59,6 +60,7 @@ export function AnalysisApp() {
             <div><div className="text-sm font-semibold tracking-[-.02em] text-white">ReviewLens</div><div className="text-[9px] font-bold uppercase tracking-[.22em] text-slate-600">Product Intelligence</div></div>
           </div>
           <div className="flex items-center gap-2">
+            <Link href="/research" className="text-[10px] text-indigo-200 transition hover:text-white sm:text-xs">Try V2 research preview →</Link>
             <div className="hidden items-center gap-2 rounded-full border border-white/[.07] bg-white/[.025] px-3 py-1.5 text-[11px] text-slate-500 sm:flex">
               <span className={`h-1.5 w-1.5 rounded-full ${config && availableProviders.length ? "bg-emerald-300" : "bg-amber-300"}`} />
               {config ? `${availableProviders.length} AI provider${availableProviders.length === 1 ? "" : "s"} ready` : "API status unknown"}

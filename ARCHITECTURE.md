@@ -1,8 +1,8 @@
 # Runtime Architecture
 
-> **Current implementation:** The original analysis diagram below describes legacy V1. The Target V2 architecture is specified in [context/03_SYSTEM_ARCHITECTURE.md](./context/03_SYSTEM_ARCHITECTURE.md). Phases 1–7 implement the V2 backend foundation and public API beside the still-default V1 product flow; the V2 frontend is Phase 8 work.
+> **Current implementation:** The original analysis diagram below describes legacy V1. The Target V2 architecture is specified in [context/03_SYSTEM_ARCHITECTURE.md](./context/03_SYSTEM_ARCHITECTURE.md). Beside the still-default V1 product flow at `/`, Phase 8 exposes the separate V2 preview at `/research`, owner progress at `/analysis/{run_id}`, and unlisted reports/evidence at `/r/{public_token}`.
 
-Phase 1 implements the shared platform. Phase 2 adds restart-safe orchestration. Phase 3 adds the separate V2 OpenRouter gateway and exact accounting. Phase 4 makes PostgreSQL and versioned Markdown authoritative for context. Phase 5 adds fixed typed research tools and YouTube quota accounting. Phase 6 adds seven immutable role definitions, deterministic source fan-out/fan-in, and audited internal reports. Phase 7 adds signed anonymous ownership, transactional quota admission, owner-only durable progress, and immutable public report/graph projections whose access can be revoked. Admin model-management APIs and the V2 product UI remain later phases.
+Phase 1 implements the shared platform. Phase 2 adds restart-safe orchestration. Phase 3 adds the separate V2 OpenRouter gateway and exact accounting. Phase 4 makes PostgreSQL and versioned Markdown authoritative for context. Phase 5 adds fixed typed research tools and YouTube quota accounting. Phase 6 adds seven immutable role definitions, deterministic source fan-out/fan-in, and audited internal reports. Phase 7 adds signed anonymous ownership, transactional quota admission, owner-only durable progress, and immutable public report/graph projections whose access can be revoked. Phase 8 adds the public research/report UI, server-only uncached report rendering, safe failure categories, and cross-page evidence relationships. The broad admin control plane remains Phase 9; default-root cutover remains Phase 11.
 
 ```text
 Runtime service ---> PostgreSQL transaction
@@ -42,6 +42,11 @@ Phase 6 orchestrator --> validate + bounded query plan + deterministic discovery
                     --> evidence graph curation --> consensus --> quality audit
                     --> at most one declared correction/re-audit cycle
                     `--> immutable internal report or unpublished failed run
+
+Phase 8 browser --> credentialed preflight/create/status/cancel + sequence-replayed SSE
+                   --> polling fallback when a stream disconnects
+                   --> owner-only report handoff; unlisted /r/* uses server-only API origin
+                   --> public-safe evidence graph, paginated links, keyboard list alternative
 ```
 
 ```text

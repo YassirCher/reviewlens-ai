@@ -62,7 +62,9 @@ def create_test_environment() -> None:
         # Fixture execution never calls either upstream. Deliberately fake values
         # satisfy worker role validation without reading the developer's .env.
         "YOUTUBE_API_KEY": "phase2-fixture-never-used",
+        "YOUTUBE_BASE_URL": "http://youtube-mock:8090/youtube/v3",
         "OPENROUTER_API_KEY": "phase2-fixture-never-used",
+        "OPENROUTER_BASE_URL": "http://openrouter-mock:8089/api/v1",
         "OPENROUTER_MODEL": "phase2-fixture-never-used",
         "PUBLIC_ANALYSIS_ENABLED": "true",
         "CELERY_VISIBILITY_TIMEOUT_SECONDS": "120",
@@ -140,7 +142,6 @@ def main() -> int:
         # workers can observe a changing schema.
         migration_command("alembic", "downgrade", "base")
         migration_command("alembic", "upgrade", "head")
-        migration_command("python", "-m", "app.cli", "seed")
         migration_command("alembic", "downgrade", "20260915_0001")
         migration_command("alembic", "upgrade", "head")
         migration_command("python", "-m", "app.cli", "seed")

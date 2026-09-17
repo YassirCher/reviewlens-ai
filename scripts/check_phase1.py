@@ -61,7 +61,9 @@ def create_test_environment() -> None:
         "NEO4J_USERNAME": "neo4j",
         "NEO4J_PASSWORD": secrets.token_urlsafe(24),
         "YOUTUBE_API_KEY": "test-only-youtube-key",
+        "YOUTUBE_BASE_URL": "http://youtube-mock:8090/youtube/v3",
         "OPENROUTER_API_KEY": "test-only-openrouter-key",
+        "OPENROUTER_BASE_URL": "http://openrouter-mock:8089/api/v1",
         "OPENROUTER_MODEL": "test-only-v1-model",
         "PUBLIC_ANALYSIS_ENABLED": "true",
     }

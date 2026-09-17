@@ -159,26 +159,30 @@ def collect_health(config: Settings = settings) -> HealthReport:
     else:
         status = "ready"
     llmops: dict = {}
-    try:
-        from app.llmops.operations import llmops_health
-
-        llmops = llmops_health(config)
-    except Exception as exc:
-        llmops = {"status": "unavailable", "detail": type(exc).__name__}
     knowledge: dict = {}
-    try:
-        from app.knowledge.health import knowledge_health
-
-        knowledge = knowledge_health(config)
-    except Exception as exc:
-        knowledge = {"status": "unavailable", "detail": type(exc).__name__}
     research: dict = {}
-    try:
-        from app.tools.health import research_health
+    # These detailed probes also query PostgreSQL. When the primary probe has
+    # failed, repeating several connection timeouts can make /health/ready
+    # itself unreachable instead of promptly returning 503.
+    if dependencies["postgres"].available:
+        try:
+            from app.llmops.operations import llmops_health
 
-        research = research_health(config)
-    except Exception as exc:
-        research = {"status": "unavailable", "detail": type(exc).__name__}
+            llmops = llmops_health(config)
+        except Exception as exc:
+            llmops = {"status": "unavailable", "detail": type(exc).__name__}
+        try:
+            from app.knowledge.health import knowledge_health
+
+            knowledge = knowledge_health(config)
+        except Exception as exc:
+            knowledge = {"status": "unavailable", "detail": type(exc).__name__}
+        try:
+            from app.tools.health import research_health
+
+            research = research_health(config)
+        except Exception as exc:
+            research = {"status": "unavailable", "detail": type(exc).__name__}
     return HealthReport(
         status=status,
         dependencies=dependencies,

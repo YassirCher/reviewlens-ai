@@ -199,7 +199,6 @@ def main() -> int:
 
         migration_command("alembic", "downgrade", "base")
         migration_command("alembic", "upgrade", "head")
-        migration_command("python", "-m", "app.cli", "seed")
         migration_command("alembic", "downgrade", "20260915_0004")
         migration_command("alembic", "upgrade", "head")
         migration_command("python", "-m", "app.cli", "seed")

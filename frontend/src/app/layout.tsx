@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./v2.css";
 
 export const metadata: Metadata = {
   title: "ReviewLens — Product intelligence from real reviews",
