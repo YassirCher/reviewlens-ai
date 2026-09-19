@@ -39,7 +39,6 @@ from app.db.models import (
     OpenRouterModelSnapshot,
     Report,
     TaskAttempt,
-    TaskDependency,
     TaskRun,
     UsageEvent,
     Workspace,

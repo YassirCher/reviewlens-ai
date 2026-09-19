@@ -10,11 +10,57 @@ import { adminPost, dateTime, downloadAdminCsv, money, type AdminRun, type Page 
 import { AdminHeading, AdminState, ConfirmAction, DataTable, Status, useAdminData } from "@/components/admin-ui";
 import { WorkflowGraph } from "@/components/admin-graph";
 
-type Overview = { run_counts: Record<string, number>; local_usage: { cost_microusd: number; tokens: number; calls: number }; hourly: { bucket_start: string; total_cost_microusd: number; total_tokens: number }[]; aggregates_stale: boolean; aggregates_refreshed_at: string | null; openrouter_credits: { status: string; remaining_microusd: number | null; checked_at?: string } };
+type OperationalAlert = {
+  severity: "critical" | "warning";
+  code: string;
+  title: string;
+  detail: string;
+  observed_at: string;
+  threshold: string | number | null;
+  observed_value: string | number | null;
+  recovery_link: string;
+};
+type Overview = {
+  run_counts: Record<string, number>;
+  local_usage: { cost_microusd: number; tokens: number; calls: number };
+  hourly: { bucket_start: string; total_cost_microusd: number; total_tokens: number }[];
+  aggregates_stale: boolean;
+  aggregates_refreshed_at: string | null;
+  openrouter_credits: { status: string; remaining_microusd: number | null; checked_at?: string };
+  operations: { alerts: OperationalAlert[]; worker_available: boolean; scheduler_fresh: boolean };
+};
+
 export function AdminOverview() {
   const { data, loading, error, reload } = useAdminData<Overview>("/overview");
-  const chart = data?.hourly.map(row => ({ time: new Date(row.bucket_start).toLocaleTimeString([], { hour: "2-digit" }), cost: row.total_cost_microusd / 1_000_000 })) || [];
-  return <><AdminHeading eyebrow="OPERATIONS / 24 HOURS" title="System overview" description="Local run activity and ledger cost, with OpenRouter credit shown separately." actions={<button className="admin-secondary" onClick={() => void reload()}><RefreshCw size={15} /> Refresh</button>} /><AdminState loading={loading} error={error}><div className="admin-grid"><div className="admin-card"><div className="admin-card-label">Runs started</div><div className="admin-card-value">{Object.values(data?.run_counts || {}).reduce((sum, value) => sum + value, 0)}</div><p>{Object.entries(data?.run_counts || {}).map(([key, value]) => `${key}: ${value}`).join(" · ") || "No runs yet"}</p></div><div className="admin-card"><div className="admin-card-label">Local cost</div><div className="admin-card-value">{money(data?.local_usage.cost_microusd)}</div><p>From the usage ledger · 24h</p></div><div className="admin-card"><div className="admin-card-label">Tokens</div><div className="admin-card-value">{(data?.local_usage.tokens || 0).toLocaleString()}</div><p>{data?.local_usage.calls || 0} model calls</p></div><div className="admin-card"><div className="admin-card-label">OpenRouter credit</div><div className="admin-card-value">{money(data?.openrouter_credits.remaining_microusd)}</div><p>{data?.openrouter_credits.status || "unavailable"}{data?.openrouter_credits.checked_at ? ` · ${dateTime(data.openrouter_credits.checked_at)}` : ""}</p></div></div>{data?.aggregates_stale && <div className="admin-banner admin-banner-warning" role="status">Analytics aggregates are stale or unavailable. Local totals above read directly from the ledger.</div>}<div className="admin-two-col"><section className="admin-panel"><div className="admin-panel-head"><h2>Hourly local cost</h2><span className="admin-muted">Last reconciliation {dateTime(data?.aggregates_refreshed_at)}</span></div>{chart.length ? <div style={{ width: "100%", height: 250 }} role="img" aria-label="Hourly local cost chart; data also available in Analytics"><ResponsiveContainer><AreaChart data={chart}><CartesianGrid stroke="#2a3342" strokeDasharray="3 3" /><XAxis dataKey="time" stroke="#aab4c3" fontSize={11} /><YAxis stroke="#aab4c3" fontSize={11} /><Tooltip contentStyle={{ background: "#151a23", border: "1px solid #3a4659" }} /><Area dataKey="cost" stroke="#8b7cf6" fill="#8b7cf633" /></AreaChart></ResponsiveContainer></div> : <p className="admin-muted">No usage has been aggregated yet.</p>}</section><section className="admin-panel"><h2>Go to</h2><ul className="admin-list"><li><Link href="/admin/runs">Inspect run traces →</Link></li><li><Link href="/admin/agents">Review agent drafts →</Link></li><li><Link href="/admin/models">Browse model routes →</Link></li><li><Link href="/admin/settings">Manage budgets and kill switch →</Link></li></ul></section></div></AdminState></>;
+  const chart = data?.hourly.map(row => ({
+    time: new Date(row.bucket_start).toLocaleTimeString([], { hour: "2-digit" }),
+    cost: row.total_cost_microusd / 1_000_000,
+  })) || [];
+  return <>
+    <AdminHeading eyebrow="OPERATIONS / 24 HOURS" title="System overview" description="Local run activity and ledger cost, with OpenRouter credit shown separately." actions={<button className="admin-secondary" onClick={() => void reload()}><RefreshCw size={15} /> Refresh</button>} />
+    <AdminState loading={loading} error={error}>
+      <div className="admin-grid">
+        <div className="admin-card"><div className="admin-card-label">Runs started</div><div className="admin-card-value">{Object.values(data?.run_counts || {}).reduce((sum, value) => sum + value, 0)}</div><p>{Object.entries(data?.run_counts || {}).map(([key, value]) => `${key}: ${value}`).join(" · ") || "No runs yet"}</p></div>
+        <div className="admin-card"><div className="admin-card-label">Local cost</div><div className="admin-card-value">{money(data?.local_usage.cost_microusd)}</div><p>From the usage ledger · 24h</p></div>
+        <div className="admin-card"><div className="admin-card-label">Tokens</div><div className="admin-card-value">{(data?.local_usage.tokens || 0).toLocaleString()}</div><p>{data?.local_usage.calls || 0} model calls</p></div>
+        <div className="admin-card"><div className="admin-card-label">OpenRouter credit</div><div className="admin-card-value">{money(data?.openrouter_credits.remaining_microusd)}</div><p>{data?.openrouter_credits.status || "unavailable"}{data?.openrouter_credits.checked_at ? ` · ${dateTime(data.openrouter_credits.checked_at)}` : ""}</p></div>
+      </div>
+      {data?.aggregates_stale && <div className="admin-banner admin-banner-warning" role="status">Analytics aggregates are stale or unavailable. Local totals above read directly from the ledger.</div>}
+      {data?.operations.alerts.length ? <section className="admin-alerts" aria-labelledby="operational-alerts-heading" aria-live="polite">
+        <div className="admin-panel-head"><h2 id="operational-alerts-heading">Operational alerts</h2><span className="admin-muted">{data.operations.alerts.length} active</span></div>
+        <ul>{data.operations.alerts.map(alert => <li key={alert.code} className={`admin-alert admin-alert-${alert.severity}`}>
+          <div><span className="admin-alert-severity">{alert.severity}</span><h3>{alert.title}</h3><p>{alert.detail}</p><dl>
+            <div><dt>Code</dt><dd>{alert.code}</dd></div><div><dt>Observed</dt><dd>{String(alert.observed_value ?? "unavailable")}</dd></div>
+            <div><dt>Threshold</dt><dd>{String(alert.threshold ?? "none")}</dd></div><div><dt>Time</dt><dd>{dateTime(alert.observed_at)}</dd></div>
+          </dl></div><Link href={alert.recovery_link}>Open recovery control →</Link>
+        </li>)}</ul>
+      </section> : data && <div className="admin-banner admin-banner-good" role="status">No operational alerts are active.</div>}
+      <div className="admin-two-col">
+        <section className="admin-panel"><div className="admin-panel-head"><h2>Hourly local cost</h2><span className="admin-muted">Last reconciliation {dateTime(data?.aggregates_refreshed_at)}</span></div>{chart.length ? <div style={{ width: "100%", height: 250 }} role="img" aria-label="Hourly local cost chart; data also available in Analytics"><ResponsiveContainer><AreaChart data={chart}><CartesianGrid stroke="#2a3342" strokeDasharray="3 3" /><XAxis dataKey="time" stroke="#aab4c3" fontSize={11} /><YAxis stroke="#aab4c3" fontSize={11} /><Tooltip contentStyle={{ background: "#151a23", border: "1px solid #3a4659" }} /><Area dataKey="cost" stroke="#8b7cf6" fill="#8b7cf633" /></AreaChart></ResponsiveContainer></div> : <p className="admin-muted">No usage has been aggregated yet.</p>}</section>
+        <section className="admin-panel"><h2>Go to</h2><ul className="admin-list"><li><Link href="/admin/runs">Inspect run traces →</Link></li><li><Link href="/admin/agents">Review agent drafts →</Link></li><li><Link href="/admin/models">Browse model routes →</Link></li><li><Link href="/admin/settings">Manage budgets and kill switch →</Link></li></ul></section>
+      </div>
+    </AdminState>
+  </>;
 }
 
 const runColumns: ColumnDef<AdminRun, unknown>[] = [

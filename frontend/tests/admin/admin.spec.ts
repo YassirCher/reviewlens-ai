@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
 
 const API = "http://127.0.0.1:8899/api/v2/admin";
 const RUN = "11111111-1111-4111-8111-111111111111";
@@ -58,7 +59,12 @@ async function mockAdmin(page: Page): Promise<MockState> {
       local_usage: { cost_microusd: 7000, tokens: 1200, calls: 1 },
       hourly: [{ bucket_start: NOW, total_cost_microusd: 7000, total_tokens: 1200 }],
       aggregates_stale: false, aggregates_refreshed_at: NOW,
-      openrouter_credits: { status: "unavailable", remaining_microusd: null } });
+      openrouter_credits: { status: "unavailable", remaining_microusd: null },
+      operations: { worker_available: false, scheduler_fresh: false, alerts: [{
+        severity: "critical", code: "worker_unavailable", title: "Worker is unavailable",
+        detail: "Background run and maintenance tasks cannot be dispatched.", observed_at: NOW,
+        threshold: "available", observed_value: "unavailable", recovery_link: "/admin/runs",
+      }] } });
     if (path === "/runs") return response(route, { items: [{ id: RUN, product: "Aurora Headphones",
       status: "running", initiator_type: "public", created_at: NOW, duration_ms: 3000,
       total_tokens: 1200, total_cost_microusd: 7000, model_call_count: 1, pending_usage_count: 0 }], next_cursor: null });
@@ -210,11 +216,20 @@ async function confirm(page: Page, label: string, phrase: string) {
   await expect(dialog).toBeHidden();
 }
 
+test("admin overview has no serious automated accessibility violations", async ({ page }) => {
+  await mockAdmin(page);
+  await signIn(page);
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(results.violations.filter(item => ["serious", "critical"].includes(item.impact || ""))).toEqual([]);
+});
+
 test("protected login, navigation, keyboard, and responsive layouts", async ({ page, context }) => {
   await mockAdmin(page);
   await page.goto("http://127.0.0.1:3000/admin/runs");
   await expect(page).toHaveURL(/\/admin\/login/);
   await signIn(page);
+  await expect(page.getByRole("heading", { name: "Operational alerts" })).toBeVisible();
+  await expect(page.getByText("worker_unavailable")).toBeVisible();
   const cookies = await context.cookies(API);
   expect(cookies.find(cookie => cookie.name === "admin_mock")?.httpOnly).toBe(true);
   await page.keyboard.press("Control+k");

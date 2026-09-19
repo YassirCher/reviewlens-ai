@@ -67,6 +67,8 @@ class Settings(BaseSettings):
     api_public_url: str = "http://localhost:8000"
     backend_cors_origins: str = "http://localhost:3000"
     log_level: str = "INFO"
+    v2_max_request_body_bytes: int = Field(default=1_048_576, ge=1024, le=10_485_760)
+    operations_error_rate_min_runs: int = Field(default=5, ge=1, le=10_000)
     raw_content_encryption_key: str = Field(default="", exclude=True, repr=False)
 
     admin_email: str = ""

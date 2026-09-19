@@ -3,7 +3,6 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from pathlib import Path
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Header, Query, Request
@@ -15,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.admin.common import StrictModel, decode_list_cursor, encode_list_cursor, not_found, require_admin_mutation
 from app.admin.jobs import create_job
-from app.api.v2.dependencies import get_v2_db, get_v2_redis, require_admin
+from app.api.v2.dependencies import get_v2_db, require_admin
 from app.cache import get_redis
 from app.config import settings
 from app.db.models import (

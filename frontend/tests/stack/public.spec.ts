@@ -1,4 +1,12 @@
+import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
+
+test("production research entry has no serious accessibility violations", async ({ page }) => {
+  await page.goto("/research");
+  await expect(page.getByRole("heading", { name: /See the buying signal/i })).toBeVisible();
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(results.violations.filter((violation) => ["serious", "critical"].includes(violation.impact ?? ""))).toEqual([]);
+});
 
 test("real public V2 journey publishes a mocked-source report without touching V1", async ({ page }) => {
   await page.goto("/");

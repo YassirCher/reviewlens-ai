@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
-from typing import Literal
 
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import func, select
@@ -12,7 +11,7 @@ from app.admin.common import not_found, page_rows, require_admin_mutation
 from app.api.v2.dependencies import get_v2_db, require_admin
 from app.db.models import (
     AdminSession, AnalysisRun, AuditEvent, ConfigurationSnapshot, ContextManifest,
-    Report, ReportPublication, TaskAttempt, TaskDependency, TaskRun, ToolDefinition, ToolInvocation,
+    ReportPublication, TaskAttempt, TaskDependency, TaskRun, ToolDefinition, ToolInvocation,
     ToolVersion, UsageEvent, Workspace,
 )
 from app.errors import V2Error

@@ -95,9 +95,14 @@ def search(
     q: str,
     maxResults: int = Query(default=20, ge=1, le=50),
     x_goog_api_key: str | None = Header(default=None),
+    x_mock_failure: str | None = Header(default=None),
 ) -> dict:
     _require_header_key(request, x_goog_api_key)
     CALLS["search"] += 1
+    if x_mock_failure in {"search_failure", "upstream_5xx"}:
+        raise HTTPException(status_code=503, detail="mock search unavailable")
+    if x_mock_failure == "timeout":
+        raise HTTPException(status_code=408, detail="mock search timeout")
     scenario = _scenario(q)
     now = datetime.now(timezone.utc).isoformat()
     return {
@@ -117,9 +122,12 @@ def search(
 
 
 @app.get("/youtube/v3/videos")
-def videos(request: Request, id: str, x_goog_api_key: str | None = Header(default=None)) -> dict:
+def videos(request: Request, id: str, x_goog_api_key: str | None = Header(default=None),
+           x_mock_failure: str | None = Header(default=None)) -> dict:
     _require_header_key(request, x_goog_api_key)
     CALLS["videos"] += 1
+    if x_mock_failure:
+        raise HTTPException(status_code=503, detail="mock video details unavailable")
     now = datetime.now(timezone.utc).isoformat()
     items = []
     for index, video_id in enumerate(id.split(","), start=1):
@@ -154,9 +162,12 @@ def comments(
     videoId: str,
     maxResults: int = Query(default=30, ge=1, le=100),
     x_goog_api_key: str | None = Header(default=None),
+    x_mock_failure: str | None = Header(default=None),
 ) -> dict:
     _require_header_key(request, x_goog_api_key)
     CALLS["comments"] += 1
+    if x_mock_failure == "comments_unavailable" or videoId.startswith("nocomm"):
+        raise HTTPException(status_code=403, detail="mock comments unavailable")
     now = datetime.now(timezone.utc).isoformat()
     items = []
     for index in range(maxResults):
@@ -185,9 +196,10 @@ def comments(
 
 
 @app.get("/youtube/v3/transcripts")
-def transcripts(videoId: str, language: str = "en") -> dict:
+def transcripts(videoId: str, language: str = "en",
+                x_mock_failure: str | None = Header(default=None)) -> dict:
     CALLS["transcripts"] += 1
-    if videoId.startswith("partmiss") or videoId == "misscap1":
+    if x_mock_failure == "missing_transcript" or videoId.startswith("partmiss") or videoId == "misscap1":
         raise HTTPException(status_code=404, detail="fixture transcript unavailable")
     segments = [
         {

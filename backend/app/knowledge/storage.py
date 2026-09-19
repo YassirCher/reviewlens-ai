@@ -116,8 +116,14 @@ def parse_markdown(value: str) -> tuple[dict[str, Any], str]:
 
 
 def workspace_root(workspace_id: uuid.UUID, config: Settings = settings) -> Path:
-    root = Path(config.node_storage_root).resolve()
-    candidate = (root / str(workspace_id)).resolve()
+    configured = Path(config.node_storage_root)
+    if configured.is_symlink():
+        raise MarkdownValidationError("NODE_STORAGE_ROOT cannot be a symlink")
+    root = configured.resolve()
+    unresolved = root / str(workspace_id)
+    if unresolved.is_symlink():
+        raise MarkdownValidationError("workspace root cannot be a symlink")
+    candidate = unresolved.resolve()
     if candidate.parent != root:
         raise MarkdownValidationError("workspace path escaped NODE_STORAGE_ROOT")
     return candidate
@@ -136,19 +142,33 @@ def resolve_body_path(root: Path, relative_path: str | Path) -> Path:
     relative = Path(relative_path)
     if relative.is_absolute() or ".." in relative.parts:
         raise MarkdownValidationError("node body path must be workspace-relative")
+    if relative.suffix.casefold() != ".md":
+        raise MarkdownValidationError("node body path must use the .md extension")
+    if root.is_symlink():
+        raise MarkdownValidationError("workspace root cannot be a symlink")
+    root = root.resolve()
+    current = root
+    for part in relative.parts:
+        current = current / part
+        if current.exists() and current.is_symlink():
+            raise MarkdownValidationError("node body path cannot contain symlinks")
     candidate = (root / relative).resolve()
     try:
-        candidate.relative_to(root.resolve())
+        candidate.relative_to(root)
     except ValueError as exc:
         raise MarkdownValidationError("node body path escaped the workspace") from exc
+    if candidate.exists() and candidate.is_file() and candidate.stat().st_nlink != 1:
+        raise MarkdownValidationError("node body path cannot be a hardlink")
     return candidate
 
 
 def atomic_write(root: Path, relative_path: Path, content: str) -> Path:
     destination = resolve_body_path(root, relative_path)
     destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.parent.chmod(0o700)
     temporary_root = root / "temporary"
     temporary_root.mkdir(parents=True, exist_ok=True)
+    temporary_root.chmod(0o700)
     file_descriptor, temporary_name = tempfile.mkstemp(prefix="node-", suffix=".tmp", dir=temporary_root)
     temporary_path = Path(temporary_name)
     try:
@@ -156,6 +176,7 @@ def atomic_write(root: Path, relative_path: Path, content: str) -> Path:
             handle.write(content)
             handle.flush()
             os.fsync(handle.fileno())
+        temporary_path.chmod(0o600)
         os.replace(temporary_path, destination)
     finally:
         temporary_path.unlink(missing_ok=True)

@@ -17,6 +17,7 @@ from app.config import settings
 from app.errors import V2Error
 from app.observability import configure_logging, request_id_context
 from app.platform.health import collect_health
+from app.platform.http_security import V2RequestGuardMiddleware
 
 configure_logging()
 # Access paths contain high-entropy unlisted report tokens; never log them.
@@ -39,6 +40,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(V2RequestGuardMiddleware, config=settings)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -77,13 +79,24 @@ async def request_context_and_security_headers(request: Request, call_next):
         request_id_context.reset(token)
     response.headers["X-Request-ID"] = str(request_id)
     response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "no-referrer"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
-    response.headers["Content-Security-Policy"] = (
-        "default-src 'self'; frame-ancestors 'none'; img-src 'self' data: https://fastapi.tiangolo.com; "
-        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
-        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net"
-    )
+    if request.url.path.startswith("/api/"):
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'none'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'"
+        )
+    else:
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; "
+            "img-src 'self' data: https://fastapi.tiangolo.com; "
+            "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+            "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net"
+        )
+    if request.url.path.startswith("/api/v2/admin"):
+        response.headers["Cache-Control"] = "private, no-store"
+    if not settings.is_local_development:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return response
 
 

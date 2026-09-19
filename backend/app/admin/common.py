@@ -10,7 +10,7 @@ from typing import Any
 
 from fastapi import Depends, Header
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import Select, and_, or_, select
+from sqlalchemy import Select, and_, or_
 from sqlalchemy.orm import Session
 
 from app.api.v2.dependencies import get_v2_db, require_admin

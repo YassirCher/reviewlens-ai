@@ -14,6 +14,7 @@ from app.admin.common import decode_cursor, encode_cursor
 from app.api.v2.dependencies import get_v2_db, require_admin
 from app.db.models import AnalysisRun, OpenRouterAccountState, UsageAggregate, UsageEvent
 from app.errors import V2Error
+from app.platform.alerts import collect_operational_alerts
 from app.services.admin_auth import AuthenticatedAdmin
 
 router = APIRouter(prefix="/admin", tags=["admin-analytics"])
@@ -35,6 +36,12 @@ def _row(row: UsageAggregate) -> dict:
             "total_cost_microusd": row.total_cost_microusd,
             "prompt_tokens": row.prompt_tokens, "completion_tokens": row.completion_tokens,
             "reasoning_tokens": row.reasoning_tokens, "cached_tokens": row.cached_tokens}
+
+
+def _safe_csv_cell(value):
+    if isinstance(value, str) and value.lstrip().startswith(("=", "+", "-", "@")):
+        return f"'{value}"
+    return value
 
 
 def _credits(db: Session) -> dict:
@@ -73,7 +80,8 @@ def overview(db: Session = Depends(get_v2_db), _: AuthenticatedAdmin = Depends(r
             "hourly": [_row(row) for row in recent],
             "aggregates_refreshed_at": latest.isoformat() if latest else None,
             "aggregates_stale": latest is None or now - latest > timedelta(minutes=10),
-            "openrouter_credits": _credits(db)}
+            "openrouter_credits": _credits(db),
+            "operations": collect_operational_alerts(db).model_dump(mode="json")}
 
 
 @router.get("/analytics")
@@ -129,7 +137,7 @@ def export_csv(granularity: Literal["hour", "day"] = "day",
                              "total_tokens", "total_cost_microusd", "prompt_tokens", "completion_tokens",
                              "reasoning_tokens", "cached_tokens"])
     writer.writeheader()
-    writer.writerows(_row(row) for row in rows)
+    writer.writerows({key: _safe_csv_cell(value) for key, value in _row(row).items()} for row in rows)
     return StreamingResponse(iter([output.getvalue()]), media_type="text/csv",
                              headers={"Content-Disposition": 'attachment; filename="reviewlens-analytics.csv"',
                                       "Cache-Control": "private, no-store"})

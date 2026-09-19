@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 import uuid
 from collections.abc import Awaitable, Callable
 from datetime import timezone
@@ -29,7 +28,6 @@ from app.knowledge.projections import query_qdrant_projection
 from app.knowledge.service import create_node, create_relation, read_version_body
 from app.llmops.contracts import EmbeddingPolicyDocument, InvocationContext
 from app.llmops.gateway import OpenRouterGateway
-from app.runtime.contracts import canonical_json_hash
 from app.tools.contracts import (
     GraphCreateEdgesInput,
     GraphCreateEdgesOutput,

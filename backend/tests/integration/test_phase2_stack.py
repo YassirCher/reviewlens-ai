@@ -10,7 +10,6 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import DBAPIError
 
 from app.cache import get_redis
-from app.config import settings
 from app.db.models import (
     AnalysisRun,
     ConfigurationSnapshot,

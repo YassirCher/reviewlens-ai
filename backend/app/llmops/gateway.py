@@ -24,6 +24,7 @@ from app.llmops.contracts import (
     OpenRouterError,
     OpenRouterErrorCategory,
 )
+from app.observability import operation_context
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +57,12 @@ class OpenRouterGateway:
         return calculated
 
     async def chat(self, invocation: ChatInvocation) -> ChatResult:
+        with operation_context(run_id=invocation.context.run_id,
+                               task_id=invocation.context.task_run_id,
+                               attempt_id=invocation.context.task_attempt_id):
+            return await self._chat(invocation)
+
+    async def _chat(self, invocation: ChatInvocation) -> ChatResult:
         Draft202012Validator.check_schema(invocation.response_schema)
         last_error: OpenRouterError | None = None
         estimated_tokens = invocation.estimated_prompt_tokens + invocation.policy.max_completion_tokens
@@ -119,6 +126,12 @@ class OpenRouterGateway:
         raise last_error
 
     async def embeddings(self, invocation: EmbeddingInvocation) -> EmbeddingResult:
+        with operation_context(run_id=invocation.context.run_id,
+                               task_id=invocation.context.task_run_id,
+                               attempt_id=invocation.context.task_attempt_id):
+            return await self._embeddings(invocation)
+
+    async def _embeddings(self, invocation: EmbeddingInvocation) -> EmbeddingResult:
         last_error: OpenRouterError | None = None
         for retry_number in range(1, self.config.openrouter_max_attempts + 1):
             if _remaining_seconds(invocation.context.deadline_at) <= 0:

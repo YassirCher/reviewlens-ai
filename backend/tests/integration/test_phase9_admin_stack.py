@@ -18,7 +18,7 @@ from app.admin.analytics import reconcile_usage_aggregates
 from app.analysis.configuration import seed_analysis_configuration
 from app.config import settings
 from app.db.models import (
-    ActiveConfiguration, AdminJob, AdminUser, AgentVersion, AnalysisRun, AuditEvent, BudgetPolicyVersion,
+    ActiveConfiguration, AdminJob, AdminUser, AgentVersion, AuditEvent, BudgetPolicyVersion,
     EvaluationBudgetState, ModelPolicyVersion, OpenRouterCatalogRefresh, TaskRun, UsageAggregate,
     UsageEvent, WorkflowVersion,
 )
@@ -101,6 +101,12 @@ def test_phase9_auth_csrf_and_audit_redaction() -> None:
         assert audit.json()["items"]
         assert "password" not in audit.text.casefold()
         assert "csrf" not in audit.text.casefold()
+        overview = client.get("/api/v2/admin/overview")
+        assert overview.status_code == 200, overview.text
+        assert isinstance(overview.json()["operations"]["alerts"], list)
+        health = client.get("/api/v2/admin/system/health")
+        assert health.status_code == 200, health.text
+        assert health.json()["operations"]["worker_available"] is True
 
 
 def test_phase9_drafts_published_immutability_and_activation_snapshot() -> None:
@@ -217,13 +223,18 @@ def test_phase9_mocked_evaluation_gates_publication_and_attributes_usage() -> No
 
     result = evaluate_agent_version(draft_id, uuid.uuid4())
     assert result["status"] == "passed", result
+    assert result["metrics"]["case_count"] == 5
+    assert result["metrics"]["cases_executed"] == 5
+    assert result["metrics"]["schema_valid_rate"] == 1.0
+    assert result["metrics"]["central_claim_evidence_linkage"] == 1.0
+    assert len(result["run_ids"]) == 5
     with session_scope() as db:
         draft = db.get(AgentVersion, draft_id)
         assert draft.evaluation_metadata["status"] == "passed"
         published = publish_draft(db, "agents", definition_id, draft_id)
         attributed = list(db.scalars(select(UsageEvent).where(UsageEvent.agent_version_id == draft_id)))
         assert published.lifecycle == "published"
-        assert attributed and all(row.usage_status != "pending" for row in attributed)
+        assert len(attributed) >= 5 and all(row.usage_status != "pending" for row in attributed)
 
 
 def test_phase9_recovery_actions_celery_jobs_and_refresh_failure() -> None:

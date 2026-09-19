@@ -22,5 +22,9 @@ EXPOSE 8000
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
 FROM runtime AS test
+USER root
+COPY requirements-dev.txt ./requirements-dev.txt
+RUN pip install --no-cache-dir -r requirements-dev.txt
 COPY --chown=reviewlens:reviewlens tests ./tests
+USER reviewlens
 CMD ["python", "-m", "pytest", "tests", "-q"]

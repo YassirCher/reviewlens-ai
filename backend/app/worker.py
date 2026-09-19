@@ -109,23 +109,25 @@ def _safe_runtime_task_result(result: dict) -> dict[str, str | int]:
     reject_on_worker_lost=True,
 )
 def execute_runtime_task(self, task_run_id: str, expected_attempt_number: int) -> dict:
+    from app.observability import operation_context
     from app.runtime.service import execute_task_run, fail_active_attempt
 
     task_id = uuid.UUID(task_run_id)
-    try:
-        result = execute_task_run(
-            task_id,
-            expected_attempt_number=expected_attempt_number,
-            celery_task_id=self.request.id,
-            worker_identity=self.request.hostname,
-        )
-    except SoftTimeLimitExceeded:
-        result = fail_active_attempt(
-            task_id,
-            code="task_soft_time_limit",
-            category="timeout",
-            retryable=True,
-        )
+    with operation_context(task_id=task_id):
+        try:
+            result = execute_task_run(
+                task_id,
+                expected_attempt_number=expected_attempt_number,
+                celery_task_id=self.request.id,
+                worker_identity=self.request.hostname,
+            )
+        except SoftTimeLimitExceeded:
+            result = fail_active_attempt(
+                task_id,
+                code="task_soft_time_limit",
+                category="timeout",
+                retryable=True,
+            )
     # Celery logs and may retain task return values. Runtime outputs can contain
     # untrusted YouTube bodies, so only return a fixed, content-free receipt.
     return _safe_runtime_task_result(result)

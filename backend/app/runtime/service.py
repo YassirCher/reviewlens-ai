@@ -1178,7 +1178,7 @@ def recover_stale_attempts(config: Settings = settings) -> int:
                 attempt.error_category = "worker_interrupted"
                 attempt.error_code = "attempt_lease_expired"
                 attempt.retryable = True
-                policy = RetryPolicy.model_validate(task.retry_policy)
+                RetryPolicy.model_validate(task.retry_policy)
                 if attempt.attempt_number < task.max_attempts and now < task.deadline_at:
                     _set_task_status(task, TaskStatus.QUEUED)
                     queue_task_dispatch(db, run, task, available_at=now)

@@ -13,7 +13,6 @@ from alembic.script import ScriptDirectory
 from neo4j import GraphDatabase
 from redis.exceptions import RedisError
 from sqlalchemy import text
-from sqlalchemy.exc import SQLAlchemyError
 
 from app.cache import get_redis
 from app.config import ProcessRole, Settings, settings

@@ -1,9 +1,16 @@
 import { expect, test } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
 
 const TOKEN = "A".repeat(43);
 const PARTIAL = "C".repeat(43);
 const LONG = "D".repeat(43);
 const RUN = "11111111-1111-4111-8111-111111111111";
+
+test("public research page has no serious automated accessibility violations", async ({ page }) => {
+  await page.goto("/research");
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(results.violations.filter(item => ["serious", "critical"].includes(item.impact || ""))).toEqual([]);
+});
 
 test("intake checks quota and creates an owner-session run without a provider picker", async ({ page }) => {
   await page.goto("/research");

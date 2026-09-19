@@ -138,6 +138,20 @@ async def chat(
     if not x_title or not http_referer or not x_request_id:
         raise HTTPException(status_code=400, detail="required attribution headers missing")
     body = await request.json()
+    mock_failure = str(body.get("metadata", {}).get("phase10_failure", ""))
+    failure_responses = {
+        "authentication": (401, "mock_authentication_failed"),
+        "payment": (402, "mock_payment_required"),
+        "rate_limit": (429, "mock_rate_limited"),
+        "timeout": (408, "mock_timeout"),
+        "upstream_5xx": (500, "mock_upstream_failure"),
+        "provider_unavailable": (503, "mock_provider_unavailable"),
+        "model_unavailable": (404, "mock_model_unavailable"),
+    }
+    if mock_failure in failure_responses:
+        status, code = failure_responses[mock_failure]
+        headers = {"Retry-After": "0"} if status == 429 else None
+        raise HTTPException(status_code=status, detail={"code": code}, headers=headers)
     if body.get("provider", {}).get("require_parameters") is not True:
         raise HTTPException(status_code=400, detail="require_parameters missing")
     response_format = body.get("response_format", {})
@@ -148,12 +162,18 @@ async def chat(
     task_input: dict = {}
     messages = body.get("messages") or []
     if messages:
-        match = re.search(r"<trusted-task>\s*(\{.*?\})\s*</trusted-task>", str(messages[-1].get("content", "")), re.S)
+        trusted_message = next((str(item.get("content", "")) for item in reversed(messages)
+                                if "<trusted-task>" in str(item.get("content", ""))), "")
+        match = re.search(r"<trusted-task>\s*(\{.*?\})\s*</trusted-task>", trusted_message, re.S)
         if match:
-            task_input = json.loads(match.group(1)).get("task_input", {})
+            trusted = json.loads(match.group(1))
+            task_input = trusted.get("task_input", {})
+            if evaluation_case := trusted.get("evaluation_case"):
+                task_input["_evaluation_case_id"] = evaluation_case
     if schema_name == "ResearchCoordinatorInput":
         raise HTTPException(status_code=400, detail="wrong schema selected")
-    content = _structured_content(schema_name, trace_id, task_input)
+    content = ({"phase10_invalid": True} if mock_failure == "schema_rejection"
+               else _structured_content(schema_name, trace_id, task_input))
     return {
         "id": f"mock-{x_request_id}",
         "model": (body.get("models") or [body.get("model") or "fixture/chat-fallback"])[0],
@@ -290,7 +310,8 @@ def _structured_content(schema_name: str, trace_id: str, task_input: dict) -> di
                     "source_ids": [item["source_id"] for item in analyses],
                     "evidence_node_ids": [evidence],
                     "confidence": 82,
-                    "relation": "consensus",
+                    "relation": ("disagreement" if task_input.get("_evaluation_case_id") ==
+                                 "reviewer_disagreement" else "consensus"),
                 }
             ]
         }
@@ -314,7 +335,13 @@ def _structured_content(schema_name: str, trace_id: str, task_input: dict) -> di
                 }
             ],
             "consensus_cons": [],
-            "disagreements": [],
+            "disagreements": ([{
+                "topic": "long-session comfort",
+                "side_a": "The first reviewer found the fit acceptable.",
+                "side_a_source_ids": [source_ids[0]],
+                "side_b": "The second reviewer found the fit uncomfortable.",
+                "side_b_source_ids": [source_ids[1]],
+            }] if task_input.get("_evaluation_case_id") == "reviewer_disagreement" else []),
             "longest_usage_period": "six months",
             "longest_usage_source_id": source_ids[0],
             "who_should_buy": ["buyers prioritizing battery endurance"],
@@ -324,7 +351,8 @@ def _structured_content(schema_name: str, trace_id: str, task_input: dict) -> di
     if schema_name == "AuditResult":
         scenario = RUN_SCENARIOS.get(trace_id, "complete")
         audit_number = ROLE_CALLS[(trace_id, schema_name)]
-        should_fail = scenario == "audit_fail" or (scenario == "audit_correction" and audit_number == 1)
+        should_fail = (bool(task_input.get("_evaluation_case_id")) or scenario == "audit_fail"
+                       or (scenario == "audit_correction" and audit_number == 1))
         if should_fail:
             return {
                 "verdict": "fail",
