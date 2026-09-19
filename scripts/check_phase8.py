@@ -127,6 +127,9 @@ def main() -> int:
         _real_stack_browser()
 
     before = _frontend_material_inventory()
+    # Next dev rewrites this generated file. Keep any pre-existing user copy byte-for-byte.
+    next_env = FRONTEND / "next-env.d.ts"
+    next_env_before = next_env.read_bytes() if next_env.exists() else None
     node = "node.exe" if os.name == "nt" else "node"
     flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
     mock: subprocess.Popen[bytes] | None = None
@@ -153,6 +156,8 @@ def main() -> int:
     finally:
         _stop(next_server)
         _stop(mock)
+        if next_env_before is not None and next_env.read_bytes() != next_env_before:
+            next_env.write_bytes(next_env_before)
 
     if _frontend_material_inventory() != before:
         raise RuntimeError("Phase 8 browser verification changed frontend source or user-owned files")

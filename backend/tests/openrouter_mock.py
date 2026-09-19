@@ -102,6 +102,8 @@ def providers(authorization: str | None = Header(default=None)) -> dict:
 def endpoints(author: str, slug: str, authorization: str | None = Header(default=None)) -> dict:
     _require_auth(authorization)
     model = f"{author}/{slug}"
+    if model == "fixture/refresh-failure":
+        raise HTTPException(status_code=503, detail="mock endpoint refresh failure")
     return {
         "data": {
             "id": model,

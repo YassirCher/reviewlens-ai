@@ -20,33 +20,42 @@ class PolicyCompatibilityError(ValueError):
 
 
 def _eligible_endpoint(endpoint: dict[str, Any], policy: ModelPolicyDocument) -> bool:
+    return not endpoint_eligibility_reasons(endpoint, policy)
+
+
+def endpoint_eligibility_reasons(endpoint: dict[str, Any], policy: ModelPolicyDocument) -> list[str]:
     routing = policy.provider
+    reasons: list[str] = []
     if endpoint["provider_slug"] == "unknown":
-        return False
+        reasons.append("provider_unknown")
+    if endpoint.get("status") in {"unavailable", "offline", "disabled"}:
+        reasons.append("endpoint_unavailable")
     if routing.mode == "restricted" and endpoint["provider_slug"] not in routing.only:
-        return False
+        reasons.append("provider_not_allowed")
     if policy.compatibility_mode == "strict" and "response_format" not in endpoint["supported_parameters"]:
-        return False
+        reasons.append("strict_json_unsupported")
     required_capacity = policy.minimum_context_tokens + policy.max_completion_tokens
     if endpoint["context_length"] is not None and endpoint["context_length"] < required_capacity:
-        return False
+        reasons.append("context_too_small")
     if endpoint["max_completion_tokens"] is not None and endpoint["max_completion_tokens"] < policy.max_completion_tokens:
-        return False
+        reasons.append("completion_too_small")
     if routing.quantizations and endpoint["quantization"] not in routing.quantizations:
-        return False
+        reasons.append("quantization_not_allowed")
     if routing.data_collection == "deny" and endpoint["privacy"].get("data_collection") in {True, "allow"}:
-        return False
+        reasons.append("privacy_policy_conflict")
     for price_kind, ceiling_per_million in routing.max_price.items():
         raw_price = endpoint["pricing"].get(price_kind)
         if raw_price is None:
-            return False
+            reasons.append(f"{price_kind}_price_missing")
+            continue
         try:
             actual_per_million = Decimal(str(raw_price)) * Decimal(1_000_000)
         except (InvalidOperation, TypeError, ValueError):
-            return False
+            reasons.append(f"{price_kind}_price_invalid")
+            continue
         if not actual_per_million.is_finite() or actual_per_million > ceiling_per_million:
-            return False
-    return True
+            reasons.append(f"{price_kind}_price_over_cap")
+    return reasons
 
 
 def validate_model_policy(

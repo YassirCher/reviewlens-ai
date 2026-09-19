@@ -13,7 +13,7 @@ from app.analysis.configuration import seed_analysis_configuration
 from app.analysis import configuration as analysis_configuration
 from app.analysis.registry import AGENT_SPECS, _retrieval
 from app.config import settings
-from app.db.models import AgentEvaluationResult, AgentVersion, ConfigurationSnapshot, TaskRun
+from app.db.models import ActiveConfiguration, AgentEvaluationResult, AgentVersion, ConfigurationSnapshot, TaskRun
 from app.db.session import session_scope
 from app.llmops.catalog import refresh_catalogs
 from app.runtime.service import create_run
@@ -34,6 +34,9 @@ def test_phase6_seed_snapshot_and_database_immutability() -> None:
         first = seed_analysis_configuration(db)
     with session_scope() as db:
         second = seed_analysis_configuration(db)
+        active = db.get(ActiveConfiguration, 1)
+        active.workflow_version_id = uuid.UUID(second["workflow_version_id"])
+        active.budget_policy_version_id = uuid.UUID(second["budget_policy_version_id"])
         run = create_run(
             db,
             product_name="Phase 6 integration fixture",
@@ -97,6 +100,9 @@ def test_phase8_curator_policy_publishes_compatible_version_without_rewriting_ol
     monkeypatch.setattr(analysis_configuration, "AGENT_SPECS", older)
     with session_scope() as db:
         prior = seed_analysis_configuration(db)
+        active = db.get(ActiveConfiguration, 1)
+        active.workflow_version_id = uuid.UUID(prior["workflow_version_id"])
+        active.budget_policy_version_id = uuid.UUID(prior["budget_policy_version_id"])
         run = create_run(
             db, product_name="Phase 8 snapshot fixture", initiator_type="system_fixture",
             requested_options={"source_count": 5, "analyze_comments": False},

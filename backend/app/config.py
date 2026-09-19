@@ -67,7 +67,7 @@ class Settings(BaseSettings):
     api_public_url: str = "http://localhost:8000"
     backend_cors_origins: str = "http://localhost:3000"
     log_level: str = "INFO"
-    raw_llm_content_retention: bool = False
+    raw_content_encryption_key: str = Field(default="", exclude=True, repr=False)
 
     admin_email: str = ""
     admin_password_hash: str = ""

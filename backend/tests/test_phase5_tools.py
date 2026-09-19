@@ -70,7 +70,9 @@ def test_registry_is_exactly_the_curated_twelve_tools_with_strict_schemas() -> N
         "scoring.preview",
     }
     assert all(spec.semantic_version == "1.0.0" for spec in TOOL_SPECS)
-    assert {spec.key for spec in TOOL_SUCCESSOR_SPECS} == {"evidence.validate", "scoring.preview"}
+    assert {spec.key for spec in TOOL_SUCCESSOR_SPECS} == {
+        "graph.query_relations", "evidence.validate", "scoring.preview",
+    }
     assert all(spec.semantic_version == "1.1.0" for spec in TOOL_SUCCESSOR_SPECS)
     assert all(spec.max_concurrency >= 1 for spec in TOOL_REGISTRY.values())
     assert TOOL_REGISTRY["graph.create_nodes"].max_concurrency == 1

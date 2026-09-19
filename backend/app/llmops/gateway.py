@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from datetime import datetime, timezone
 from typing import Any
 
@@ -23,6 +24,8 @@ from app.llmops.contracts import (
     OpenRouterError,
     OpenRouterErrorCategory,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _remaining_seconds(deadline: datetime) -> float:
@@ -100,6 +103,11 @@ class OpenRouterGateway:
                 result_valid=valid,
                 config=self.config,
             )
+            try:
+                from app.admin.retention import retain_chat_content
+                retain_chat_content(reservation_id, [item.model_dump() for item in invocation.messages], result.content)
+            except Exception as exc:
+                logger.error("Encrypted raw content retention failed: %s", type(exc).__name__)
             update_account_state(config=self.config)
             if not valid:
                 raise OpenRouterError(

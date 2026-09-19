@@ -198,6 +198,7 @@ def test_agent_tools_are_bounded_and_review_uses_successor_tools() -> None:
     all_tools = {spec.key for spec in TOOL_SPECS}
     assert all(set(spec.tool_keys) <= all_tools for spec in AGENT_SPECS)
     successors = {(spec.key, spec.semantic_version) for spec in TOOL_SUCCESSOR_SPECS}
+    assert ("graph.query_relations", "1.1.0") in successors
     assert ("evidence.validate", "1.1.0") in successors
     assert ("scoring.preview", "1.1.0") in successors
     assert "review_analyst" in next(

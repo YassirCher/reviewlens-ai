@@ -25,6 +25,7 @@ from app.db.models import (
     BudgetPolicyVersion,
     ModelPolicy,
     ModelPolicyVersion,
+    SystemSettingsVersion,
     ToolDefinition,
     ToolVersion,
     WorkflowDefinition,
@@ -546,19 +547,45 @@ def seed_analysis_configuration(
         db.add(active)
     if active.environment != config.app_env:
         raise AnalysisConfigurationConflict("active configuration belongs to another environment")
-    active.workflow_version_id = workflow.id
-    active.budget_policy_version_id = budget_policy.id
-    active.feature_flags = {
-        **(active.feature_flags or {}),
-        "phase6_bounded_agents": True,
-        "comments_default": False,
-        "correction_attempts": 1,
-    }
+    if active.workflow_version_id is None:
+        active.workflow_version_id = workflow.id
+    if active.budget_policy_version_id is None:
+        active.budget_policy_version_id = budget_policy.id
+    if active.system_settings_version_id is None:
+        system_settings = db.scalar(
+            select(SystemSettingsVersion)
+            .where(SystemSettingsVersion.lifecycle == "published")
+            .order_by(SystemSettingsVersion.version_number.desc())
+            .limit(1)
+        )
+        if system_settings is None:
+            system_payload = {
+                "catalog_refresh_minutes": config.openrouter_catalog_refresh_minutes,
+                "raw_content_retention": False,
+                "raw_content_ttl_hours": 24,
+            }
+            system_settings = SystemSettingsVersion(
+                version_number=1,
+                lifecycle="published",
+                content_hash=canonical_json_hash(system_payload),
+                change_note="Initial Phase 9 operational defaults",
+                published_at=datetime.now(timezone.utc),
+                **system_payload,
+            )
+            db.add(system_settings)
+            db.flush()
+        active.system_settings_version_id = system_settings.id
+    flags = dict(active.feature_flags or {})
+    flags.setdefault("phase6_bounded_agents", True)
+    flags.setdefault("comments_default", False)
+    flags.setdefault("correction_attempts", 1)
+    active.feature_flags = flags
     db.flush()
     return {
         "status": "ready",
         "workflow_version_id": str(workflow.id),
         "model_policy_version_id": str(model_policy.id),
+        "budget_policy_version_id": str(budget_policy.id),
         "agent_versions": {key: str(value.id) for key, value in sorted(agents.items())},
         "model_slugs": list(config.v2_agent_model_slugs),
     }

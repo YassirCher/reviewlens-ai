@@ -47,7 +47,7 @@ celery_app.conf.update(
         },
         "openrouter-catalog-refresh": {
             "task": "reviewlens.llmops.refresh_catalogs",
-            "schedule": float(settings.openrouter_catalog_refresh_minutes * 60),
+            "schedule": 60.0,
         },
         "openrouter-credit-refresh": {
             "task": "reviewlens.llmops.refresh_credit_state",
@@ -60,6 +60,18 @@ celery_app.conf.update(
         "context-markdown-reconciliation": {
             "task": "reviewlens.context.reconcile_markdown",
             "schedule": float(settings.context_reconciliation_interval_seconds),
+        },
+        "admin-job-recovery": {
+            "task": "reviewlens.admin.recover_jobs",
+            "schedule": 60.0,
+        },
+        "admin-aggregate-reconciliation": {
+            "task": "reviewlens.admin.reconcile_analytics",
+            "schedule": 300.0,
+        },
+        "admin-content-expiry": {
+            "task": "reviewlens.admin.expire_retained_content",
+            "schedule": 300.0,
         },
     },
 )
@@ -144,10 +156,32 @@ def recover_runtime_task() -> dict[str, int]:
 @celery_app.task(name="reviewlens.llmops.refresh_catalogs")
 def refresh_openrouter_catalogs_task() -> dict:
     import asyncio
+    from datetime import datetime, timedelta, timezone
 
+    from sqlalchemy import select
+
+    from app.db.models import ActiveConfiguration, OpenRouterCatalogRefresh, SystemSettingsVersion
     from app.llmops.catalog import refresh_catalogs
 
-    return asyncio.run(refresh_catalogs())
+    with session_scope() as db:
+        active = db.get(ActiveConfiguration, 1)
+        version = db.get(SystemSettingsVersion, active.system_settings_version_id) if active and active.system_settings_version_id else None
+        minutes = version.catalog_refresh_minutes if version else settings.openrouter_catalog_refresh_minutes
+        latest = db.scalar(select(OpenRouterCatalogRefresh).where(
+            OpenRouterCatalogRefresh.catalog_kind == "chat_models",
+        ).order_by(OpenRouterCatalogRefresh.started_at.desc()).limit(1))
+        if latest and (latest.completed_at or latest.started_at) > datetime.now(timezone.utc) - timedelta(minutes=minutes):
+            return {"status": "not_due"}
+    redis = get_redis()
+    lock_key = "reviewlens:scheduled-catalog-refresh"
+    token = uuid.uuid4().hex
+    if not redis.set(lock_key, token, nx=True, ex=900):
+        return {"status": "already_running"}
+    try:
+        return asyncio.run(refresh_catalogs())
+    finally:
+        redis.eval("if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
+                   1, lock_key, token)
 
 
 @celery_app.task(name="reviewlens.llmops.refresh_credit_state")
@@ -188,3 +222,40 @@ def reconcile_markdown_task() -> dict[str, int]:
         except Exception:
             failed += 1
     return {"workspaces": len(workspace_ids), "checked": checked, "failed": failed}
+
+
+@celery_app.task(name="reviewlens.admin.execute_job", acks_late=True)
+def execute_admin_job_task(job_id: str) -> dict:
+    from app.admin.jobs import run_job
+
+    return run_job(uuid.UUID(job_id))
+
+
+@celery_app.task(name="reviewlens.admin.recover_jobs")
+def recover_admin_jobs_task() -> dict[str, int]:
+    from app.admin.jobs import recover_jobs
+
+    return {"dispatched": recover_jobs()}
+
+
+@celery_app.task(name="reviewlens.admin.reconcile_analytics")
+def reconcile_admin_analytics_task() -> dict[str, int]:
+    from app.admin.analytics import reconcile_usage_aggregates
+
+    with session_scope() as db:
+        return reconcile_usage_aggregates(db)
+
+
+@celery_app.task(name="reviewlens.admin.expire_retained_content")
+def expire_retained_content_task() -> dict[str, int]:
+    from datetime import datetime, timezone
+
+    from sqlalchemy import delete
+
+    from app.db.models import RetainedLLMContent
+
+    with session_scope() as db:
+        result = db.execute(delete(RetainedLLMContent).where(
+            RetainedLLMContent.expires_at <= datetime.now(timezone.utc)
+        ))
+        return {"deleted": result.rowcount or 0}

@@ -34,7 +34,11 @@ pytestmark = pytest.mark.skipif(
 def _seed() -> None:
     asyncio.run(refresh_catalogs())
     with session_scope() as db:
-        seed_analysis_configuration(db)
+        seeded = seed_analysis_configuration(db)
+        active = db.get(ActiveConfiguration, 1)
+        active.workflow_version_id = uuid.UUID(seeded["workflow_version_id"])
+        active.budget_policy_version_id = uuid.UUID(seeded["budget_policy_version_id"])
+        active.kill_switch = False
 
 
 def test_phase7_public_lifecycle_and_revocation() -> None:

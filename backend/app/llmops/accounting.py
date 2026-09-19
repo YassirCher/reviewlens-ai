@@ -18,6 +18,7 @@ from app.db.models import (
     BudgetReservation,
     ConfigurationSnapshot,
     DailyBudgetState,
+    EvaluationBudgetState,
     OpenRouterAccountState,
     RunBudgetState,
     TaskAttempt,
@@ -218,6 +219,17 @@ def reserve_request(
             budget.status = "exhausted"
             raise BudgetRejected("run_cost_budget_exceeded")
 
+        evaluation_budget = None
+        if run.initiator_type == "admin_evaluation":
+            evaluation_budget = db.scalar(select(EvaluationBudgetState).where(
+                EvaluationBudgetState.id == 1).with_for_update())
+            if evaluation_budget is None:
+                raise BudgetRejected("evaluation_budget_missing")
+            if evaluation_budget.reserved_tokens + evaluation_budget.consumed_tokens + estimated_tokens > evaluation_budget.token_limit:
+                raise BudgetRejected("evaluation_token_cap_exhausted")
+            if evaluation_budget.reserved_cost_microusd + evaluation_budget.consumed_cost_microusd + estimated_cost_microusd > evaluation_budget.cost_limit_microusd:
+                raise BudgetRejected("evaluation_cost_cap_exhausted")
+
         policy = db.get(BudgetPolicyVersion, budget.budget_policy_version_id)
         if policy is None:
             raise RuntimeError("run budget policy is missing")
@@ -300,6 +312,9 @@ def reserve_request(
         db.add_all([reservation, usage])
         budget.reserved_tokens += estimated_tokens
         budget.reserved_cost_microusd += estimated_cost_microusd
+        if evaluation_budget is not None:
+            evaluation_budget.reserved_tokens += estimated_tokens
+            evaluation_budget.reserved_cost_microusd += estimated_cost_microusd
     return reservation_id, request_id
 
 
@@ -333,6 +348,7 @@ def finalize_failed_request(
         if budget:
             budget.reserved_tokens = max(0, budget.reserved_tokens - reservation.estimated_tokens)
             budget.reserved_cost_microusd = max(0, budget.reserved_cost_microusd - reservation.estimated_cost_microusd)
+        _move_evaluation_budget(db, reservation, 0, 0)
         _move_daily_cost(db, reservation, 0)
         reservation.status = "released"
         reservation.actual_tokens = 0
@@ -383,6 +399,8 @@ def finalize_successful_request(
         if usage_value is None:
             actual_tokens = reservation.estimated_tokens
             actual_cost = reservation.estimated_cost_microusd
+            event.total_tokens = actual_tokens
+            event.total_cost_microusd = actual_cost
             event.usage_status = "unreconcilable"
         else:
             actual_tokens = usage_value.total_tokens
@@ -418,6 +436,8 @@ def finalize_unreconcilable_request(reservation_id: uuid.UUID) -> None:
             actual_tokens=reservation.estimated_tokens,
             actual_cost=reservation.estimated_cost_microusd,
         )
+        event.total_tokens = reservation.estimated_tokens
+        event.total_cost_microusd = reservation.estimated_cost_microusd
         event.usage_status = "unreconcilable"
         event.next_reconciliation_at = None
         event.completed_at = now
@@ -436,7 +456,21 @@ def _reconcile_locked(db: Session, reservation: BudgetReservation, *, actual_tok
         ):
             budget.status = "exhausted"
     _move_daily_cost(db, reservation, actual_cost)
+    _move_evaluation_budget(db, reservation, actual_tokens, actual_cost)
     reservation.actual_tokens = actual_tokens
     reservation.actual_cost_microusd = actual_cost
     reservation.status = "reconciled"
     reservation.reconciled_at = utc_now()
+
+
+def _move_evaluation_budget(db: Session, reservation: BudgetReservation, actual_tokens: int, actual_cost: int) -> None:
+    run = db.get(AnalysisRun, reservation.run_id)
+    if run is None or run.initiator_type != "admin_evaluation":
+        return
+    state = db.scalar(select(EvaluationBudgetState).where(EvaluationBudgetState.id == 1).with_for_update())
+    if state is None:
+        raise RuntimeError("evaluation budget state is missing")
+    state.reserved_tokens = max(0, state.reserved_tokens - reservation.estimated_tokens)
+    state.reserved_cost_microusd = max(0, state.reserved_cost_microusd - reservation.estimated_cost_microusd)
+    state.consumed_tokens += actual_tokens
+    state.consumed_cost_microusd += actual_cost

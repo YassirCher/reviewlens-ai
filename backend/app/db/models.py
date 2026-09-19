@@ -14,6 +14,7 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     Index,
     Integer,
+    LargeBinary,
     Numeric,
     SmallInteger,
     String,
@@ -211,6 +212,24 @@ class BudgetPolicyVersion(VersionMixin, Base):
     definition: Mapped[BudgetPolicy] = relationship(back_populates="versions")
 
 
+class SystemSettingsVersion(VersionMixin, Base):
+    __tablename__ = "system_settings_versions"
+    __table_args__ = (
+        UniqueConstraint("version_number"),
+        CheckConstraint("version_number > 0", name="version_number_positive"),
+        CheckConstraint("lifecycle IN ('draft', 'published', 'retired')", name="lifecycle_valid"),
+        CheckConstraint("catalog_refresh_minutes BETWEEN 1 AND 1440", name="catalog_interval_valid"),
+        CheckConstraint("raw_content_ttl_hours = 24", name="raw_content_ttl_valid"),
+    )
+
+    catalog_refresh_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
+    raw_content_retention: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    raw_content_ttl_hours: Mapped[int] = mapped_column(Integer, nullable=False, default=24)
+    created_by_admin_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("admin_users.id", ondelete="RESTRICT")
+    )
+
+
 class ToolVersion(VersionMixin, Base):
     __tablename__ = "tool_versions"
     __table_args__ = (
@@ -347,6 +366,9 @@ class ActiveConfiguration(TimestampMixin, OptimisticLockMixin, Base):
     )
     embedding_policy_version_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("embedding_policy_versions.id", ondelete="RESTRICT")
+    )
+    system_settings_version_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("system_settings_versions.id", ondelete="RESTRICT")
     )
     kill_switch: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
     public_analysis_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text("true"))
@@ -1363,6 +1385,80 @@ class ReportPublication(UUIDPrimaryKeyMixin, Base):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class AdminJob(UUIDPrimaryKeyMixin, TimestampMixin, OptimisticLockMixin, Base):
+    __tablename__ = "admin_jobs"
+    __table_args__ = (
+        CheckConstraint("status IN ('queued', 'running', 'succeeded', 'failed')", name="status_valid"),
+        UniqueConstraint("actor_id", "idempotency_key"),
+    )
+
+    actor_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("admin_users.id", ondelete="RESTRICT"), nullable=False
+    )
+    kind: Mapped[str] = mapped_column(String(80), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="queued")
+    idempotency_key: Mapped[str] = mapped_column(String(160), nullable=False)
+    target_id: Mapped[str | None] = mapped_column(String(320))
+    request_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    safe_result: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    error_code: Mapped[str | None] = mapped_column(String(120))
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+Index("ix_admin_jobs_status_created", AdminJob.status, AdminJob.created_at)
+
+
+class EvaluationBudgetState(TimestampMixin, OptimisticLockMixin, Base):
+    __tablename__ = "evaluation_budget_state"
+    __table_args__ = (CheckConstraint("id = 1", name="singleton"),)
+
+    id: Mapped[int] = mapped_column(SmallInteger, primary_key=True, default=1)
+    token_limit: Mapped[int] = mapped_column(BigInteger, nullable=False, default=300_000)
+    cost_limit_microusd: Mapped[int] = mapped_column(BigInteger, nullable=False, default=500_000)
+    reserved_tokens: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    consumed_tokens: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    reserved_cost_microusd: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    consumed_cost_microusd: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+
+
+class UsageAggregate(UUIDPrimaryKeyMixin, Base):
+    __tablename__ = "usage_aggregates"
+    __table_args__ = (
+        UniqueConstraint("granularity", "bucket_start", "dimension", "dimension_key"),
+        CheckConstraint("granularity IN ('hour', 'day')", name="granularity_valid"),
+    )
+
+    granularity: Mapped[str] = mapped_column(String(8), nullable=False)
+    bucket_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    dimension: Mapped[str] = mapped_column(String(40), nullable=False)
+    dimension_key: Mapped[str] = mapped_column(String(320), nullable=False)
+    request_count: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    error_count: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    total_tokens: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    total_cost_microusd: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    prompt_tokens: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    completion_tokens: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    reasoning_tokens: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    cached_tokens: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    refreshed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+Index("ix_usage_aggregates_bucket", UsageAggregate.granularity, UsageAggregate.bucket_start)
+
+
+class RetainedLLMContent(UUIDPrimaryKeyMixin, Base):
+    __tablename__ = "retained_llm_content"
+    __table_args__ = (UniqueConstraint("usage_event_id"),)
+
+    usage_event_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("usage_events.id", ondelete="CASCADE"), nullable=False
+    )
+    ciphertext: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 VERSION_TABLE_NAMES = (
     "agent_versions",
     "workflow_versions",
@@ -1370,4 +1466,5 @@ VERSION_TABLE_NAMES = (
     "embedding_policy_versions",
     "budget_policy_versions",
     "tool_versions",
+    "system_settings_versions",
 )
