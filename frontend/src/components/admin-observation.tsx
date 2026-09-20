@@ -9,6 +9,7 @@ import { Download, RefreshCw } from "lucide-react";
 import { adminPost, dateTime, downloadAdminCsv, money, type AdminRun, type Page } from "@/lib/admin";
 import { AdminHeading, AdminState, ConfirmAction, DataTable, Status, useAdminData } from "@/components/admin-ui";
 import { WorkflowGraph } from "@/components/admin-graph";
+import { CutoverEvidence, type CutoverObservation } from "@/components/admin-cutover";
 
 type OperationalAlert = {
   severity: "critical" | "warning";
@@ -28,6 +29,7 @@ type Overview = {
   aggregates_refreshed_at: string | null;
   openrouter_credits: { status: string; remaining_microusd: number | null; checked_at?: string };
   operations: { alerts: OperationalAlert[]; worker_available: boolean; scheduler_fresh: boolean };
+  cutover: CutoverObservation | null;
 };
 
 export function AdminOverview() {
@@ -55,6 +57,7 @@ export function AdminOverview() {
           </dl></div><Link href={alert.recovery_link}>Open recovery control →</Link>
         </li>)}</ul>
       </section> : data && <div className="admin-banner admin-banner-good" role="status">No operational alerts are active.</div>}
+      {data?.cutover && <CutoverEvidence observation={data.cutover} />}
       <div className="admin-two-col">
         <section className="admin-panel"><div className="admin-panel-head"><h2>Hourly local cost</h2><span className="admin-muted">Last reconciliation {dateTime(data?.aggregates_refreshed_at)}</span></div>{chart.length ? <div style={{ width: "100%", height: 250 }} role="img" aria-label="Hourly local cost chart; data also available in Analytics"><ResponsiveContainer><AreaChart data={chart}><CartesianGrid stroke="#2a3342" strokeDasharray="3 3" /><XAxis dataKey="time" stroke="#aab4c3" fontSize={11} /><YAxis stroke="#aab4c3" fontSize={11} /><Tooltip contentStyle={{ background: "#151a23", border: "1px solid #3a4659" }} /><Area dataKey="cost" stroke="#8b7cf6" fill="#8b7cf633" /></AreaChart></ResponsiveContainer></div> : <p className="admin-muted">No usage has been aggregated yet.</p>}</section>
         <section className="admin-panel"><h2>Go to</h2><ul className="admin-list"><li><Link href="/admin/runs">Inspect run traces →</Link></li><li><Link href="/admin/agents">Review agent drafts →</Link></li><li><Link href="/admin/models">Browse model routes →</Link></li><li><Link href="/admin/settings">Manage budgets and kill switch →</Link></li></ul></section>

@@ -1,4 +1,4 @@
-name: Phase 10 acceptance
+name: Phase 11 acceptance
 
 on:
   pull_request:
@@ -45,8 +45,8 @@ jobs:
         working-directory: frontend
         run: npx playwright install --with-deps chromium
       - name: Static, type, unit, build, and dependency gates
-        run: python scripts/check_phase10.py --static-only
+        run: python scripts/check_phase11.py --static-only
       - name: Isolated stack, migrations, recovery, and browser acceptance
-        run: python scripts/check_phase10.py --stack-only
+        run: python scripts/check_phase11.py --stack-only
       - name: Mocked public and admin browser regression journeys
-        run: python scripts/check_phase10.py --browser-only
+        run: python scripts/check_phase11.py --browser-only

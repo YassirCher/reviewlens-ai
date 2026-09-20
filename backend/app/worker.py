@@ -73,6 +73,10 @@ celery_app.conf.update(
             "task": "reviewlens.admin.expire_retained_content",
             "schedule": 300.0,
         },
+        "phase11-cutover-evaluation": {
+            "task": "reviewlens.admin.evaluate_cutover",
+            "schedule": 60.0,
+        },
     },
 )
 
@@ -261,3 +265,10 @@ def expire_retained_content_task() -> dict[str, int]:
             RetainedLLMContent.expires_at <= datetime.now(timezone.utc)
         ))
         return {"deleted": result.rowcount or 0}
+
+
+@celery_app.task(name="reviewlens.admin.evaluate_cutover")
+def evaluate_cutover_task() -> dict[str, int]:
+    from app.admin.cutover import evaluate_active_observations
+
+    return evaluate_active_observations()

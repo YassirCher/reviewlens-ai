@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from collections import Counter
 
@@ -9,6 +10,7 @@ from fastapi import FastAPI, Header, HTTPException, Request
 app = FastAPI(title="ReviewLens OpenRouter contract mock")
 RUN_SCENARIOS: dict[str, str] = {}
 ROLE_CALLS: Counter[tuple[str, str]] = Counter()
+INFERENCE_MODELS: Counter[tuple[str, str]] = Counter()
 
 
 def _require_auth(authorization: str | None) -> None:
@@ -19,6 +21,21 @@ def _require_auth(authorization: str | None) -> None:
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok"}
+
+
+@app.get("/history")
+def history() -> dict:
+    return {
+        "inference": [
+            {"operation": operation, "model": model, "calls": calls}
+            for (operation, model), calls in sorted(INFERENCE_MODELS.items())
+        ]
+    }
+
+
+@app.post("/history/reset", status_code=204)
+def reset_history() -> None:
+    INFERENCE_MODELS.clear()
 
 
 @app.get("/api/v1/models")
@@ -138,6 +155,13 @@ async def chat(
     if not x_title or not http_referer or not x_request_id:
         raise HTTPException(status_code=400, detail="required attribution headers missing")
     body = await request.json()
+    requested_models = body.get("models") or [body.get("model")]
+    requested_models = [str(model) for model in requested_models if model]
+    allowed_model = os.getenv("PHASE11_ALLOWED_INFERENCE_MODEL", "")
+    if allowed_model and requested_models != [allowed_model]:
+        raise HTTPException(status_code=400, detail="phase11 model restriction violated")
+    for model in requested_models:
+        INFERENCE_MODELS[("chat", model)] += 1
     mock_failure = str(body.get("metadata", {}).get("phase10_failure", ""))
     failure_responses = {
         "authentication": (401, "mock_authentication_failed"),
@@ -377,12 +401,17 @@ async def embeddings(
 ) -> dict:
     _require_auth(authorization)
     body = await request.json()
+    model = str(body.get("model") or "")
+    allowed_model = os.getenv("PHASE11_ALLOWED_INFERENCE_MODEL", "")
+    if allowed_model and model != allowed_model:
+        raise HTTPException(status_code=400, detail="phase11 model restriction violated")
+    INFERENCE_MODELS[("embedding", model)] += 1
     inputs = body.get("input")
     if not isinstance(inputs, list):
         raise HTTPException(status_code=400, detail="input must be a list")
     return {
         "id": f"mock-embedding-{x_request_id}",
-        "model": body.get("model"),
+        "model": model,
         "provider": "fixture",
         "data": [
             {"index": index, "embedding": [1.0, float(index), 0.0]}

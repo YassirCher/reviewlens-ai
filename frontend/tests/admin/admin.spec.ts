@@ -65,6 +65,11 @@ async function mockAdmin(page: Page): Promise<MockState> {
         detail: "Background run and maintenance tasks cannot be dispatched.", observed_at: NOW,
         threshold: "available", observed_value: "unavailable", recovery_link: "/admin/runs",
       }] } });
+    if (path === "/cutover") return response(route, {
+      root_mode: "v2", adapter_enabled: true,
+      production_defaults: { stable_window_hours: 24, min_terminal_runs: 20 },
+      current: null,
+    });
     if (path === "/runs") return response(route, { items: [{ id: RUN, product: "Aurora Headphones",
       status: "running", initiator_type: "public", created_at: NOW, duration_ms: 3000,
       total_tokens: 1200, total_cost_microusd: 7000, model_call_count: 1, pending_usage_count: 0 }], next_cursor: null });

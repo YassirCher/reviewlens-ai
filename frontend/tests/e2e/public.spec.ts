@@ -140,16 +140,17 @@ test("200% zoom and keyboard navigation retain the primary flow", async ({ page 
   await expect(page.getByRole("button", { name: /Analyze product/i })).toBeEnabled();
 });
 
-test("long content, mobile V1 link, and reduced motion remain usable", async ({ page }) => {
+test("root cutover, long content, and reduced motion remain usable", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 850 });
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
-  await expect(page.getByRole("link", { name: /V2 research preview/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /See the buying signal/i })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   await page.goto(`/r/${LONG}`);
   await expect(page.getByRole("heading", { name: /deliberately long model designation/i })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   await page.goto("/research");
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
   expect(await page.locator(".v2-button").first().evaluate(element => getComputedStyle(element).transitionDuration)).toBe("0s");
 });
 

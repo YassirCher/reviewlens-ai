@@ -1,6 +1,6 @@
 # ReviewLens Backend
 
-FastAPI backend containing the legacy V1 analysis flow plus the Phase 1 platform foundation, Phase 2 durable V2 execution backbone, Phase 3 OpenRouter/LLMOps core, Phase 4 context graph/retrieval core, and Phase 5 typed research tools.
+FastAPI backend for the durable V2 research runtime, public API, admin control plane, and temporary V1 compatibility adapter. The adapter creates ordinary V2 runs with active published configuration and records content-free cutover telemetry.
 
 ## Local setup
 
@@ -38,12 +38,14 @@ The Compose stack runs the migration/seed as a one-shot dependency and launches 
 
 ## Endpoints
 
-Legacy V1 remains operational:
+Temporary V1-compatible contracts delegate to the V2 runtime:
 
 - `GET /health`
 - `GET /api/config`
 - `POST /api/analyze`
 - `POST /api/analyze/stream`
+
+Both analysis routes accept the legacy `provider` field for wire compatibility and ignore it. They return deprecation and successor-version headers, use policy-managed OpenRouter routing, and return `410` when `LEGACY_ANALYSIS_ADAPTER_ENABLED=false`.
 
 Implemented V2 platform endpoints:
 
@@ -60,6 +62,10 @@ Implemented V2 platform endpoints:
 - `POST /api/v2/analyses/{run_id}/cancel`
 - `GET /api/v2/reports/{public_token}` and `/graph`
 - `POST /api/v2/admin/analyses` and `/admin/reports/{report_id}/revoke` with CSRF
+- `GET /api/v2/admin/cutover`
+- `POST /api/v2/admin/cutover/observations` with CSRF
+- `POST /api/v2/admin/cutover/observations/{id}/evaluate` with CSRF
+- `POST /api/v2/admin/cutover/observations/{id}/record-rollback` with CSRF
 
 Session cookies are HttpOnly, SameSite=Lax, and Secure outside local/test environments. The login endpoint is throttled through Redis; if throttling is unavailable, login fails closed. Health responses expose status rather than credentials or connection strings.
 
@@ -115,10 +121,12 @@ python -m app.cli youtube-live-smoke --confirm-live-smoke --video-id VIDEO_ID
 python -m pytest tests -q
 ```
 
-With Docker Desktop running, execute the isolated empty-database, auth, durable worker/runtime, mocked OpenRouter, and full-stack suite from the repository root:
+With Docker Desktop running, execute the Phase 11 clean-environment gate from the repository root:
 
 ```bash
-python scripts/check_phase5.py
+python scripts/check_phase11.py
 ```
 
-The Phase 5 checker generates an isolated environment with fake keys, retains the local OpenRouter mock for earlier tests, and uses a local YouTube mock for research fixtures. It validates the empty-to-head and Phase 4 downgrade/re-upgrade paths, all integration tests, full-stack health, V1 smoke routes, tool auditing, transcript fallback, comments gating, and partial coverage. It never reads the repository `.env`, makes live YouTube calls, or spends OpenRouter credits.
+The checker generates isolated credentials, migrates empty-to-head and downgrade/re-upgrade, runs the full backend and browser suites, exercises the root rollback and compatibility adapter, evaluates a shortened test observation, and proves every mocked inference dispatch uses exactly `deepseek/deepseek-v4-flash`. It scans logs and mock history for live endpoints, paid calls, secret exposure, and other inference models, then removes its generated environment, results, containers, and volumes.
+
+Production cutover evidence remains a separate operational requirement. Phase 12 requires one passed non-test observation lasting at least 24 hours with at least 20 eligible terminal runs and five compatibility requests. See [the Phase 11 cutover runbook](../docs/operations/phase11-cutover.md).

@@ -1,17 +1,16 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
-test("production research entry has no serious accessibility violations", async ({ page }) => {
-  await page.goto("/research");
+test("production root has no serious accessibility violations", async ({ page }) => {
+  await page.goto("/");
   await expect(page.getByRole("heading", { name: /See the buying signal/i })).toBeVisible();
   const results = await new AxeBuilder({ page }).analyze();
   expect(results.violations.filter((violation) => ["serious", "critical"].includes(violation.impact ?? ""))).toEqual([]);
 });
 
-test("real public V2 journey publishes a mocked-source report without touching V1", async ({ page }) => {
+test("real public V2 root journey publishes a mocked-source report", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("link", { name: /V2 research preview/i })).toBeVisible();
-  await page.goto("/research");
+  await expect(page.getByRole("heading", { name: /See the buying signal/i })).toBeVisible();
   await page.getByLabel("Product name or exact model").fill("Phase 6 complete fixture");
   await expect(page.getByText(/Research available/i)).toBeVisible();
   await page.getByRole("button", { name: /Analyze product/i }).click();

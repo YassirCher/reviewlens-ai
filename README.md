@@ -1,10 +1,10 @@
 # ReviewLens — Product Review Intelligence POC
 
-> **Implementation status:** `/` remains the legacy V1 proof of concept described below. The Target V2 rebuild specification is in [context/00_INDEX_AND_PROJECT_OVERVIEW.md](./context/00_INDEX_AND_PROJECT_OVERVIEW.md). Phases 1–7 provide the V2 backend; the Phase 8 public experience is available separately at `/research`. Default-root cutover is reserved for Phase 11.
+> **Implementation status:** `/` now serves the V2 research experience. `/research` remains a no-index V2 alias, `/admin` hosts the protected control plane, and `PUBLIC_ROOT_EXPERIENCE=v1` provides the temporary presentation rollback. The legacy `/api/analyze` contracts delegate to normal V2 runs through the measured compatibility adapter.
 
-The V2 foundation now exists beside V1: PostgreSQL/Alembic persistence, Redis/Celery processes, secure sessions, durable run/task/attempt state, exact OpenRouter accounting, an authoritative Markdown/PostgreSQL context graph, fixed typed research tools, and a seven-role analysis DAG. Phase 7 adds anonymous admission, persistent public run/status/SSE contracts, and revocable unlisted reports. Phase 8 connects those contracts to the preview intake, owner-only progress, public report, and evidence map without changing V1 behavior.
+The V2 system includes PostgreSQL/Alembic persistence, Redis/Celery processes, secure sessions, durable run/task/attempt state, exact OpenRouter accounting, an authoritative Markdown/PostgreSQL context graph, fixed typed research tools, a seven-role analysis DAG, the public report lifecycle, and the protected admin control plane. Phase 11 adds the runtime root switch, durable compatibility telemetry, and the stable-window gate used to authorize later V1 retirement.
 
-The V1 public flow remains the default. Use [the codebase map](./context/codebase/00_CODEBASE_MAP.md) to navigate the separate V2 implementation.
+Use [the codebase map](./context/codebase/00_CODEBASE_MAP.md) to navigate the V2 runtime and its temporary V1 compatibility boundary.
 
 ReviewLens is a full-stack proof of concept that turns the top YouTube reviews for a product into a structured, evidence-backed buying decision.
 
@@ -131,7 +131,7 @@ Phase 7's backend-only public API is verified with generated credentials and the
 python scripts/check_phase7.py
 ```
 
-The V2 preview starts at `/research`, with owner-session progress at `/analysis/{run_id}` and unlisted, revocable reports at `/r/{public_token}`. Report pages render uncached through server-only `V2_API_INTERNAL_URL` (Compose sets `http://api:8000`); browsers use `NEXT_PUBLIC_API_BASE_URL` for credentialed run requests. There is no V2 model/provider picker. The V1 homepage at `/` remains unchanged apart from a preview link.
+The V2 experience starts at `/`, with `/research` retained as a no-index alias, owner-session progress at `/analysis/{run_id}`, and unlisted, revocable reports at `/r/{public_token}`. Report pages render uncached through server-only `V2_API_INTERNAL_URL` (Compose sets `http://api:8000`); browsers use `NEXT_PUBLIC_API_BASE_URL` for credentialed run requests. There is no public model/provider picker. Set server-only `PUBLIC_ROOT_EXPERIENCE=v1` and restart the frontend for a temporary presentation rollback; this does not modify active or queued runs, snapshots, reports, or usage.
 
 With Docker Desktop available, verify the Phase 8 mocked Compose/backend and browser journey with:
 

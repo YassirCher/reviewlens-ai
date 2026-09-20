@@ -71,6 +71,18 @@ class Settings(BaseSettings):
     operations_error_rate_min_runs: int = Field(default=5, ge=1, le=10_000)
     raw_content_encryption_key: str = Field(default="", exclude=True, repr=False)
 
+    # Phase 11 temporary compatibility boundary and operational proof.
+    public_root_experience: Literal["v2", "v1"] = "v2"
+    legacy_analysis_adapter_enabled: bool = True
+    legacy_adapter_wait_seconds: int = Field(default=900, ge=5, le=3600)
+    legacy_api_sunset_at: str = ""
+    cutover_stable_window_hours: float = Field(default=24.0, ge=0.001, le=720)
+    cutover_min_terminal_runs: int = Field(default=20, ge=1, le=100_000)
+    cutover_min_compatibility_requests: int = Field(default=5, ge=0, le=100_000)
+    cutover_max_failure_rate: float = Field(default=0.10, ge=0, le=1)
+    cutover_max_p95_run_latency_seconds: int = Field(default=900, ge=1, le=86_400)
+    cutover_min_compatibility_success_rate: float = Field(default=0.95, ge=0, le=1)
+
     admin_email: str = ""
     admin_password_hash: str = ""
     # Declared solely so a legacy/plaintext environment value can be rejected

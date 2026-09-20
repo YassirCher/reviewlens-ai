@@ -326,6 +326,7 @@ def create_analysis(
     actor_id: uuid.UUID,
     idempotency_key: str,
     ip_hash: str | None,
+    entrypoint: str = "v2_public",
     config: Settings = settings,
 ) -> AnalysisRun:
     keys: tuple[str, str, str] | None = None
@@ -368,7 +369,13 @@ def create_analysis(
             ):
                 raise V2Error(429, "public_daily_budget_exceeded", "The daily analysis budget is exhausted.", retryable=True, headers={"Retry-After": "3600"})
             keys = _reserve_rate(redis, policy, ip_hash, actor_id, reservation)
-        run = create_run(db, product_name=product, initiator_type=actor_type, initiator_id=actor_id, requested_options=options)
+        run = create_run(
+            db,
+            product_name=product,
+            initiator_type=actor_type,
+            initiator_id=actor_id,
+            requested_options={**options, "entrypoint": entrypoint},
+        )
         db.add(RunSubmission(id=uuid.uuid4(), actor_type=actor_type, actor_id=actor_id, idempotency_key=idempotency_key, request_hash=request_hash, ip_hash=ip_hash, run_id=run.id))
         db.commit()
         return run

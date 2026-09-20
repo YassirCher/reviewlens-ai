@@ -252,6 +252,9 @@ def test_local_upstream_mocks_expose_the_phase10_failure_matrix() -> None:
         "X-Request-ID": "phase10-fixture",
     }
     body = {
+        "models": [
+            os.getenv("PHASE11_ALLOWED_INFERENCE_MODEL") or "fixture/chat-model"
+        ],
         "provider": {"require_parameters": True},
         "response_format": {"type": "json_schema", "json_schema": {"name": "phase3_fixture"}},
         "messages": [{"role": "user", "content": "fixture"}],

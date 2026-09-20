@@ -416,17 +416,17 @@ class ContextAudit:
     def check_repository_boundary(self) -> None:
         requirements = {
             ROOT / "README.md": (
-                "legacy v1 proof of concept",
-                "target v2",
-                "v1 public flow remains the default",
+                "v2 research experience",
+                "temporary v1 compatibility",
+                "public_root_experience=v1",
                 "context/00_index_and_project_overview.md",
                 "context/codebase/00_codebase_map.md",
             ),
             ROOT / "ARCHITECTURE.md": (
-                "legacy v1",
-                "target v2",
-                "still-default v1 product flow",
-                "context/03_system_architecture.md",
+                "v2 architecture",
+                "legacy diagram",
+                "temporary v1 wire contracts",
+                "phase 12",
             ),
         }
         for path, phrases in requirements.items():

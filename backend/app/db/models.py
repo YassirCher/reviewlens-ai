@@ -1459,6 +1459,70 @@ class RetainedLLMContent(UUIDPrimaryKeyMixin, Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
+class CompatibilityRequest(UUIDPrimaryKeyMixin, TimestampMixin, OptimisticLockMixin, Base):
+    __tablename__ = "compatibility_requests"
+    __table_args__ = (
+        UniqueConstraint("request_id"),
+        CheckConstraint("transport IN ('sync', 'stream')", name="transport_valid"),
+        CheckConstraint(
+            "status IN ('accepted', 'complete', 'partial', 'failed', 'cancelled', 'timed_out', "
+            "'disconnected', 'rejected', 'mapping_failed')",
+            name="status_valid",
+        ),
+        CheckConstraint("http_status IS NULL OR (http_status >= 100 AND http_status <= 599)", name="http_status_valid"),
+        CheckConstraint("duration_ms IS NULL OR duration_ms >= 0", name="duration_nonnegative"),
+    )
+
+    request_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    run_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("analysis_runs.id", ondelete="SET NULL")
+    )
+    endpoint: Mapped[str] = mapped_column(String(80), nullable=False)
+    transport: Mapped[str] = mapped_column(String(16), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="accepted")
+    http_status: Mapped[int | None] = mapped_column(SmallInteger)
+    mapped_response: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
+    error_code: Mapped[str | None] = mapped_column(String(120))
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    duration_ms: Mapped[int | None] = mapped_column(BigInteger)
+
+
+Index("ix_compatibility_requests_started", CompatibilityRequest.started_at)
+Index("ix_compatibility_requests_run", CompatibilityRequest.run_id)
+
+
+class CutoverObservation(UUIDPrimaryKeyMixin, TimestampMixin, OptimisticLockMixin, Base):
+    __tablename__ = "cutover_observations"
+    __table_args__ = (
+        CheckConstraint("status IN ('observing', 'passed', 'rolled_back')", name="status_valid"),
+        CheckConstraint("root_mode IN ('v2', 'v1')", name="root_mode_valid"),
+    )
+
+    environment: Mapped[str] = mapped_column(String(80), nullable=False)
+    test_evidence: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="observing", server_default="observing")
+    root_mode: Mapped[str] = mapped_column(String(8), nullable=False)
+    thresholds: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    latest_result: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    change_note: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    started_by_admin_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("admin_users.id", ondelete="RESTRICT"), nullable=False
+    )
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    evaluated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+Index("ix_cutover_observations_environment_started", CutoverObservation.environment, CutoverObservation.started_at)
+Index(
+    "uq_cutover_observations_active_environment",
+    CutoverObservation.environment,
+    unique=True,
+    postgresql_where=CutoverObservation.status == "observing",
+)
+
+
 VERSION_TABLE_NAMES = (
     "agent_versions",
     "workflow_versions",

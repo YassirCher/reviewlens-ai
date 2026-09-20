@@ -13,6 +13,7 @@ from starlette.exceptions import HTTPException
 
 from app.api.routes import router as v1_router
 from app.api.v2.router import router as v2_router
+from app.compatibility.v1 import deprecation_headers
 from app.config import settings
 from app.errors import V2Error
 from app.observability import configure_logging, request_id_context
@@ -23,6 +24,18 @@ configure_logging()
 # Access paths contain high-entropy unlisted report tokens; never log them.
 logging.getLogger("uvicorn.access").disabled = True
 logger = logging.getLogger(__name__)
+_LEGACY_ANALYSIS_PATHS = {"/api/analyze", "/api/analyze/stream"}
+
+
+def _is_guarded_contract(path: str) -> bool:
+    return path.startswith("/api/v2") or path in _LEGACY_ANALYSIS_PATHS
+
+
+def _error_headers(request: Request, headers: dict[str, str] | None = None) -> dict[str, str]:
+    result = dict(headers or {})
+    if request.url.path in _LEGACY_ANALYSIS_PATHS:
+        result.update(deprecation_headers())
+    return result
 
 
 @asynccontextmanager
@@ -70,7 +83,7 @@ async def request_context_and_security_headers(request: Request, call_next):
         try:
             response = await call_next(request)
         except Exception as exc:
-            if not request.url.path.startswith("/api/v2"):
+            if not _is_guarded_contract(request.url.path):
                 raise
             logger.error("Unhandled V2 request failure: %s", type(exc).__name__)
             wrapped = V2Error(500, "internal_error", "The service encountered an unexpected error.")
@@ -117,13 +130,13 @@ async def handle_v2_error(request: Request, error: V2Error) -> JSONResponse:
     return JSONResponse(
         status_code=error.status_code,
         content=_v2_error_payload(request, error),
-        headers=error.headers,
+        headers=_error_headers(request, error.headers),
     )
 
 
 @app.exception_handler(RequestValidationError)
 async def handle_validation_error(request: Request, error: RequestValidationError) -> JSONResponse:
-    if not request.url.path.startswith("/api/v2"):
+    if not _is_guarded_contract(request.url.path):
         return await request_validation_exception_handler(request, error)
     details = []
     for item in error.errors():
@@ -135,12 +148,16 @@ async def handle_validation_error(request: Request, error: RequestValidationErro
             }
         )
     wrapped = V2Error(422, "validation_error", "The request is invalid.", details=details)
-    return JSONResponse(status_code=422, content=_v2_error_payload(request, wrapped))
+    return JSONResponse(
+        status_code=422,
+        content=_v2_error_payload(request, wrapped),
+        headers=_error_headers(request),
+    )
 
 
 @app.exception_handler(HTTPException)
 async def handle_http_error(request: Request, error: HTTPException) -> JSONResponse:
-    if not request.url.path.startswith("/api/v2"):
+    if not _is_guarded_contract(request.url.path):
         return await http_exception_handler(request, error)
     codes = {404: "not_found", 405: "method_not_allowed"}
     messages = {404: "The requested resource was not found.", 405: "The method is not allowed."}
@@ -152,7 +169,7 @@ async def handle_http_error(request: Request, error: HTTPException) -> JSONRespo
     return JSONResponse(
         status_code=error.status_code,
         content=_v2_error_payload(request, wrapped),
-        headers=error.headers,
+        headers=_error_headers(request, error.headers),
     )
 
 

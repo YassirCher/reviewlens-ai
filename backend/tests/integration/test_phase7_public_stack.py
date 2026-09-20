@@ -15,7 +15,14 @@ from sqlalchemy.exc import DBAPIError
 from app.analysis.configuration import seed_analysis_configuration
 from app.cache import get_redis
 from app.config import settings
-from app.db.models import ActiveConfiguration, AnonymousSession, BudgetPolicyVersion, ReportPublication, RunSubmission
+from app.db.models import (
+    ActiveConfiguration,
+    AnalysisRun,
+    AnonymousSession,
+    BudgetPolicyVersion,
+    ReportPublication,
+    RunSubmission,
+)
 from app.db.session import session_scope
 from app.llmops.catalog import refresh_catalogs
 from app.main import app
@@ -130,7 +137,9 @@ def test_phase7_public_lifecycle_and_revocation() -> None:
         assert owner.get(f"/api/v2/analyses/{run_id}").json()["report_url"] is None
 
         with session_scope() as db:
-            session = db.scalar(select(AnonymousSession).where(AnonymousSession.id.is_not(None)).order_by(AnonymousSession.created_at))
+            owned_run = db.get(AnalysisRun, run_id)
+            assert owned_run is not None and owned_run.initiator_type == "public"
+            session = db.get(AnonymousSession, owned_run.initiator_id)
             assert session is not None
             session.revoked_at = session.last_seen_at
         owner.cookies.delete(settings.admin_session_cookie)

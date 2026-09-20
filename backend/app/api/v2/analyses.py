@@ -74,7 +74,7 @@ def _set_anonymous_cookie(response: Response, value: str | None) -> None:
             httponly=True,
             secure=not settings.is_local_development,
             samesite="lax",
-            path="/api/v2",
+            path="/api",
         )
 
 
@@ -198,7 +198,9 @@ def create_public_analysis(
     key = _idempotency(idempotency_key)
     session, cookie = resolve_session(db, request.cookies.get(settings.anonymous_session_cookie), create=True)
     assert session is not None
-    run = create_analysis(db, redis, payload=payload, actor_type="public", actor_id=session.id, idempotency_key=key, ip_hash=client_ip_hash(_client_host(request)))
+    run = create_analysis(db, redis, payload=payload, actor_type="public", actor_id=session.id,
+                          idempotency_key=key, ip_hash=client_ip_hash(_client_host(request)),
+                          entrypoint="v2_public")
     _set_anonymous_cookie(response, cookie)
     response.headers.update(_NO_STORE)
     return CreateResponse(run_id=run.id, status=run.status, status_url=f"/api/v2/analyses/{run.id}", events_url=f"/api/v2/analyses/{run.id}/events")
@@ -214,7 +216,9 @@ def create_admin_analysis(
     authenticated: AuthenticatedAdmin = Depends(require_admin),
 ) -> CreateResponse:
     AdminAuthService(db).require_csrf(authenticated, csrf_token)
-    run = create_analysis(db, None, payload=payload, actor_type="admin", actor_id=authenticated.admin.id, idempotency_key=_idempotency(idempotency_key), ip_hash=None)
+    run = create_analysis(db, None, payload=payload, actor_type="admin", actor_id=authenticated.admin.id,
+                          idempotency_key=_idempotency(idempotency_key), ip_hash=None,
+                          entrypoint="v2_admin")
     return CreateResponse(run_id=run.id, status=run.status, status_url=f"/api/v2/analyses/{run.id}", events_url=f"/api/v2/analyses/{run.id}/events")
 
 

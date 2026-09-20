@@ -1,8 +1,8 @@
 # Runtime Architecture
 
-> **Current implementation:** The original analysis diagram below describes legacy V1. The Target V2 architecture is specified in [context/03_SYSTEM_ARCHITECTURE.md](./context/03_SYSTEM_ARCHITECTURE.md). Beside the still-default V1 product flow at `/`, Phase 8 exposes the separate V2 preview at `/research`, owner progress at `/analysis/{run_id}`, and unlisted reports/evidence at `/r/{public_token}`.
+> **Current implementation:** The runtime diagram below describes the V2 architecture now served at `/`. `/research` remains a no-index V2 alias, and owner progress and unlisted reports live at `/analysis/{run_id}` and `/r/{public_token}`. The legacy diagram later in this file remains only as a compatibility reference.
 
-Phase 1 implements the shared platform. Phase 2 adds restart-safe orchestration. Phase 3 adds the separate V2 OpenRouter gateway and exact accounting. Phase 4 makes PostgreSQL and versioned Markdown authoritative for context. Phase 5 adds fixed typed research tools and YouTube quota accounting. Phase 6 adds seven immutable role definitions, deterministic source fan-out/fan-in, and audited internal reports. Phase 7 adds signed anonymous ownership, transactional quota admission, owner-only durable progress, and immutable public report/graph projections whose access can be revoked. Phase 8 adds the public research/report UI, server-only uncached report rendering, safe failure categories, and cross-page evidence relationships. The broad admin control plane remains Phase 9; default-root cutover remains Phase 11.
+Phases 1 through 10 implement the shared platform, restart-safe orchestration, OpenRouter accounting, knowledge graph, typed research tools, bounded analysis DAG, public lifecycle, public UI, admin control plane, and whole-system hardening. Phase 11 makes V2 the default root, routes the temporary V1 wire contracts through V2, records compatibility telemetry, and adds durable stable-window observations. Phase 12 may remove legacy code only after a passed non-test production observation.
 
 ```text
 Runtime service ---> PostgreSQL transaction

@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
-const email = process.env.PHASE10_ADMIN_EMAIL;
-const password = process.env.PHASE10_ADMIN_PASSWORD;
+const email = process.env.PHASE11_ADMIN_EMAIL ?? process.env.PHASE10_ADMIN_EMAIL;
+const password = process.env.PHASE11_ADMIN_PASSWORD ?? process.env.PHASE10_ADMIN_PASSWORD;
 
 test("live admin login protects private routes and exposes operational health", async ({ page }) => {
   expect(email).toBeTruthy();

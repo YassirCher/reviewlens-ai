@@ -6,12 +6,13 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from app.config import Settings, settings
+from app.compatibility.v1 import deprecation_headers
 
 ASGIApp = Callable[[dict[str, Any], Callable[[], Awaitable[dict[str, Any]]], Callable[[dict[str, Any]], Awaitable[None]]], Awaitable[None]]
 
 
 class V2RequestGuardMiddleware:
-    """Reject oversized or incorrectly typed V2 request bodies before routing."""
+    """Reject oversized or incorrectly typed V2 and compatibility request bodies."""
 
     def __init__(self, app: ASGIApp, config: Settings = settings) -> None:
         self.app = app
@@ -19,7 +20,10 @@ class V2RequestGuardMiddleware:
 
     async def __call__(self, scope: dict[str, Any], receive, send) -> None:
         path = str(scope.get("path", ""))
-        if scope.get("type") != "http" or not (path == "/api/v2" or path.startswith("/api/v2/")):
+        guarded = path == "/api/v2" or path.startswith("/api/v2/") or path in {
+            "/api/analyze", "/api/analyze/stream"
+        }
+        if scope.get("type") != "http" or not guarded:
             await self.app(scope, receive, send)
             return
         headers = {key.decode("latin-1").lower(): value.decode("latin-1") for key, value in scope.get("headers", [])}
@@ -59,7 +63,12 @@ class V2RequestGuardMiddleware:
         async def replay() -> dict[str, Any]:
             nonlocal delivered
             if delivered:
-                return {"type": "http.request", "body": b"", "more_body": False}
+                # StreamingResponse runs a disconnect listener after the
+                # buffered request has been replayed. Returning another
+                # immediately-ready http.request here creates a hot loop and
+                # can starve the response iterator. Delegate subsequent reads
+                # to the original channel so they block until disconnect.
+                return await receive()
             delivered = True
             return {"type": "http.request", "body": buffered, "more_body": False}
 
@@ -71,7 +80,12 @@ class V2RequestGuardMiddleware:
         body = json.dumps({"error": {"code": code, "message": message, "retryable": False,
                                      "request_id": request_id, "details": None}},
                           separators=(",", ":")).encode("utf-8")
-        await send({"type": "http.response.start", "status": status,
-                    "headers": [(b"content-type", b"application/json"),
-                                (b"content-length", str(len(body)).encode("ascii"))]})
+        headers = [(b"content-type", b"application/json"),
+                   (b"content-length", str(len(body)).encode("ascii"))]
+        if scope.get("path") in {"/api/analyze", "/api/analyze/stream"}:
+            headers.extend(
+                (key.lower().encode("ascii"), value.encode("ascii"))
+                for key, value in deprecation_headers().items()
+            )
+        await send({"type": "http.response.start", "status": status, "headers": headers})
         await send({"type": "http.response.body", "body": body})
