@@ -7,13 +7,13 @@ const LONG = "D".repeat(43);
 const RUN = "11111111-1111-4111-8111-111111111111";
 
 test("public research page has no serious automated accessibility violations", async ({ page }) => {
-  await page.goto("/research");
+  await page.goto("/");
   const results = await new AxeBuilder({ page }).analyze();
   expect(results.violations.filter(item => ["serious", "critical"].includes(item.impact || ""))).toEqual([]);
 });
 
 test("intake checks quota and creates an owner-session run without a provider picker", async ({ page }) => {
-  await page.goto("/research");
+  await page.goto("/");
   await expect(page.getByRole("heading", { name: /See the buying signal/i })).toBeVisible();
   await expect(page.getByLabel("Product name or exact model")).toBeVisible();
   await expect(page.getByText("Auto provider")).toHaveCount(0);
@@ -34,7 +34,7 @@ test("intake checks quota and creates an owner-session run without a provider pi
 });
 
 test("submission retry reuses its durable idempotency key", async ({ page }) => {
-  await page.goto("/research");
+  await page.goto("/");
   await page.getByLabel("Product name or exact model").fill("Retry Widget");
   await page.getByRole("button", { name: /Analyze product/i }).click();
   await expect(page.getByText(/Connection interrupted. Retry the submission/i)).toBeVisible();
@@ -82,7 +82,7 @@ test("partial report and revoked report keep honest, neutral states", async ({ p
 test("owner status is isolated and a failed stream falls back to polling", async ({ page }) => {
   await page.goto(`/analysis/${RUN}`);
   await expect(page.getByText(/Analysis not found or access expired/i)).toBeVisible();
-  await page.goto("/research");
+  await page.goto("/");
   await page.getByLabel("Product name or exact model").fill("Partial Widget");
   await page.getByRole("button", { name: /Analyze product/i }).click();
   await expect(page).toHaveURL(/\/analysis\/22222222/);
@@ -91,7 +91,7 @@ test("owner status is isolated and a failed stream falls back to polling", async
 });
 
 test("a failed run exposes an actionable safe category and never offers a report", async ({ page }) => {
-  await page.goto("/research");
+  await page.goto("/");
   await page.getByLabel("Product name or exact model").fill("Fail Widget");
   await page.getByRole("button", { name: /Analyze product/i }).click();
   await expect(page).toHaveURL(/\/analysis\/44444444/);
@@ -100,14 +100,14 @@ test("a failed run exposes an actionable safe category and never offers a report
 });
 
 test("temporary admission failure remains clear without exposing upstream details", async ({ page }) => {
-  await page.goto("/research");
+  await page.goto("/");
   await page.getByLabel("Product name or exact model").fill("Maintenance Widget");
   await expect(page.getByText(/availability cannot be checked now/i)).toBeVisible();
   await expect(page.locator("body")).not.toContainText(/secret|traceback|upstream body/i);
 });
 
 test("cancellation ends without a public report", async ({ page }) => {
-  await page.goto("/research");
+  await page.goto("/");
   await page.getByLabel("Product name or exact model").fill("Cancel Widget");
   await page.getByRole("button", { name: /Analyze product/i }).click();
   await expect(page).toHaveURL(/\/analysis\/33333333/);
@@ -121,7 +121,7 @@ for (const width of [375, 768, 1024, 1440]) {
   test(`research and report avoid horizontal page overflow at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 850 });
     await page.emulateMedia({ reducedMotion: "reduce" });
-    await page.goto("/research");
+    await page.goto("/");
     await expect(page.getByRole("link", { name: /Skip to main content/i })).toHaveCount(1);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
     await page.goto(`/r/${TOKEN}`);
@@ -131,7 +131,7 @@ for (const width of [375, 768, 1024, 1440]) {
 
 test("200% zoom and keyboard navigation retain the primary flow", async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 768 });
-  await page.goto("/research");
+  await page.goto("/");
   await page.keyboard.press("Tab");
   await expect(page.getByRole("link", { name: /Skip to main content/i })).toBeFocused();
   await page.evaluate(() => { document.body.style.zoom = "200%"; });
@@ -140,7 +140,7 @@ test("200% zoom and keyboard navigation retain the primary flow", async ({ page 
   await expect(page.getByRole("button", { name: /Analyze product/i })).toBeEnabled();
 });
 
-test("root cutover, long content, and reduced motion remain usable", async ({ page }) => {
+test("root, long content, and reduced motion remain usable", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 850 });
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
@@ -149,16 +149,15 @@ test("root cutover, long content, and reduced motion remain usable", async ({ pa
   await page.goto(`/r/${LONG}`);
   await expect(page.getByRole("heading", { name: /deliberately long model designation/i })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
-  await page.goto("/research");
-  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+  await page.goto("/");
   expect(await page.locator(".v2-button").first().evaluate(element => getComputedStyle(element).transitionDuration)).toBe("0s");
 });
 
 test("visual review captures desktop and mobile intake/report states", async ({ page }) => {
   for (const width of [375, 1440]) {
     await page.setViewportSize({ width, height: 900 });
-    await page.goto("/research");
-    await page.screenshot({ path: `test-results/research-${width}.png` });
+    await page.goto("/");
+    await page.screenshot({ path: `test-results/root-${width}.png` });
     await page.goto(`/r/${TOKEN}`);
     await page.screenshot({ path: `test-results/report-${width}.png` });
   }

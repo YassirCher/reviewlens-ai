@@ -63,8 +63,8 @@ class CatalogStub:
         if kind == "chat":
             return [
                 {
-                    "id": "fixture/chat-model",
-                    "canonical_slug": "fixture/chat-model",
+                    "id": "deepseek/deepseek-v4-flash",
+                    "canonical_slug": "deepseek/deepseek-v4-flash",
                     "name": "Fixture Chat",
                     "description": "mocked",
                     "context_length": 4096,
@@ -76,8 +76,8 @@ class CatalogStub:
             ]
         return [
             {
-                "id": "fixture/embedding-model",
-                "canonical_slug": "fixture/embedding-model",
+                "id": "deepseek/deepseek-v4-flash",
+                "canonical_slug": "deepseek/deepseek-v4-flash",
                 "name": "Fixture Embedding",
                 "description": "mocked",
                 "context_length": 8192,
@@ -128,7 +128,7 @@ def _chat_invocation(context, policy, *, estimated_cost: int = 100) -> ChatInvoc
 def _success_payload(generation_id: str, *, cost: float = 0.0002, usage: bool = True) -> dict:
     payload = {
         "id": generation_id,
-        "model": "fixture/chat-fallback",
+        "model": "deepseek/deepseek-v4-flash-0731",
         "provider": "fixture",
         "choices": [{"finish_reason": "stop", "message": {"content": "{\"ok\":true}"}}],
         "service_tier": "default",
@@ -150,32 +150,32 @@ def test_catalog_refresh_search_stale_fallback_and_policy_validation() -> None:
     cache.delete("reviewlens:openrouter:manual-refresh")
     result = asyncio.run(refresh_catalogs(client=CatalogStub(), redis_client=cache, manual=True))
     assert result["status"] == "succeeded"
-    asyncio.run(refresh_model_endpoints("fixture/chat-model", client=CatalogStub(), redis_client=cache))
+    asyncio.run(refresh_model_endpoints("deepseek/deepseek-v4-flash", client=CatalogStub(), redis_client=cache))
 
     with session_scope() as db:
         catalog = search_models(db, model_kind="chat", query="Fixture", capability="response_format")
-        endpoints = current_endpoints(db, "fixture/chat-model")
+        endpoints = current_endpoints(db, "deepseek/deepseek-v4-flash")
         validation = validate_model_policy(
             db,
             ModelPolicyDocument(
                 name="restricted",
                 purpose="fixture validation",
-                models=("fixture/chat-model",),
+                models=("deepseek/deepseek-v4-flash",),
                 provider=ProviderRouting(mode="restricted", only=("fixture",)),
                 max_completion_tokens=128,
             ),
         )
     assert catalog["status"] == "ok"
-    assert [item["slug"] for item in catalog["models"]] == ["fixture/chat-model"]
+    assert [item["slug"] for item in catalog["models"]] == ["deepseek/deepseek-v4-flash"]
     assert endpoints["endpoints"][0]["provider_slug"] == "fixture"
-    assert validation["eligible_routes"] == {"fixture/chat-model": ["fixture"]}
-    assert json.loads(cache.get("reviewlens:openrouter:catalog:chat_models"))[0]["slug"] == "fixture/chat-model"
+    assert validation["eligible_routes"] == {"deepseek/deepseek-v4-flash": ["fixture"]}
+    assert json.loads(cache.get("reviewlens:openrouter:catalog:chat_models"))[0]["slug"] == "deepseek/deepseek-v4-flash"
 
     with pytest.raises(OpenRouterError):
         asyncio.run(refresh_model_catalog("chat", client=CatalogStub(fail_chat=True), redis_client=cache))
     with session_scope() as db:
         stale_catalog = search_models(db, model_kind="chat")
-        assert stale_catalog["models"][0]["slug"] == "fixture/chat-model"
+        assert stale_catalog["models"][0]["slug"] == "deepseek/deepseek-v4-flash"
         assert stale_catalog["status"] == "stale"
         assert stale_catalog["last_error_category"] == "openrouter_upstream_failure"
         filtered = search_models(
@@ -184,7 +184,7 @@ def test_catalog_refresh_search_stale_fallback_and_policy_validation() -> None:
             provider="fixture",
             maximum_prompt_price=Decimal("0.000001"),
         )
-        assert [item["slug"] for item in filtered["models"]] == ["fixture/chat-model"]
+        assert [item["slug"] for item in filtered["models"]] == ["deepseek/deepseek-v4-flash"]
         assert db.scalar(
             select(func.count()).select_from(OpenRouterCatalogRefresh).where(OpenRouterCatalogRefresh.status == "failed")
         ) >= 1
@@ -200,7 +200,7 @@ def test_policy_validation_rejects_ineligible_or_missing_routes() -> None:
                 ModelPolicyDocument(
                     name="bad route",
                     purpose="fixture validation",
-                    models=("fixture/chat-model",),
+                    models=("deepseek/deepseek-v4-flash",),
                     provider=ProviderRouting(mode="restricted", only=("not-present",)),
                     max_completion_tokens=128,
                 ),
@@ -211,7 +211,7 @@ def test_policy_validation_rejects_ineligible_or_missing_routes() -> None:
                 ModelPolicyDocument(
                     name="insufficient context",
                     purpose="fixture validation",
-                    models=("fixture/chat-model",),
+                    models=("deepseek/deepseek-v4-flash",),
                     provider=ProviderRouting(mode="restricted", only=("fixture",)),
                     minimum_context_tokens=4_000,
                     max_completion_tokens=128,
@@ -224,7 +224,7 @@ def test_policy_validation_rejects_ineligible_or_missing_routes() -> None:
                 ModelPolicyDocument(
                     name="price ceiling",
                     purpose="fixture validation",
-                    models=("fixture/chat-model",),
+                    models=("deepseek/deepseek-v4-flash",),
                     provider=ProviderRouting(
                         mode="restricted",
                         only=("fixture",),
@@ -249,7 +249,7 @@ def test_gateway_records_exact_usage_and_actual_fallback_route() -> None:
                 200,
                 json={
                     "id": f"emb-{uuid.uuid4().hex}",
-                    "model": "fixture/embedding-model",
+                    "model": "deepseek/deepseek-v4-flash",
                     "provider": "fixture",
                     "data": [{"index": 0, "embedding": [1, 0, 0]}],
                     "usage": {"prompt_tokens": 4, "total_tokens": 4, "cost": 0.000004},
@@ -282,8 +282,8 @@ def test_gateway_records_exact_usage_and_actual_fallback_route() -> None:
         budget = db.get(RunBudgetState, context.run_id)
     assert len(events) == 2
     chat = next(item for item in events if item.operation == "chat")
-    assert chat.requested_models == ["fixture/chat-model", "fixture/chat-fallback"]
-    assert chat.actual_model == "fixture/chat-fallback"
+    assert chat.requested_models == ["deepseek/deepseek-v4-flash", "deepseek/deepseek-v4-flash-0731"]
+    assert chat.actual_model == "deepseek/deepseek-v4-flash-0731"
     assert chat.actual_provider == "fixture"
     assert (chat.prompt_tokens, chat.completion_tokens, chat.reasoning_tokens) == (10, 5, 3)
     assert (chat.cached_tokens, chat.cache_write_tokens, chat.total_tokens) == (2, 1, 15)
@@ -344,7 +344,7 @@ def test_missing_usage_reconciles_by_generation_id() -> None:
                 json={
                     "data": {
                         "id": generation_id,
-                        "model": "fixture/chat-fallback",
+                        "model": "deepseek/deepseek-v4-flash-0731",
                         "provider_name": "fixture",
                         "tokens_prompt": 11,
                         "tokens_completion": 7,

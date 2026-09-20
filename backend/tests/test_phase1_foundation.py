@@ -127,9 +127,9 @@ def test_health_distinguishes_ready_degraded_and_not_ready(monkeypatch, tmp_path
     assert collect_health(invalid).status == "not_ready"
 
 
-def test_legacy_health_contract_and_security_headers() -> None:
+def test_liveness_contract_and_security_headers() -> None:
     with TestClient(app) as client:
-        response = client.get("/health")
+        response = client.get("/health/live")
     assert response.status_code == 200
     assert response.json() == {"status": "ok", "service": "reviewlens-api"}
     assert uuid.UUID(response.headers["X-Request-ID"])

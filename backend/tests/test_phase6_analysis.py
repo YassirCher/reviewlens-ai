@@ -357,4 +357,4 @@ def test_v2_model_setting_is_separate_from_legacy_model() -> None:
         youtube_api_key="fixture-youtube-key",
     )
     assert config.v2_agent_model_slugs == ("deepseek/deepseek-v4-flash",)
-    assert config.v2_agent_chat_models != config.openrouter_model
+    assert config.v2_agent_chat_models == "deepseek/deepseek-v4-flash"

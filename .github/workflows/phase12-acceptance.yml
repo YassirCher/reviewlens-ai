@@ -1,9 +1,15 @@
-name: Phase 11 acceptance
+name: Phase 12 acceptance
 
 on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      verify_production_evidence:
+        description: Validate the optional production retirement authorization artifact
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -44,9 +50,12 @@ jobs:
       - name: Install Playwright Chromium
         working-directory: frontend
         run: npx playwright install --with-deps chromium
+      - name: Validate production retirement evidence
+        if: github.event_name == 'workflow_dispatch' && inputs.verify_production_evidence
+        run: python scripts/check_phase12.py --evidence-only
       - name: Static, type, unit, build, and dependency gates
-        run: python scripts/check_phase11.py --static-only
+        run: python scripts/check_phase12.py --static-only
       - name: Isolated stack, migrations, recovery, and browser acceptance
-        run: python scripts/check_phase11.py --stack-only
+        run: python scripts/check_phase12.py --stack-only
       - name: Mocked public and admin browser regression journeys
-        run: python scripts/check_phase11.py --browser-only
+        run: python scripts/check_phase12.py --browser-only

@@ -45,4 +45,4 @@ For `openrouter_authentication_blocked`, rotate the OpenRouter credential in the
 1. Enable the kill switch and preserve the current database, configuration IDs, and workspace backup.
 2. Deploy the previous tested application image. Phase 10 adds no database migration, so the Phase 9 schema remains compatible.
 3. If a later migration is present, run only its checked in Alembic downgrade after restoring a verified backup.
-4. Rebuild projections, reconcile usage and Markdown, verify `/health/ready`, `/api/v2/admin/system/health`, V1 `/api/config`, and the public/admin smoke journeys, then disable the kill switch.
+4. Rebuild projections, reconcile usage and Markdown, verify `/health/ready`, `/api/v2/admin/system/health`, and the public/admin smoke journeys, then disable the kill switch. The historical V1 `/api/config` check was retired in Phase 12.

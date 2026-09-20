@@ -178,14 +178,15 @@ def test_phase7_concurrent_same_key_creates_one_run() -> None:
     origin = {"Origin": "http://localhost:3000"}
     product = {"product_name": "Phase 6 cancel fixture", "video_count": 3}
     key = "phase7-concurrent-key-0001"
-    with TestClient(app) as bootstrap:
+    test_client = ("phase7-idempotency", 50000)
+    with TestClient(app, client=test_client) as bootstrap:
         initial = bootstrap.post("/api/v2/analyses/preflight", json=product, headers=origin)
         assert initial.status_code == 200
         cookie = bootstrap.cookies.get(settings.anonymous_session_cookie)
         assert cookie
 
     def submit(_: int) -> tuple[int, str]:
-        with TestClient(app) as client:
+        with TestClient(app, client=test_client) as client:
             client.cookies.set(settings.anonymous_session_cookie, cookie)
             response = client.post("/api/v2/analyses", json=product, headers={**origin, "Idempotency-Key": key})
             return response.status_code, response.json().get("run_id", "")

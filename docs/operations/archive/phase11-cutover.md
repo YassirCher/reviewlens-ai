@@ -1,4 +1,7 @@
-# ReviewLens Phase 11 cutover runbook
+# Archived Phase 11 cutover runbook
+
+This document records the retired compatibility period. Its commands and rollback switch do not apply to the Phase 12 runtime. Use [the Phase 12 retirement runbook](../phase12-retirement.md).
+
 
 Use this runbook for the V2 root cutover, temporary V1 compatibility, stable-window observation, and presentation rollback. Store credentials in the deployment secret manager. Do not paste secret values, source content, prompts, cookies, or tokens into commands, tickets, or logs.
 

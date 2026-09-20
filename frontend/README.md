@@ -1,24 +1,35 @@
-# ReviewLens Frontend
+# ReviewLens frontend
 
-Next.js 16 / React 19 frontend. `/` remains the legacy V1 product page; `/research` previews the separate V2 evidence-led flow.
+Next.js 16 and React 19 frontend for the V2 public research flow and protected admin cockpit.
+
+## Routes
+
+- `/` — research intake
+- `/research` — permanent `308` redirect to `/`
+- `/analysis/{run_id}` — owner session progress
+- `/r/{public_token}` — unlisted, uncached report
+- `/r/{public_token}/evidence` — bounded evidence graph with a keyboard friendly list alternative
+- `/admin` — authenticated operations and LLMOps control plane
+
+The retired V1 UI and provider selector are not bundled.
 
 ## Run
 
 ```bash
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
 
-The default backend base URL is `http://localhost:8000`. Override with:
+`NEXT_PUBLIC_API_BASE_URL` is the browser origin for credentialed V2 requests. `V2_API_INTERNAL_URL` is server only and used for report rendering; Compose sets it to `http://api:8000`. Provider credentials never enter the browser bundle.
 
-```env
-NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
-V2_API_INTERNAL_URL=http://localhost:8000
+## Verify
+
+```bash
+npm run lint
+npm run test:unit
+npm run build
+npm run test:e2e
 ```
 
-`NEXT_PUBLIC_API_BASE_URL` is the browser origin for credentialed V2 preflight, submission, owner status, SSE, and cancellation. `V2_API_INTERNAL_URL` is server-only and used for uncached, unlisted report pages; Compose sets it to `http://api:8000`. The browser never receives YouTube or AI provider API keys.
-
-V2 routes: `/research` (3–8 sources, comments off by default), `/analysis/{run_id}` (owner session), `/r/{public_token}` (revocable report), and `/r/{public_token}/evidence` (bounded graph plus keyboard-friendly list). Reports are marked noindex/no-store; V1 analysis and provider selection remain confined to `/`.
-
-Run local checks with `npm run lint`, `npx tsc --noEmit`, `npm run test:unit`, and `npm run test:e2e`. Browser tests start a local mock API and do not use `.env` or paid providers. The repository-wide isolated Compose/browser verification command is `python scripts/check_phase8.py`.
+Browser tests use local mocks. Repository wide verification is `python scripts/check_phase12.py --full` from the repository root.

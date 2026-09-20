@@ -15,7 +15,7 @@ from app.api.v2.dependencies import get_v2_db, require_admin
 from app.db.models import AnalysisRun, OpenRouterAccountState, UsageAggregate, UsageEvent
 from app.errors import V2Error
 from app.platform.alerts import collect_operational_alerts
-from app.admin.cutover import current_observation, evaluate_observation, serialize_observation
+from app.admin.cutover import retirement_observation, serialize_observation
 from app.services.admin_auth import AuthenticatedAdmin
 
 router = APIRouter(prefix="/admin", tags=["admin-analytics"])
@@ -75,11 +75,8 @@ def overview(db: Session = Depends(get_v2_db), _: AuthenticatedAdmin = Depends(r
         UsageAggregate.bucket_start >= cutoff,
     ).order_by(UsageAggregate.bucket_start)))
     latest = db.scalar(select(func.max(UsageAggregate.refreshed_at)))
-    cutover = current_observation(db)
-    cutover_payload = None
-    if cutover is not None:
-        cutover_result = evaluate_observation(db, cutover, persist=False) if cutover.status == "observing" else cutover.latest_result
-        cutover_payload = serialize_observation(cutover, cutover_result)
+    cutover = retirement_observation(db)
+    cutover_payload = serialize_observation(cutover) if cutover is not None else None
     return {"period": "24h", "run_counts": {status: count for status, count in run_counts},
             "local_usage": {"cost_microusd": int(usage[0]), "tokens": int(usage[1]),
                             "calls": int(usage[2])},

@@ -74,7 +74,7 @@ def _set_anonymous_cookie(response: Response, value: str | None) -> None:
             httponly=True,
             secure=not settings.is_local_development,
             samesite="lax",
-            path="/api",
+            path="/api/v2",
         )
 
 

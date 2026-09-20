@@ -1,113 +1,45 @@
-# ReviewLens — Product Review Intelligence POC
+# ReviewLens — Evidence backed product research
 
-> **Implementation status:** `/` now serves the V2 research experience. `/research` remains a no-index V2 alias, `/admin` hosts the protected control plane, and `PUBLIC_ROOT_EXPERIENCE=v1` provides the temporary presentation rollback. The legacy `/api/analyze` contracts delegate to normal V2 runs through the measured compatibility adapter.
+ReviewLens is a full stack research system that turns several YouTube reviews into a durable, evidence linked buying report. The V2 research experience is the only runtime: `/` accepts research requests, `/analysis/{run_id}` shows owner progress, `/r/{public_token}` serves unlisted reports, and `/admin` hosts the protected operations cockpit. `/research` permanently redirects to `/`.
 
-The V2 system includes PostgreSQL/Alembic persistence, Redis/Celery processes, secure sessions, durable run/task/attempt state, exact OpenRouter accounting, an authoritative Markdown/PostgreSQL context graph, fixed typed research tools, a seven-role analysis DAG, the public report lifecycle, and the protected admin control plane. Phase 11 adds the runtime root switch, durable compatibility telemetry, and the stable-window gate used to authorize later V1 retirement.
+The legacy V1 UI, provider selection, direct provider clients, `/api/config`, `/api/analyze`, `/api/analyze/stream`, and `GET /health` have been retired. Historical compatibility requests and Phase 11 cutover observations remain in PostgreSQL as immutable operational history.
 
-Use [the codebase map](./context/codebase/00_CODEBASE_MAP.md) to navigate the V2 runtime and its temporary V1 compatibility boundary.
+## System
 
-ReviewLens is a full-stack proof of concept that turns the top YouTube reviews for a product into a structured, evidence-backed buying decision.
+- Next.js 16 and React 19 public and admin interfaces
+- FastAPI V2 API with strict JSON, body limits, CORS, security headers, signed owner sessions, and CSRF protected admin mutations
+- PostgreSQL and Alembic for runs, snapshots, configuration, budgets, usage, audits, graph metadata, compatibility history, and cutover observations
+- Redis and Celery for queues, progress streams, scheduling, leases, and recovery
+- OpenRouter policy routing with exact usage attribution and reconciliation
+- YouTube typed tools with bounded quota, transcript fallback, optional comments, and untrusted content handling
+- Markdown and PostgreSQL authoritative context with Neo4j and Qdrant rebuildable projections
+- A seven role analysis DAG with schema correction, evidence gates, and partial result rules
 
-The user enters a product name, optionally enables YouTube comment analysis, and ReviewLens:
+Production defaults to `deepseek/deepseek-v4-flash`. Phase 12 acceptance permits only that pinned slug and `deepseek/deepseek-v4-flash-0731`, both through the local OpenRouter mock.
 
-1. Searches YouTube for relevant product review videos.
-2. Filters obvious non-review content.
-3. Selects up to three of the most-viewed review candidates with usable transcripts.
-4. Extracts timestamped transcripts.
-5. Optionally retrieves top/relevant YouTube comments.
-6. Uses an AI provider to analyze each video into a strict schema.
-7. Uses a final consensus pass to produce an overall buy / caveat / mixed / avoid verdict.
+## Local setup
 
-## Legacy V1 stack
-
-- **Frontend:** Next.js 16 App Router, React 19, TypeScript, Tailwind CSS 4
-- **Backend:** FastAPI, Pydantic v2, httpx
-- **YouTube:** YouTube Data API v3
-- **Transcripts:** `youtube-transcript-api`
-- **AI providers:** OpenRouter, xAI/Grok, optional OpenAI-compatible adapter
-- **Storage:** none required for V1
-
-## Legacy V1 free-tier strategy
-
-The default OpenRouter model is `openrouter/free`. Comments are **off by default**. When comments are enabled, they are included in the same per-video LLM request, so the normal budget remains roughly:
-
-- 3 per-video AI calls
-- 1 final consensus AI call
-- **~4 AI calls per analysis**
-
-The backend also includes a deterministic final-consensus fallback if the aggregation call fails.
-
-## Quick start
-
-### 1. Configure environment
-
-```bash
-cp .env.example .env
-```
-
-Set at minimum:
-
-```env
-YOUTUBE_API_KEY=...
-OPENROUTER_API_KEY=...
-```
-
-xAI/Grok is optional:
-
-```env
-XAI_API_KEY=...
-XAI_MODEL=grok-4.5
-```
-
-### 2. Backend
+Copy `.env.example` to `.env`, set the required infrastructure and server side credentials, then generate the admin password hash:
 
 ```bash
 cd backend
 python -m venv .venv
-# Windows: .venv\\Scripts\\activate
+# Windows: .venv\Scripts\activate
 # macOS/Linux: source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
-```
-
-### 3. Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Open `http://localhost:3000`.
-
-## Docker
-
-After creating `.env`, configure the required V2 database, Redis, Neo4j, admin, hashing secrets, and runtime operations settings documented in `.env.example`. Generate the admin password hash without placing a plaintext password in `.env`:
-
-```bash
-cd backend
+pip install -r requirements.txt -r requirements-dev.txt
 python -m app.cli hash-password
 cd ..
 ```
 
-Then start the complete local stack:
+Start the stack:
 
 ```bash
 docker compose up --build --wait
 ```
 
-Frontend: `http://localhost:3000`  
-Backend docs: `http://localhost:8000/docs`
+The frontend is at `http://localhost:3000`; API documentation is at `http://localhost:8000/docs`. Process health is available at `/health/live` and `/health/ready`. Authenticated dependency detail is at `/api/v2/admin/system/health`.
 
-Platform endpoints:
-
-- `GET /health` — stable V1 liveness response
-- `GET /health/live` — process liveness
-- `GET /health/ready` — PostgreSQL/Redis/storage readiness plus projection degradation
-- `/api/v2/admin/session` and `/api/v2/admin/csrf` — secure admin-session foundation
-- `GET /api/v2/admin/system/health` — authenticated dependency detail
-
-Publish the checked-in Phase 6 model/agent/workflow configuration only after the current OpenRouter catalog and endpoint snapshots are available:
+Refresh the OpenRouter catalog and seed the initial published workflow before accepting submissions:
 
 ```bash
 cd backend
@@ -115,47 +47,41 @@ python -m app.cli openrouter-catalog-refresh
 python -m app.cli analysis-config-seed
 ```
 
-`V2_AGENT_CHAT_MODELS` defaults to `deepseek/deepseek-v4-flash` and is separate from the V1-only `OPENROUTER_MODEL`. The workflow allows 3–8 sources, uses the configured worker concurrency, permits one schema-correction attempt per agent task, enforces a bounded run deadline, and publishes a partial report only when at least one validated source and central evidence survive the audit gates.
+## Optional production retirement authorization
 
-Run the isolated Phase 6 migration cycle, full backend suite, local OpenRouter/YouTube mocks, seven-agent fixtures, and full-stack verification with Docker Desktop running:
-
-```bash
-python scripts/check_phase6.py
-```
-
-The checker uses a generated `APP_ENV=test` file and fake upstream keys. It exercises complete, comments, partial, retry, correction, audit-failure, and cancellation paths against isolated storage. It never reads the repository `.env`, contacts live YouTube/OpenRouter, or spends credits.
-
-Phase 7's backend-only public API is verified with generated credentials and the same local mocks:
+Export evidence only from the authoritative production database after a passed non-test Phase 11 observation, the 24 hour compatibility quiet period, reconciled usage, no budget breach, and operator migration attestation:
 
 ```bash
-python scripts/check_phase7.py
+cd backend
+python -m app.cli phase12-export-cutover-evidence \
+  --observation-id OBSERVATION_UUID \
+  --attestation-reference change/REFERENCE \
+  --output ../docs/release-evidence/phase12-cutover.json
 ```
 
-The V2 experience starts at `/`, with `/research` retained as a no-index alias, owner-session progress at `/analysis/{run_id}`, and unlisted, revocable reports at `/r/{public_token}`. Report pages render uncached through server-only `V2_API_INTERNAL_URL` (Compose sets `http://api:8000`); browsers use `NEXT_PUBLIC_API_BASE_URL` for credentialed run requests. There is no public model/provider picker. Set server-only `PUBLIC_ROOT_EXPERIENCE=v1` and restart the frontend for a temporary presentation rollback; this does not modify active or queued runs, snapshots, reports, or usage.
+The artifact stores sanitized aggregates and a canonical SHA-256 digest. See [the Phase 12 runbook](./docs/operations/phase12-retirement.md).
 
-With Docker Desktop available, verify the Phase 8 mocked Compose/backend and browser journey with:
+## Acceptance
+
+The current gate replaces the superseded per-phase checkers:
 
 ```bash
-python scripts/check_phase8.py
+python scripts/check_phase12.py --evidence-only
+python scripts/check_phase12.py --static-only
+python scripts/check_phase12.py --stack-only
+python scripts/check_phase12.py --browser-only
+python scripts/check_phase12.py --full
 ```
 
-For local frontend checks, run `npm run lint`, `npx tsc --noEmit`, `npm run test:unit`, and `npm run test:e2e` from `frontend/`. The browser suite uses a local V2 API mock; neither verifier reads the repository `.env` or makes live/paid YouTube or OpenRouter calls.
+`--full` is the complete working-project gate: static checks, the isolated stack, and browser acceptance. The separate `--evidence-only` mode validates production retirement authorization when ReviewLens is deployed over a real Phase 11 installation; it is not required for local development or repository CI.
 
-Initialize the current catalog and published V2 analysis configuration before accepting real public submissions. `POST /api/v2/analyses/preflight` is advisory; `POST /api/v2/analyses` requires `Idempotency-Key`. Anonymous ownership is bound to a signed HttpOnly cookie. Public report URLs are returned through owner-only run status after a validated report is published, and can be revoked immediately. `ANONYMOUS_SESSION_IDLE_HOURS`, `ANONYMOUS_SESSION_ABSOLUTE_DAYS`, and `PUBLIC_QUEUE_CAPACITY` control the new admission boundary; public monetary cost remains private.
+The stack gate creates isolated credentials and storage, migrates from empty state, cycles migration `20260920_0009`, runs backup and recovery drills, executes the complete backend and browser suites, and inspects mock history. It fails on a live provider endpoint, secret exposure, or inference outside the two approved Flash slugs, and always removes its generated environment, containers, volumes, and reports.
 
-## Important behavior
+## Documentation
 
-- API keys are server-side only.
-- Transcripts and comments are treated as untrusted content for prompt-injection resistance.
-- Missing transcripts cause the system to try the next ranked candidate.
-- Partial results are preferred to complete failure.
-- The UI never claims a product fact that is not present in the analyzed sources.
+Start with [the V2 context home](./context/00_INDEX_AND_PROJECT_OVERVIEW.md) and [the codebase map](./context/codebase/00_CODEBASE_MAP.md). The final specification matrix is [Phase 12 conformance](./docs/release-evidence/phase12-conformance.md).
 
-## Project documentation
-
-The authoritative V2 conception is under [context/](./context). Start with [context/00_INDEX_AND_PROJECT_OVERVIEW.md](./context/00_INDEX_AND_PROJECT_OVERVIEW.md), follow its reading order, and read [context/25_AGENT_BUILD_INSTRUCTIONS.md](./context/25_AGENT_BUILD_INSTRUCTIONS.md) before implementation.
-
-Validate the context metadata, links, Canvas, code maps, terminology, and V1/V2 boundary from the repository root:
+Validate the local context vault with:
 
 ```bash
 python scripts/check_context.py

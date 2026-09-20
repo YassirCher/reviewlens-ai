@@ -66,9 +66,18 @@ async function mockAdmin(page: Page): Promise<MockState> {
         threshold: "available", observed_value: "unavailable", recovery_link: "/admin/runs",
       }] } });
     if (path === "/cutover") return response(route, {
-      root_mode: "v2", adapter_enabled: true,
-      production_defaults: { stable_window_hours: 24, min_terminal_runs: 20 },
-      current: null,
+      phase: "retired", retirement_authorized: true,
+      observation: {
+        id: SESSION, environment: "production", status: "passed", test_evidence: false,
+        root_mode: "v2", started_at: NOW, evaluated_at: NOW, ended_at: NOW,
+        thresholds: { stable_window_hours: 24, min_terminal_runs: 20,
+          public_run_token_cap: 100000, public_run_cost_cap_microusd: 500000 },
+        result: { passed: true, blockers: [], metrics: [
+          { code: "terminal_runs", passed: true, observed: 24, threshold: 20 },
+          { code: "compatibility_quiet_period_hours", passed: true, observed: 24, threshold: 24 },
+        ], distributions: { total_tokens: 34000, total_cost_microusd: 120000,
+          p95_tokens_per_run: 2200, p95_cost_microusd_per_run: 9000 } },
+      },
     });
     if (path === "/runs") return response(route, { items: [{ id: RUN, product: "Aurora Headphones",
       status: "running", initiator_type: "public", created_at: NOW, duration_ms: 3000,

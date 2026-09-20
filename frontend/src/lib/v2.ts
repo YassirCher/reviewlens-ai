@@ -1,4 +1,4 @@
-/** Browser-only V2 contracts. Legacy V1 types and transport stay separate. */
+/** Browser contracts for the V2-only public and admin runtime. */
 export type AnalysisInput = {
   product_name: string;
   video_count: number;

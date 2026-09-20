@@ -416,17 +416,18 @@ class ContextAudit:
     def check_repository_boundary(self) -> None:
         requirements = {
             ROOT / "README.md": (
-                "v2 research experience",
-                "temporary v1 compatibility",
-                "public_root_experience=v1",
+                "v2 research experience is the only runtime",
+                "legacy v1 ui",
+                "permanently redirects",
+                "phase12-cutover.json",
                 "context/00_index_and_project_overview.md",
                 "context/codebase/00_codebase_map.md",
             ),
             ROOT / "ARCHITECTURE.md": (
-                "v2 architecture",
-                "legacy diagram",
-                "temporary v1 wire contracts",
-                "phase 12",
+                "v2 runtime architecture",
+                "legacy application and wire contracts are retired",
+                "compatibility telemetry",
+                "recorded phase 11 image",
             ),
         }
         for path, phrases in requirements.items():
@@ -461,7 +462,7 @@ class ContextAudit:
 
         print(
             "Context audit passed: 28 Target V2 notes, documentation links, "
-            "Canvas coverage, code maps, stale-term policy, and V1/V2 boundaries are valid."
+            "Canvas coverage, code maps, stale-term policy, and final V2 boundaries are valid."
         )
         return 0
 

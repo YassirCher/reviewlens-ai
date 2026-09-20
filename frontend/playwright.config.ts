@@ -19,6 +19,6 @@ export default defineConfig({
   },
   webServer: process.env.PHASE8_EXTERNAL_SERVERS === "1" ? undefined : [
     { command: "node tests/mock-api.mjs", url: `${mockOrigin}/health`, reuseExistingServer: false, timeout: 30_000 },
-    { command: "node node_modules/next/dist/bin/next dev --hostname 127.0.0.1", url: `${baseURL}/research`, reuseExistingServer: false, timeout: 90_000, env: { NEXT_PUBLIC_API_BASE_URL: mockOrigin, V2_API_INTERNAL_URL: mockOrigin } },
+    { command: "node node_modules/next/dist/bin/next dev --hostname 127.0.0.1", url: baseURL, reuseExistingServer: false, timeout: 90_000, env: { NEXT_PUBLIC_API_BASE_URL: mockOrigin, V2_API_INTERNAL_URL: mockOrigin } },
   ],
 });

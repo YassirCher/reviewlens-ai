@@ -7,21 +7,15 @@ from typing import Literal
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-ProviderName = Literal["openrouter", "xai", "openai"]
 ProcessRole = Literal["api", "worker", "scheduler", "migrate"]
 
 
 class Settings(BaseSettings):
-    # Legacy V1 settings remain available until the compatibility phases.
     youtube_api_key: str = ""
     youtube_region_code: str = "US"
     youtube_relevance_language: str = "en"
-    youtube_candidate_count: int = Field(default=12, ge=3, le=40)
-    youtube_top_video_count: int = Field(default=3, ge=1, le=3)
-    comments_per_video: int = Field(default=15, ge=1, le=50)
 
     openrouter_api_key: str = ""
-    openrouter_model: str = "openrouter/free"
     openrouter_app_url: str = "http://localhost:3000"
     openrouter_app_name: str = "ReviewLens"
     openrouter_management_key: str = ""
@@ -45,22 +39,10 @@ class Settings(BaseSettings):
     openrouter_smoke_embedding_model: str = ""
     openrouter_smoke_max_cost_microusd: int = Field(default=10_000, ge=1, le=100_000)
 
-    # Target V2 agent policy. This must never fall back to the legacy
-    # OPENROUTER_MODEL compatibility setting above.
+    # Initial seed model. Published policies and active pointers own routing.
     v2_agent_chat_models: str = "deepseek/deepseek-v4-flash"
     v2_agent_max_concurrency: int = Field(default=4, ge=1, le=32)
     v2_analysis_run_timeout_seconds: int = Field(default=900, ge=60, le=3600)
-
-    xai_api_key: str = ""
-    xai_model: str = "grok-4.5"
-    openai_api_key: str = ""
-    openai_model: str = ""
-    ai_primary_provider: ProviderName = "openrouter"
-    ai_aggregator_provider: str = "auto"
-    ai_max_output_tokens: int = Field(default=3500, ge=500, le=12000)
-    ai_temperature: float = Field(default=0.1, ge=0.0, le=1.0)
-    max_transcript_chars_per_video: int = Field(default=45_000, ge=5_000, le=150_000)
-    max_comment_chars_per_video: int = Field(default=10_000, ge=1_000, le=50_000)
 
     app_env: str = "development"
     app_public_url: str = "http://localhost:3000"
@@ -70,18 +52,6 @@ class Settings(BaseSettings):
     v2_max_request_body_bytes: int = Field(default=1_048_576, ge=1024, le=10_485_760)
     operations_error_rate_min_runs: int = Field(default=5, ge=1, le=10_000)
     raw_content_encryption_key: str = Field(default="", exclude=True, repr=False)
-
-    # Phase 11 temporary compatibility boundary and operational proof.
-    public_root_experience: Literal["v2", "v1"] = "v2"
-    legacy_analysis_adapter_enabled: bool = True
-    legacy_adapter_wait_seconds: int = Field(default=900, ge=5, le=3600)
-    legacy_api_sunset_at: str = ""
-    cutover_stable_window_hours: float = Field(default=24.0, ge=0.001, le=720)
-    cutover_min_terminal_runs: int = Field(default=20, ge=1, le=100_000)
-    cutover_min_compatibility_requests: int = Field(default=5, ge=0, le=100_000)
-    cutover_max_failure_rate: float = Field(default=0.10, ge=0, le=1)
-    cutover_max_p95_run_latency_seconds: int = Field(default=900, ge=1, le=86_400)
-    cutover_min_compatibility_success_rate: float = Field(default=0.95, ge=0, le=1)
 
     admin_email: str = ""
     admin_password_hash: str = ""
@@ -178,24 +148,6 @@ class Settings(BaseSettings):
     @property
     def node_roots(self) -> tuple[Path, Path]:
         return Path(self.node_storage_root), Path(self.node_quarantine_root)
-
-    def provider_available(self, provider: str) -> bool:
-        if provider == "openrouter":
-            return bool(self.openrouter_api_key)
-        if provider == "xai":
-            return bool(self.xai_api_key)
-        if provider == "openai":
-            return bool(self.openai_api_key and self.openai_model)
-        return False
-
-    def model_for(self, provider: str) -> str:
-        if provider == "openrouter":
-            return self.openrouter_model
-        if provider == "xai":
-            return self.xai_model
-        if provider == "openai":
-            return self.openai_model
-        return ""
 
     def v2_configuration_errors(self, role: ProcessRole = "api") -> list[str]:
         required = {

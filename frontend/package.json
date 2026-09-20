@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "test:unit": "playwright test --config playwright.unit.config.ts",
-    "test:e2e": "python ../scripts/check_phase8.py --browser-only"
+    "test:e2e": "python ../scripts/check_phase12.py --browser-only"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.23",

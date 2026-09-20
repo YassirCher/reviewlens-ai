@@ -6,13 +6,12 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from app.config import Settings, settings
-from app.compatibility.v1 import deprecation_headers
 
 ASGIApp = Callable[[dict[str, Any], Callable[[], Awaitable[dict[str, Any]]], Callable[[dict[str, Any]], Awaitable[None]]], Awaitable[None]]
 
 
 class V2RequestGuardMiddleware:
-    """Reject oversized or incorrectly typed V2 and compatibility request bodies."""
+    """Reject oversized or incorrectly typed V2 request bodies."""
 
     def __init__(self, app: ASGIApp, config: Settings = settings) -> None:
         self.app = app
@@ -20,9 +19,7 @@ class V2RequestGuardMiddleware:
 
     async def __call__(self, scope: dict[str, Any], receive, send) -> None:
         path = str(scope.get("path", ""))
-        guarded = path == "/api/v2" or path.startswith("/api/v2/") or path in {
-            "/api/analyze", "/api/analyze/stream"
-        }
+        guarded = path == "/api/v2" or path.startswith("/api/v2/")
         if scope.get("type") != "http" or not guarded:
             await self.app(scope, receive, send)
             return
@@ -82,10 +79,5 @@ class V2RequestGuardMiddleware:
                           separators=(",", ":")).encode("utf-8")
         headers = [(b"content-type", b"application/json"),
                    (b"content-length", str(len(body)).encode("ascii"))]
-        if scope.get("path") in {"/api/analyze", "/api/analyze/stream"}:
-            headers.extend(
-                (key.lower().encode("ascii"), value.encode("ascii"))
-                for key, value in deprecation_headers().items()
-            )
         await send({"type": "http.response.start", "status": status, "headers": headers})
         await send({"type": "http.response.body", "body": body})

@@ -167,7 +167,7 @@ def test_chat_client_sends_safe_headers_strict_schema_and_normalizes_usage() -> 
             200,
             json={
                 "id": "gen-chat-1",
-                "model": "fixture/chat-fallback",
+                "model": "deepseek/deepseek-v4-flash-0731",
                 "provider": "Fixture Provider",
                 "choices": [{"finish_reason": "stop", "message": {"content": "{\"ok\":true}"}}],
                 "service_tier": "default",
@@ -190,7 +190,7 @@ def test_chat_client_sends_safe_headers_strict_schema_and_normalizes_usage() -> 
                 policy=ModelPolicyDocument(
                     name="test",
                     purpose="test structured output",
-                    models=("fixture/chat-model", "fixture/chat-fallback"),
+                    models=("deepseek/deepseek-v4-flash", "deepseek/deepseek-v4-flash-0731"),
                     provider=ProviderRouting(),
                     max_completion_tokens=32,
                 ),
@@ -206,7 +206,7 @@ def test_chat_client_sends_safe_headers_strict_schema_and_normalizes_usage() -> 
             )
             result = await client.chat(invocation, "request-123")
             assert result.content == {"ok": True}
-            assert result.actual_model == "fixture/chat-fallback"
+            assert result.actual_model == "deepseek/deepseek-v4-flash-0731"
             assert result.actual_provider == "Fixture Provider"
             assert result.usage and result.usage.total_cost_microusd == 15
 
@@ -234,7 +234,7 @@ def test_embedding_client_orders_vectors_and_rejects_redirects() -> None:
                 200,
                 json={
                     "id": "emb-1",
-                    "model": "fixture/embedding-model",
+                    "model": "deepseek/deepseek-v4-flash",
                     "provider": "Fixture Provider",
                     "data": [
                         {"index": 1, "embedding": [0, 1, 0]},
@@ -251,7 +251,7 @@ def test_embedding_client_orders_vectors_and_rejects_redirects() -> None:
             invocation = EmbeddingInvocation(
                 context=_context(),
                 policy=EmbeddingPolicyDocument(
-                    model="fixture/embedding-model",
+                    model="deepseek/deepseek-v4-flash",
                     dimensions=3,
                     input_type="search_document",
                 ),

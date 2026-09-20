@@ -11,9 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException
 
-from app.api.routes import router as v1_router
 from app.api.v2.router import router as v2_router
-from app.compatibility.v1 import deprecation_headers
 from app.config import settings
 from app.errors import V2Error
 from app.observability import configure_logging, request_id_context
@@ -24,18 +22,12 @@ configure_logging()
 # Access paths contain high-entropy unlisted report tokens; never log them.
 logging.getLogger("uvicorn.access").disabled = True
 logger = logging.getLogger(__name__)
-_LEGACY_ANALYSIS_PATHS = {"/api/analyze", "/api/analyze/stream"}
-
-
 def _is_guarded_contract(path: str) -> bool:
-    return path.startswith("/api/v2") or path in _LEGACY_ANALYSIS_PATHS
+    return path == "/api/v2" or path.startswith("/api/v2/")
 
 
 def _error_headers(request: Request, headers: dict[str, str] | None = None) -> dict[str, str]:
-    result = dict(headers or {})
-    if request.url.path in _LEGACY_ANALYSIS_PATHS:
-        result.update(deprecation_headers())
-    return result
+    return dict(headers or {})
 
 
 @asynccontextmanager
@@ -173,14 +165,7 @@ async def handle_http_error(request: Request, error: HTTPException) -> JSONRespo
     )
 
 
-app.include_router(v1_router, prefix="/api")
 app.include_router(v2_router, prefix="/api/v2")
-
-
-@app.get("/health", tags=["system"])
-async def health() -> dict[str, str]:
-    # Preserve the legacy V1 liveness contract.
-    return {"status": "ok", "service": "reviewlens-api"}
 
 
 @app.get("/health/live", tags=["system"])

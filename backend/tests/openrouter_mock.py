@@ -11,11 +11,26 @@ app = FastAPI(title="ReviewLens OpenRouter contract mock")
 RUN_SCENARIOS: dict[str, str] = {}
 ROLE_CALLS: Counter[tuple[str, str]] = Counter()
 INFERENCE_MODELS: Counter[tuple[str, str]] = Counter()
+DEEPSEEK_FLASH_MODELS = {
+    "deepseek/deepseek-v4-flash",
+    "deepseek/deepseek-v4-flash-0731",
+}
 
 
 def _require_auth(authorization: str | None) -> None:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="missing authentication")
+
+
+def _allowed_inference_models() -> set[str]:
+    configured = os.getenv("PHASE12_ALLOWED_INFERENCE_MODELS", ",".join(sorted(DEEPSEEK_FLASH_MODELS)))
+    return {item.strip() for item in configured.split(",") if item.strip()}
+
+
+def _require_allowed_models(models: list[str]) -> None:
+    allowed = _allowed_inference_models()
+    if allowed and (not models or any(model not in allowed for model in models)):
+        raise HTTPException(status_code=400, detail="phase12 model restriction violated")
 
 
 @app.get("/health")
@@ -76,6 +91,17 @@ def models(authorization: str | None = Header(default=None)) -> dict:
                 "pricing": {"prompt": "0.000001", "completion": "0.000002"},
                 "top_provider": {"max_completion_tokens": 8192},
             },
+            {
+                "id": "deepseek/deepseek-v4-flash-0731",
+                "canonical_slug": "deepseek/deepseek-v4-flash-0731",
+                "name": "DeepSeek V4 Flash 0731 Fixture",
+                "description": "Local Phase 12 pinned-model contract fixture",
+                "context_length": 65536,
+                "architecture": {"input_modalities": ["text"], "output_modalities": ["text"]},
+                "supported_parameters": ["response_format", "temperature"],
+                "pricing": {"prompt": "0.000001", "completion": "0.000002"},
+                "top_provider": {"max_completion_tokens": 8192},
+            },
         ]
     }
 
@@ -130,8 +156,8 @@ def endpoints(author: str, slug: str, authorization: str | None = Header(default
                     "id": f"fixture/{model}",
                     "provider_slug": "fixture",
                     "provider_name": "Fixture Provider",
-                    "context_length": 65536 if model == "deepseek/deepseek-v4-flash" else 4096,
-                    "max_completion_tokens": 8192 if model == "deepseek/deepseek-v4-flash" else 1024,
+                    "context_length": 65536 if model in DEEPSEEK_FLASH_MODELS else 4096,
+                    "max_completion_tokens": 8192 if model in DEEPSEEK_FLASH_MODELS else 1024,
                     "quantization": "fp16",
                     "supported_parameters": ["response_format", "temperature"],
                     "pricing": {"prompt": "0.000001", "completion": "0.000002"},
@@ -157,9 +183,7 @@ async def chat(
     body = await request.json()
     requested_models = body.get("models") or [body.get("model")]
     requested_models = [str(model) for model in requested_models if model]
-    allowed_model = os.getenv("PHASE11_ALLOWED_INFERENCE_MODEL", "")
-    if allowed_model and requested_models != [allowed_model]:
-        raise HTTPException(status_code=400, detail="phase11 model restriction violated")
+    _require_allowed_models(requested_models)
     for model in requested_models:
         INFERENCE_MODELS[("chat", model)] += 1
     mock_failure = str(body.get("metadata", {}).get("phase10_failure", ""))
@@ -200,7 +224,7 @@ async def chat(
                else _structured_content(schema_name, trace_id, task_input))
     return {
         "id": f"mock-{x_request_id}",
-        "model": (body.get("models") or [body.get("model") or "fixture/chat-fallback"])[0],
+        "model": (body.get("models") or [body.get("model") or "deepseek/deepseek-v4-flash"])[0],
         "provider": "fixture",
         "choices": [{"finish_reason": "stop", "message": {"content": json.dumps(content)}}],
         "service_tier": "default",
@@ -402,9 +426,7 @@ async def embeddings(
     _require_auth(authorization)
     body = await request.json()
     model = str(body.get("model") or "")
-    allowed_model = os.getenv("PHASE11_ALLOWED_INFERENCE_MODEL", "")
-    if allowed_model and model != allowed_model:
-        raise HTTPException(status_code=400, detail="phase11 model restriction violated")
+    _require_allowed_models([model])
     INFERENCE_MODELS[("embedding", model)] += 1
     inputs = body.get("input")
     if not isinstance(inputs, list):
@@ -427,7 +449,7 @@ def generation(id: str, authorization: str | None = Header(default=None)) -> dic
     return {
         "data": {
             "id": id,
-            "model": "fixture/chat-fallback",
+            "model": "deepseek/deepseek-v4-flash-0731",
             "provider_name": "fixture",
             "tokens_prompt": 10,
             "tokens_completion": 5,

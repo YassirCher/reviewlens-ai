@@ -51,7 +51,7 @@ def create_llmops_fixture_attempt(
     model_document = ModelPolicyDocument(
         name="Phase 3 mocked chat",
         purpose="Exercise the paid gateway without external calls",
-        models=("fixture/chat-model", "fixture/chat-fallback"),
+        models=("deepseek/deepseek-v4-flash", "deepseek/deepseek-v4-flash-0731"),
         provider=ProviderRouting(),
         temperature=0,
         max_completion_tokens=128,
@@ -71,7 +71,7 @@ def create_llmops_fixture_attempt(
     db.add(model_version)
 
     embedding_document = EmbeddingPolicyDocument(
-        model="fixture/embedding-model",
+        model="deepseek/deepseek-v4-flash",
         provider=ProviderRouting(),
         dimensions=3,
     )

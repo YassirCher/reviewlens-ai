@@ -1,86 +1,39 @@
-# Runtime Architecture
+# ReviewLens V2 runtime architecture
 
-> **Current implementation:** The runtime diagram below describes the V2 architecture now served at `/`. `/research` remains a no-index V2 alias, and owner progress and unlisted reports live at `/analysis/{run_id}` and `/r/{public_token}`. The legacy diagram later in this file remains only as a compatibility reference.
-
-Phases 1 through 10 implement the shared platform, restart-safe orchestration, OpenRouter accounting, knowledge graph, typed research tools, bounded analysis DAG, public lifecycle, public UI, admin control plane, and whole-system hardening. Phase 11 makes V2 the default root, routes the temporary V1 wire contracts through V2, records compatibility telemetry, and adds durable stable-window observations. Phase 12 may remove legacy code only after a passed non-test production observation.
+ReviewLens now has one V2 runtime. The legacy application and wire contracts are retired. Migration `20260920_0009`, compatibility telemetry, and Phase 11 cutover observations remain as historical records so retirement can be audited without keeping the old execution path.
 
 ```text
-Runtime service ---> PostgreSQL transaction
-                         |-- immutable configuration snapshot
-                         |-- run, DAG tasks, dependencies, attempts
-                         |-- run budget state and progress events
-                         `-- dispatch/progress outbox
-
-Celery scheduler ---> outbox relay ---> Redis broker / progress streams
-Celery worker ------> leased task ----> committed result ---> next outbox work
-                          `-----------> stale lease recovery after interruption
-
-V2 paid call -------> PostgreSQL reservation + pending usage
-                          |-- OpenRouter-only chat or embedding request
-                          |-- actual model/provider/native usage reconciliation
-                          `-- scheduled generation lookup when usage is pending
-
-Authoritative context write --> temporary validated Markdown --> atomic replace
-                                      |--> PostgreSQL node/version/edge + projection outbox
-                                      |--> Neo4j metadata/typed-edge projection
-                                      `--> Qdrant versioned embedding projection
-
-Task retrieval --> required seeds + PostgreSQL graph + Qdrant semantic + lexical candidates
-              --> authorize/rerank/budget whole nodes --> immutable context manifest
-
-Phase 5 tool call --> immutable run snapshot + agent/task allowlist
-                       |--> durable invocation identity and quota reservation
-                       |--> fixed YouTube/graph/vector/evidence/scoring handler
-                       `--> terminal audit before task progress
-
-YouTube research --> query variants --> raw source nodes --> deterministic ranking
-                 --> transcript fallback --> timestamped chunks + lineage
-                 `--> optional secondary-trust comment sets
-
-Phase 6 orchestrator --> validate + bounded query plan + deterministic discovery
-                    --> per-source transcript/review (+ optional comments/audience)
-                    --> evidence graph curation --> consensus --> quality audit
-                    --> at most one declared correction/re-audit cycle
-                    `--> immutable internal report or unpublished failed run
-
-Phase 8 browser --> credentialed preflight/create/status/cancel + sequence-replayed SSE
-                   --> polling fallback when a stream disconnects
-                   --> owner-only report handoff; unlisted /r/* uses server-only API origin
-                   --> public-safe evidence graph, paginated links, keyboard list alternative
+Next.js / and /admin
+        |
+        v
+FastAPI /api/v2 ----------------------> PostgreSQL
+        |                                  | run/configuration snapshots
+        |                                  | tasks, attempts, usage, budgets
+        |                                  | audits, reports, graph metadata
+        |                                  ` compatibility/cutover history
+        |
+        +--> Redis broker + progress streams <--> Celery worker/scheduler
+        +--> OpenRouter policy gateway --------> chat/embedding attribution
+        +--> typed YouTube tools --------------> source evidence and lineage
+        `--> Markdown/PostgreSQL graph --------> Neo4j + Qdrant projections
 ```
 
-```text
-FastAPI API ─────── PostgreSQL (authoritative foundation)
-     │                  └── admin/session/config versions/audit
-     ├──────────── Redis (broker, throttling, health heartbeat)
-     ├──────────── Neo4j (available projection dependency)
-     └──────────── Qdrant (available projection dependency)
+## Durable execution
 
-Shared backend image
-     ├── API process
-     ├── Celery worker
-     ├── Celery scheduler
-     └── one-shot Alembic migration/admin seed
-```
+Run creation commits an immutable configuration snapshot, DAG tasks, budget state, progress, and dispatch outbox in PostgreSQL before delivery. Workers lease attempts, commit terminal state before emitting progress, and recover interrupted or duplicate work deterministically. Redis stream gaps fall back to PostgreSQL reconstruction.
 
-```text
-Next.js UI
-   |
-   | POST /api/analyze/stream (SSE)
-   v
-FastAPI
-   |
-   +-- YouTubeService --------> YouTube Data API v3
-   |
-   +-- TranscriptService -----> youtube-transcript-api
-   |
-   +-- CommentService --------> YouTube Data API v3 (opt-in)
-   |
-   +-- AIService
-         |
-         +-- OpenRouterProvider --> /api/v1/chat/completions
-         +-- XAIProvider --------> /v1/chat/completions
-         +-- OpenAIProvider -----> /v1/chat/completions (optional)
-```
+## Inference and evidence
 
-The orchestrator is deterministic: discovery, transcript acquisition, analysis, aggregation. The LLM does not control arbitrary tools.
+OpenRouter is the only inference gateway. Published model policies constrain eligible catalog endpoints and provider privacy. Every call reserves worst case budget before dispatch and records run, task, attempt, policy, requested model, actual model/provider, tokens, and cost. Scheduled reconciliation resolves delayed usage.
+
+YouTube transcripts and comments are untrusted inputs. Typed handlers enforce allowlists, quota, output bounds, and lineage. The analysis DAG links central claims to timestamped evidence and withholds publication when schema, injection, evidence, or audit gates fail.
+
+## Knowledge and projections
+
+Validated Markdown plus PostgreSQL are authoritative. Writes reject unsafe paths, extensions, links, symlinks, and hardlinks. Neo4j and Qdrant are disposable projections rebuilt from the authoritative node versions and manifests. Retrieval remains available through PostgreSQL when projections degrade.
+
+## Public and admin boundaries
+
+`/` is the public V2 intake. `/research` returns a permanent redirect. Signed anonymous sessions are scoped to `/api/v2`; public reports expose allowlisted fields through unlisted revocable tokens. Admin routes require the HttpOnly session and CSRF for mutations. Central redaction prevents credentials, cookies, prompts, and source bodies from entering logs or audit metadata.
+
+`GET /api/v2/admin/cutover` is read only and reports the latest passed non-test observation. The application contains no cutover mutation, legacy adapter, root rollback switch, or scheduled cutover evaluator. Application rollback deploys the recorded Phase 11 image against the unchanged database.

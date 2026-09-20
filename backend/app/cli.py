@@ -6,6 +6,8 @@ import getpass
 import json
 import sys
 import time
+import uuid
+from pathlib import Path
 
 from app.config import ProcessRole, settings
 from app.platform.health import (
@@ -17,6 +19,35 @@ from app.platform.health import (
 )
 from app.security import hash_password
 from app.seed import seed_foundation
+
+
+def _export_phase12_evidence(
+    observation_id: str,
+    *,
+    attestation_reference: str,
+    output: Path,
+) -> int:
+    from app.admin.retirement import (
+        RetirementEvidenceError,
+        build_evidence_document,
+        write_evidence_document,
+    )
+    from app.db.session import session_scope
+
+    try:
+        parsed_id = uuid.UUID(observation_id)
+        with session_scope() as db:
+            document = build_evidence_document(
+                db,
+                parsed_id,
+                attestation_reference=attestation_reference,
+            )
+        write_evidence_document(document, output)
+    except (ValueError, RetirementEvidenceError) as exc:
+        print(f"Phase 12 evidence export failed: {exc}", file=sys.stderr)
+        return 1
+    print(json.dumps({"status": "exported", "path": str(output), "sha256": document["sha256"]}))
+    return 0
 
 
 def _openrouter_catalog_refresh() -> int:
@@ -132,7 +163,7 @@ def _runtime_fixture(scenario: str, *, wait: bool, timeout_seconds: int) -> int:
         print("runtime fixtures are only available when APP_ENV=test", file=sys.stderr)
         return 2
     with session_scope() as db:
-        run = create_fixture_run(db, scenario)  # type: ignore[arg-type]
+        run = create_fixture_run(db, scenario)
         run_id = run.id
     relay_runtime_outbox()
     if not wait:
@@ -242,7 +273,7 @@ def _research_fixture(scenario: str) -> int:
         print("research fixtures are only available when APP_ENV=test", file=sys.stderr)
         return 2
     with session_scope() as db:
-        run, task, attempt = create_research_fixture_attempt(db, scenario)  # type: ignore[arg-type]
+        run, task, attempt = create_research_fixture_attempt(db, scenario)
         run_id, task_id, attempt_id = run.id, task.id, attempt.id
         analyze_comments = bool(run.requested_options.get("analyze_comments"))
         product = run.product_input
@@ -537,6 +568,13 @@ def main() -> int:
         "analysis-config-seed",
         help="Validate and publish the seven bounded Phase 6 agents and workflow",
     )
+    retirement_export = subcommands.add_parser(
+        "phase12-export-cutover-evidence",
+        help="Export sanitized retirement evidence from a passed production observation",
+    )
+    retirement_export.add_argument("--observation-id", required=True)
+    retirement_export.add_argument("--attestation-reference", required=True)
+    retirement_export.add_argument("--output", type=Path, required=True)
     analysis_fixture = subcommands.add_parser(
         "analysis-fixture",
         help="Run the mocked bounded Phase 6 workflow (APP_ENV=test only)",
@@ -581,6 +619,12 @@ def main() -> int:
         return _youtube_live_smoke(args.video_id, confirmed=args.confirm_live_smoke)
     if args.command == "analysis-config-seed":
         return _analysis_config_seed()
+    if args.command == "phase12-export-cutover-evidence":
+        return _export_phase12_evidence(
+            args.observation_id,
+            attestation_reference=args.attestation_reference,
+            output=args.output,
+        )
     if args.command == "analysis-fixture":
         return _analysis_fixture(
             args.scenario,
