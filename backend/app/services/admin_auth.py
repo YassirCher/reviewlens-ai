@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -21,6 +22,8 @@ from app.security import (
     verify_password,
 )
 from app.services.audit_service import add_audit_event
+
+logger = logging.getLogger(__name__)
 
 _RATE_SCRIPT = """
 local value = redis.call('INCR', KEYS[1])
@@ -227,11 +230,24 @@ class AdminAuthService:
                 self.db.commit()
             raise V2Error(401, "admin_authentication_required", "Authentication is required.")
 
-        record.last_seen_at = now
-        record.expires_at = min(
-            now + timedelta(minutes=self.config.session_idle_minutes), record.absolute_expires_at
-        )
-        self.db.commit()
+        touch_threshold = timedelta(seconds=30)
+        if record.last_seen_at is None or (now - record.last_seen_at) >= touch_threshold:
+            new_expires = min(
+                now + timedelta(minutes=self.config.session_idle_minutes), record.absolute_expires_at
+            )
+            self.db.execute(
+                update(AdminSession)
+                .where(AdminSession.id == record.id)
+                .values(last_seen_at=now, expires_at=new_expires)
+            )
+            try:
+                self.db.commit()
+                record.last_seen_at = now
+                record.expires_at = new_expires
+            except Exception as exc:
+                self.db.rollback()
+                logger.warning("Failed to update admin session last_seen_at: %s", exc)
+
         return AuthenticatedAdmin(session=record, admin=record.admin)
 
     def rotate_csrf(self, authenticated: AuthenticatedAdmin) -> str:

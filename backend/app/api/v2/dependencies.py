@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Generator
 
 from fastapi import Cookie, Depends, Request
@@ -13,11 +14,14 @@ from app.db.session import DatabaseConfigurationError, get_session_factory
 from app.errors import V2Error
 from app.services.admin_auth import AdminAuthService, AuthenticatedAdmin
 
+logger = logging.getLogger(__name__)
+
 
 def get_v2_db() -> Generator[Session, None, None]:
     try:
         db = get_session_factory()()
     except (DatabaseConfigurationError, SQLAlchemyError) as exc:
+        logger.exception("Failed to initialize database session in get_v2_db: %s", exc)
         raise V2Error(503, "database_unavailable", "The service is temporarily unavailable.", retryable=True) from exc
     try:
         yield db
@@ -45,4 +49,6 @@ def require_admin(
     try:
         return AdminAuthService(db).authenticate(session_token, request.state.request_id)
     except SQLAlchemyError as exc:
+        logger.exception("require_admin failed due to database error: %s", exc)
         raise V2Error(503, "database_unavailable", "The service is temporarily unavailable.", retryable=True) from exc
+

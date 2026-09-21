@@ -14,7 +14,12 @@ export class AdminApiError extends Error {
 
 let csrfToken: string | null = null;
 export function clearAdminCsrf(): void { csrfToken = null; }
-export async function adminRequest<T>(path: string, init: RequestInit = {}, mutation = false): Promise<T> {
+export async function adminRequest<T>(
+  path: string,
+  init: RequestInit = {},
+  mutation = false,
+  attempt = 0,
+): Promise<T> {
   const headers = new Headers(init.headers);
   if (mutation) {
     if (!csrfToken) {
@@ -28,9 +33,13 @@ export async function adminRequest<T>(path: string, init: RequestInit = {}, muta
     ...init, headers, credentials: "include", cache: "no-store",
   });
   if (!response.ok) {
-    let payload: { error?: { code?: string; message?: string } } = {};
+    let payload: { error?: { code?: string; message?: string; retryable?: boolean } } = {};
     try { payload = await response.json(); } catch { /* Preserve safe generic error. */ }
     if (response.status === 401 || response.status === 403) csrfToken = null;
+    if (!mutation && response.status === 503 && payload.error?.retryable && attempt < 2) {
+      await new Promise((resolve) => setTimeout(resolve, 200 * (attempt + 1)));
+      return adminRequest<T>(path, init, mutation, attempt + 1);
+    }
     throw new AdminApiError(payload.error?.code || "request_failed",
       payload.error?.message || "The admin request could not be completed.", response.status);
   }

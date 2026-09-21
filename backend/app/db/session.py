@@ -20,9 +20,11 @@ def get_engine() -> Engine:
         raise DatabaseConfigurationError("DATABASE_URL is required for V2 persistence")
     return create_engine(
         settings.database_url,
+        pool_size=10,
+        max_overflow=20,
         pool_pre_ping=True,
         pool_recycle=1800,
-        connect_args={"connect_timeout": 3},
+        connect_args={"connect_timeout": 5},
     )
 
 
