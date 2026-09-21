@@ -6,9 +6,9 @@ from argon2 import extract_parameters
 from sqlalchemy import select
 
 from app.config import Settings, settings
-from app.db.models import ActiveConfiguration, AdminUser, OpenRouterAccountState
+from app.db.models import ActiveConfiguration, AdminUser, OpenRouterAccountState, User
 from app.db.session import session_scope
-from app.security import normalize_admin_identifier
+from app.security import hash_password, normalize_admin_identifier
 from app.services.audit_service import add_audit_event
 
 
@@ -70,5 +70,18 @@ def seed_foundation(config: Settings = settings) -> str:
             )
         elif account_state.environment != config.app_env:
             raise RuntimeError("OpenRouter account state belongs to a different APP_ENV")
+
+        test_user = db.scalar(select(User).where(User.email == "test@test.com"))
+        if test_user is None:
+            db.add(
+                User(
+                    id=uuid.uuid4(),
+                    email="test@test.com",
+                    password_hash=hash_password("test1234"),
+                    name="Test User",
+                    is_active=True,
+                )
+            )
+
         seed_tool_registry(db)
     return result
