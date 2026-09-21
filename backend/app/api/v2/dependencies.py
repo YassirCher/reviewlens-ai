@@ -13,6 +13,7 @@ from app.config import settings
 from app.db.session import DatabaseConfigurationError, get_session_factory
 from app.errors import V2Error
 from app.services.admin_auth import AdminAuthService, AuthenticatedAdmin
+from app.services.user_auth import AuthenticatedUser, UserAuthService
 
 logger = logging.getLogger(__name__)
 
@@ -51,4 +52,29 @@ def require_admin(
     except SQLAlchemyError as exc:
         logger.exception("require_admin failed due to database error: %s", exc)
         raise V2Error(503, "database_unavailable", "The service is temporarily unavailable.", retryable=True) from exc
+
+
+def require_user(
+    request: Request,
+    db: Session = Depends(get_v2_db),
+    session_token: str | None = Cookie(default=None, alias=settings.user_session_cookie),
+) -> AuthenticatedUser:
+    try:
+        return UserAuthService(db).authenticate(session_token)
+    except SQLAlchemyError as exc:
+        logger.exception("require_user failed due to database error: %s", exc)
+        raise V2Error(503, "database_unavailable", "The service is temporarily unavailable.", retryable=True) from exc
+
+
+def get_optional_user(
+    request: Request,
+    db: Session = Depends(get_v2_db),
+    session_token: str | None = Cookie(default=None, alias=settings.user_session_cookie),
+) -> AuthenticatedUser | None:
+    if not session_token:
+        return None
+    try:
+        return UserAuthService(db).authenticate(session_token)
+    except Exception:
+        return None
 

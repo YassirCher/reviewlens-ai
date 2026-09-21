@@ -92,6 +92,17 @@ def _authorized_run(db: Session, request: Request, run_id: uuid.UUID, *, mutatio
         if mutation:
             AdminAuthService(db).require_csrf(auth, request.headers.get("X-CSRF-Token"))
         return run
+    user_cookie = request.cookies.get(settings.user_session_cookie)
+    if user_cookie:
+        from app.services.user_auth import UserAuthService
+        try:
+            user_auth = UserAuthService(db).authenticate(user_cookie)
+            if run.user_id == user_auth.user.id:
+                if mutation:
+                    _check_origin(request)
+                return run
+        except Exception:
+            pass
     session, _ = resolve_session(db, request.cookies.get(settings.anonymous_session_cookie))
     if session is None or run.initiator_type != "public" or run.initiator_id != session.id:
         raise _not_found()
@@ -225,9 +236,14 @@ def create_public_analysis(
     key = _idempotency(idempotency_key)
     session, cookie = resolve_session(db, request.cookies.get(settings.anonymous_session_cookie), create=True)
     assert session is not None
+    from app.api.v2.dependencies import get_optional_user
+    opt_user = get_optional_user(request, db)
     run = create_analysis(db, redis, payload=payload, actor_type="public", actor_id=session.id,
                           idempotency_key=key, ip_hash=client_ip_hash(_client_host(request)),
                           entrypoint="v2_public")
+    if opt_user is not None:
+        run.user_id = opt_user.user.id
+        db.commit()
     _set_anonymous_cookie(response, cookie)
     response.headers.update(_NO_STORE)
     return CreateResponse(run_id=run.id, status=run.status, status_url=f"/api/v2/analyses/{run.id}", events_url=f"/api/v2/analyses/{run.id}/events")

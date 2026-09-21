@@ -70,6 +70,9 @@ class Settings(BaseSettings):
     session_absolute_hours: int = Field(default=12, ge=1, le=168)
     admin_login_attempts: int = Field(default=5, ge=2, le=50)
     admin_login_window_minutes: int = Field(default=15, ge=1, le=1440)
+    user_session_cookie: str = "reviewlens_user_session"
+    user_session_idle_days: int = Field(default=30, ge=1, le=365)
+    user_session_absolute_days: int = Field(default=90, ge=1, le=365)
 
     database_url: str = ""
     redis_url: str = ""

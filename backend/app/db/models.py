@@ -82,6 +82,41 @@ class AnonymousSession(UUIDPrimaryKeyMixin, TimestampMixin, OptimisticLockMixin,
 Index("ix_anonymous_sessions_expiry", AnonymousSession.expires_at)
 
 
+class User(UUIDPrimaryKeyMixin, TimestampMixin, OptimisticLockMixin, Base):
+    __tablename__ = "users"
+
+    email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False, index=True)
+    password_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    name: Mapped[str | None] = mapped_column(String(120))
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text("true"))
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    sessions: Mapped[list["UserSession"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    runs: Mapped[list["AnalysisRun"]] = relationship(back_populates="user")
+
+
+class UserSession(UUIDPrimaryKeyMixin, TimestampMixin, OptimisticLockMixin, Base):
+    __tablename__ = "user_sessions"
+
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    absolute_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ip_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    user_agent_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    user: Mapped[User] = relationship(back_populates="sessions")
+
+
+Index(
+    "ix_user_sessions_active_expiry",
+    UserSession.expires_at,
+    postgresql_where=UserSession.revoked_at.is_(None),
+)
+
+
 class AuditEvent(UUIDPrimaryKeyMixin, Base):
     __tablename__ = "audit_events"
 
@@ -429,9 +464,14 @@ class AnalysisRun(UUIDPrimaryKeyMixin, TimestampMixin, OptimisticLockMixin, Base
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     cancellation_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    user: Mapped[User | None] = relationship(back_populates="runs")
 
 
 Index("ix_analysis_runs_status_created_at", AnalysisRun.status, AnalysisRun.created_at)
+Index("ix_analysis_runs_user_created", AnalysisRun.user_id, AnalysisRun.created_at)
 Index(
     "ix_analysis_runs_active",
     AnalysisRun.created_at,

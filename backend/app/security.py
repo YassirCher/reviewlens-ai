@@ -18,6 +18,13 @@ def normalize_admin_identifier(value: str) -> str:
     return normalized
 
 
+def normalize_user_email(value: str) -> str:
+    normalized = value.strip().casefold()
+    if not normalized or len(normalized) > 320 or "@" not in normalized or "." not in normalized:
+        raise ValueError("A valid email address is required")
+    return normalized
+
+
 def hash_password(password: str) -> str:
     if len(password) < 8:
         raise ValueError("Admin password must contain at least 8 characters")
