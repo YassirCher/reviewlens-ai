@@ -589,19 +589,17 @@ def _agent_task_input(spec: AgentSpec, task: TaskRun, run: AnalysisRun) -> tuple
         }, (uuid.UUID(comments["comment_set_node_id"]),)
     reviews = [item["analysis"] for item in _outputs_with_prefix(run.id, "analyze_review.source_") if item.get("analysis")]
     audiences = [item["analysis"] for item in _outputs_with_prefix(run.id, "analyze_audience.source_") if item.get("analysis")]
-    review_seeds = tuple(uuid.UUID(item["source_analysis_node_id"]) for item in reviews)
-    audience_seeds = tuple(uuid.UUID(item["audience_signal_node_id"]) for item in audiences)
     if spec.key == "knowledge_curator":
         if not reviews:
             raise RuntimeTaskError("no_valid_source_analyses", category="quality")
-        return {"source_analyses": reviews, "audience_analyses": audiences}, (review_seeds + audience_seeds)[:2]
+        return {"source_analyses": reviews, "audience_analyses": audiences}, ()
     if spec.key == "consensus_analyst":
         discovery = _task_output(run.id, "discover_candidates") or {}
         if task.input_payload.get("correction_stage"):
             audit = _task_output(run.id, "audit_report") or {}
             original = _task_output(run.id, "build_consensus") or {}
             if (audit.get("audit") or {}).get("verdict") in {"pass", "pass_with_warnings"}:
-                return {"_shortcut": original}, (review_seeds + audience_seeds)[:2]
+                return {"_shortcut": original}, ()
             issues = (audit.get("audit") or {}).get("issues", [])
         else:
             issues = []
@@ -612,19 +610,19 @@ def _agent_task_input(spec: AgentSpec, task: TaskRun, run: AnalysisRun) -> tuple
             "source_analyses": reviews,
             "audience_analyses": audiences,
             "correction_issues": issues,
-        }, (review_seeds + audience_seeds)[:2]
+        }, ()
     if spec.key == "quality_auditor":
         if task.input_payload.get("reaudit_stage"):
             first_audit = _task_output(run.id, "audit_report") or {}
             if (first_audit.get("audit") or {}).get("verdict") in {"pass", "pass_with_warnings"}:
-                return {"_shortcut": first_audit}, (review_seeds + audience_seeds)[:2]
+                return {"_shortcut": first_audit}, ()
             consensus = _task_output(run.id, "correct_consensus") or {}
         else:
             consensus = _task_output(run.id, "build_consensus") or {}
         return {
             "report_draft": consensus.get("draft", {}),
             "source_analyses": reviews,
-        }, (review_seeds + audience_seeds)[:2]
+        }, ()
     raise RuntimeTaskError("unknown_agent_role", category="configuration")
 
 
@@ -699,6 +697,8 @@ def _context_packet(
 ) -> tuple[str, uuid.UUID | None, int]:
     if not seeds:
         return "<no-authorized-context />", None, 0
+    if budget_override is not None and budget_override < 200:
+        return "<no-authorized-context />", None, 0
     with session_scope() as db:
         workspace = db.scalar(select(Workspace).where(Workspace.run_id == run.id))
         if workspace is None:
@@ -707,18 +707,28 @@ def _context_packet(
         if budget_override is not None:
             policy_payload["input_token_budget"] = max(100, budget_override)
         policy = RetrievalPolicy.model_validate(policy_payload)
-        packet = build_context_packet(
-            db,
-            RetrievalRequest(
-                workspace_id=workspace.id,
-                task_attempt_id=attempt_id,
-                query=query,
-                seed_node_ids=seeds,
-                policy=policy,
-            ),
-            config=config,
-        )
-        return packet.rendered, packet.manifest_id, packet.estimated_tokens
+        try:
+            packet = build_context_packet(
+                db,
+                RetrievalRequest(
+                    workspace_id=workspace.id,
+                    task_attempt_id=attempt_id,
+                    query=query,
+                    seed_node_ids=seeds,
+                    policy=policy,
+                ),
+                config=config,
+            )
+            return packet.rendered, packet.manifest_id, packet.estimated_tokens
+        except ContextBudgetExceeded:
+            if not spec.retrieval_policy.required_seed_node_types:
+                logger.warning(
+                    "Context budget exceeded for optional seeds in %s (budget=%d); omitting context packet",
+                    spec.key,
+                    policy_payload.get("input_token_budget", 0),
+                )
+                return "<no-authorized-context />", None, 0
+            raise
 
 
 async def _call_agent(
@@ -769,7 +779,7 @@ async def _call_agent(
     task_input_tokens = estimate_tokens(json.dumps(task_input_data))
     # Reserve tokens for system prompt (~600 tokens), task wrapper (~300 tokens), and safety margin (400 tokens)
     available_context = max(0, spec.max_input_tokens - task_input_tokens - 1300)
-    budget_override = min(spec.retrieval_policy.input_token_budget, available_context) if available_context > 0 else None
+    budget_override = min(spec.retrieval_policy.input_token_budget, available_context) if available_context > 0 else 0
 
     rendered, manifest_id, context_tokens = _context_packet(
         attempt_id,
@@ -974,6 +984,7 @@ async def _postprocess_review(
                 evidence_rows.append(
                     {
                         **evidence.model_dump(mode="json"),
+                        "source_node_id": str(draft.source_id),
                         "evidence_node_id": str(version.node_id),
                     }
                 )

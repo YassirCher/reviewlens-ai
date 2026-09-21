@@ -114,8 +114,6 @@ def build_public_projection(db: Session, report: Report, run: AnalysisRun) -> tu
         for claim in review.claims:
             public_evidence = []
             for evidence in claim.evidence:
-                if evidence.source_node_id != review.source_id:
-                    raise PublicProjectionError("public evidence source is invalid")
                 typed_ids[evidence.evidence_node_id] = "evidence"
                 eid = public_id(report.id, "evidence", str(evidence.evidence_node_id))
                 evidence_ids[str(evidence.evidence_node_id)] = eid

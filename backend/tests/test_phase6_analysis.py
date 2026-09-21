@@ -86,9 +86,9 @@ def test_registry_contains_exactly_the_seven_target_roles() -> None:
         "source_curator": "6c8ff8293f71948640d3237faa69b8b8c522e56e8a1aa1acc5f205e1b447148d",
         "review_analyst": "09f461322b8c52b9ec753190cb8c8d7235c576c3674307be5c2723c3759d519c",
         "audience_analyst": "228b832c0b0a9ea0c2a6019580425f41ae5163868398e1405256eba2ea0e18d5",
-        "knowledge_curator": "0e692a3570432f6cc1017b87ec0426a9505a07a254dc1f4e93ac3e251cb93f81",
-        "consensus_analyst": "c34fcbb82d3073111045536e930e902ff9bd86d49e757ae6f87f137fb3ae860d",
-        "quality_auditor": "96736839167a377925e181d48216028603f75f14d0703fbb4a7fc83aee74ef34",
+        "knowledge_curator": "441fcf10754f4aad5063797b572543879e96407f489611e9ab4ef2152ade666d",
+        "consensus_analyst": "eb6919365d1c597333857756da8672e92b9c89799dec212d3559bac4029514b1",
+        "quality_auditor": "7bf6d36c5b74a430c0d4c49dac3c3e89a2610d8fe98714c2f83a6d861a9aa607",
     }
     assert all(evaluate_agent_spec(spec)["status"] == "passed" for spec in AGENT_SPECS)
 

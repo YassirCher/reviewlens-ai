@@ -10,7 +10,7 @@ const PENDING_KEY = "reviewlens:v2:pending-submission";
 function denial(code: string | null): string {
   if (code === "queue_full") return "The research queue is full. Please try again shortly.";
   if (code === "public_daily_budget_exceeded") return "Today's research capacity has been reached. Try again tomorrow.";
-  if (code?.includes("rate") || code?.includes("limit")) return "Your research limit has been reached. Please try again later.";
+  if (code === "public_quota_exceeded" || code?.includes("rate") || code?.includes("limit") || code?.includes("quota")) return "Your research limit has been reached. Please try again later.";
   if (code === "public_analysis_disabled") return "New research is temporarily paused.";
   return "Research is temporarily unavailable. Please try again later.";
 }

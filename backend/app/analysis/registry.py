@@ -213,7 +213,7 @@ AGENT_SPECS: tuple[AgentSpec, ...] = (
         tool_keys=("graph.get_nodes", "graph.query_relations", "graph.create_nodes", "graph.create_edges", "vector.request_upsert", "evidence.validate"),
         retrieval_policy=_retrieval(
             (NodeType.SOURCE_ANALYSIS, NodeType.AUDIENCE_SIGNAL, NodeType.EVIDENCE, NodeType.CLAIM, NodeType.FINDING),
-            tokens=5000,
+            tokens=10000,
             hops=2,
         ),
         max_input_tokens=28000,
@@ -233,7 +233,7 @@ AGENT_SPECS: tuple[AgentSpec, ...] = (
         tool_keys=("graph.get_nodes", "graph.query_relations", "vector.search", "scoring.preview"),
         retrieval_policy=_retrieval(
             (NodeType.SOURCE_ANALYSIS, NodeType.AUDIENCE_SIGNAL, NodeType.EVIDENCE, NodeType.CLAIM, NodeType.FINDING, NodeType.COMPARISON),
-            tokens=6000,
+            tokens=10000,
             hops=2,
         ),
         max_input_tokens=30000,
@@ -253,7 +253,7 @@ AGENT_SPECS: tuple[AgentSpec, ...] = (
         tool_keys=("graph.get_nodes", "graph.query_relations", "evidence.validate", "scoring.preview"),
         retrieval_policy=_retrieval(
             (NodeType.SOURCE_ANALYSIS, NodeType.AUDIENCE_SIGNAL, NodeType.EVIDENCE, NodeType.CLAIM, NodeType.FINDING, NodeType.COMPARISON, NodeType.VERDICT),
-            tokens=6000,
+            tokens=10000,
             hops=2,
         ),
         max_input_tokens=28000,
