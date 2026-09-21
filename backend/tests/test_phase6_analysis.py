@@ -11,7 +11,7 @@ from pydantic import ValidationError
 
 from app.analysis.contracts import AudienceAnalysisDraft, AuditResult, QueryPlan, SourceAnalysisDraft
 from app.analysis.prompting import build_prompt_envelope
-from app.analysis.executor import _agent_task_input
+from app.analysis.executor import _agent_task_input, _all_source_candidates_excluded, _bounded_agent_policy
 from app.analysis.registry import AGENT_REGISTRY, AGENT_SPECS, evaluate_agent_spec
 from app.config import Settings
 from app.db.base import Base
@@ -23,6 +23,7 @@ from app.tools.runner import _admit_invocation
 from app.tools.registry import TOOL_REGISTRY
 from app.tools.youtube import product_relevance
 from app.knowledge.retrieval import estimate_tokens
+from app.llmops.contracts import ModelPolicyDocument
 from app.worker import _safe_runtime_task_result
 from tests.youtube_mock import _ids as mock_youtube_ids
 from tests.youtube_mock import _label as mock_youtube_label
@@ -82,12 +83,12 @@ def test_registry_contains_exactly_the_seven_target_roles() -> None:
     )
     assert {spec.key: spec.content_hash for spec in AGENT_SPECS} == {
         "research_coordinator": "29a6c7d8d25d2416ae95b1fe30f221ea72fb61e43696e19298ec73d83271144c",
-        "source_curator": "016af8cb78b150fedb16a95ff057b1365d24349b65a2df9f60b8c7b30310ab90",
-        "review_analyst": "37ccc8d8e4af796e470eafdc7a98cd22d6179168d4798cb45e770da3ecd8733d",
+        "source_curator": "6c8ff8293f71948640d3237faa69b8b8c522e56e8a1aa1acc5f205e1b447148d",
+        "review_analyst": "09f461322b8c52b9ec753190cb8c8d7235c576c3674307be5c2723c3759d519c",
         "audience_analyst": "228b832c0b0a9ea0c2a6019580425f41ae5163868398e1405256eba2ea0e18d5",
-        "knowledge_curator": "8a940f59f78a2a337fa4a3462f03f30507f998d712444f788f3364cb4a6869e0",
-        "consensus_analyst": "adffb1e4d2277551a0be04ac466f93895a68c325a2f1f7dd0146a869bfa8b3fa",
-        "quality_auditor": "aac8dbb1f13723269b4643b62de0d891a819df5585c67f869f4576c1784e1115",
+        "knowledge_curator": "0e692a3570432f6cc1017b87ec0426a9505a07a254dc1f4e93ac3e251cb93f81",
+        "consensus_analyst": "c34fcbb82d3073111045536e930e902ff9bd86d49e757ae6f87f137fb3ae860d",
+        "quality_auditor": "96736839167a377925e181d48216028603f75f14d0703fbb4a7fc83aee74ef34",
     }
     assert all(evaluate_agent_spec(spec)["status"] == "passed" for spec in AGENT_SPECS)
 
@@ -116,6 +117,58 @@ def test_source_curator_keeps_all_forty_candidates_within_snapshotted_input_limi
     validated = spec.input_model.model_validate(payload)
     envelope = build_prompt_envelope(spec, task_instruction=spec.purpose, task_input=validated.model_dump(mode="json"), context_manifest_id=None, rendered_context="")
     assert estimate_tokens(envelope.system) + estimate_tokens(envelope.user) + spec.retrieval_policy.input_token_budget <= spec.max_input_tokens
+
+
+def test_source_curator_detects_when_deterministic_filter_exhausts_candidates() -> None:
+    assert _all_source_candidates_excluded({
+        "candidates": [
+            {"video_id": "unrelated01", "deterministic_exclusion": "irrelevant_product"},
+            {"video_id": "short00001", "deterministic_exclusion": "duration_too_short"},
+        ]
+    })
+    assert not _all_source_candidates_excluded({
+        "candidates": [
+            {"video_id": "eligible01", "deterministic_exclusion": None},
+            {"video_id": "unrelated01", "deterministic_exclusion": "irrelevant_product"},
+        ]
+    })
+    assert not _all_source_candidates_excluded({"candidates": []})
+
+
+def test_agent_policy_caps_reasoning_before_structured_output() -> None:
+    spec = AGENT_REGISTRY["source_curator"]
+    policy = _bounded_agent_policy(ModelPolicyDocument(
+        name="DeepSeek V4 Flash",
+        purpose="Bounded structured analysis",
+        models=("deepseek/deepseek-v4-flash",),
+        max_completion_tokens=20_000,
+    ), spec)
+    assert policy.max_completion_tokens == spec.max_output_tokens + spec.max_reasoning_tokens
+    assert policy.reasoning == {"effort": "low", "exclude": True}
+
+
+def test_review_context_seeds_a_bounded_transcript_chunk(monkeypatch: pytest.MonkeyPatch) -> None:
+    chunk_id = uuid.uuid4()
+    transcript_id = uuid.uuid4()
+    source_id = uuid.uuid4()
+    monkeypatch.setattr("app.analysis.executor._task_output", lambda *_: {
+        "available": True,
+        "source_id": str(source_id),
+        "transcript_node_id": str(transcript_id),
+        "transcript_chunk_ids": [str(chunk_id)],
+        "source_title": "POCO F7 review",
+        "channel_id": "channel-1",
+        "transcript_language": "en",
+        "translated": False,
+        "caption_kind": "manual",
+    })
+    payload, seeds = _agent_task_input(
+        AGENT_REGISTRY["review_analyst"],
+        SimpleNamespace(input_payload={"source_index": 1}),
+        SimpleNamespace(id=uuid.uuid4()),
+    )
+    assert payload["transcript_node_id"] == str(transcript_id)
+    assert seeds == (chunk_id,)
 
 
 def test_tool_admission_waits_for_a_slot_without_relaxing_the_limit(monkeypatch) -> None:

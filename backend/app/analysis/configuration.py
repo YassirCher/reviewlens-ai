@@ -103,8 +103,8 @@ def _model_policy(db: Session, config: Settings) -> ModelPolicyVersion:
             data_collection="deny",
         ),
         temperature=0.1,
-        minimum_context_tokens=18_000,
-        max_completion_tokens=4_500,
+        minimum_context_tokens=32_000,
+        max_completion_tokens=16_000,
         compatibility_mode="strict",
     )
     payload = document.model_dump(mode="json")
@@ -162,7 +162,7 @@ def _budget_policy(db: Session, config: Settings) -> BudgetPolicyVersion:
         "comments_enabled_default": False,
         "token_limits": {
             "run_total_tokens": 250_000,
-            "task_total_tokens": {"default": 30_000},
+            "task_total_tokens": {"default": 45_000},
             "task_cost_microusd": {"default": 1_000_000},
         },
     }
@@ -547,9 +547,9 @@ def seed_analysis_configuration(
         db.add(active)
     if active.environment != config.app_env:
         raise AnalysisConfigurationConflict("active configuration belongs to another environment")
-    if active.workflow_version_id is None:
+    if active.workflow_version_id is None or config.is_local_development:
         active.workflow_version_id = workflow.id
-    if active.budget_policy_version_id is None:
+    if active.budget_policy_version_id is None or config.is_local_development:
         active.budget_policy_version_id = budget_policy.id
     if active.system_settings_version_id is None:
         system_settings = db.scalar(

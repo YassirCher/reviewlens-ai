@@ -153,6 +153,27 @@ def _public_failure(db: Session, run: AnalysisRun, tasks: list[TaskRun]) -> dict
     codes = {attempt.error_code for attempt in attempts if attempt.status == "failed"}
     if "youtube_no_candidates" in codes:
         return {"code": "no_relevant_videos", "message": "No relevant review videos were found. Try a more specific product model."}
+    discovery_task_ids = {
+        task.id for task in tasks if task.workflow_task_key == "discover_candidates"
+    }
+    discovery_outputs = [
+        attempt.output_payload for attempt in attempts
+        if attempt.task_run_id in discovery_task_ids
+        and attempt.status == "succeeded"
+        and isinstance(attempt.output_payload, dict)
+    ]
+    if any(
+        isinstance(output.get("candidates"), list)
+        and bool(output["candidates"])
+        and all(
+            isinstance(candidate, dict) and bool(candidate.get("deterministic_exclusion"))
+            for candidate in output["candidates"]
+        )
+        for output in discovery_outputs
+    ):
+        # Keep older failed runs actionable after the deterministic short circuit
+        # is deployed; only this allowlisted explanation reaches the public API.
+        return {"code": "no_relevant_videos", "message": "No relevant review videos were found. Try a more specific product model."}
     transcript_tasks = [task for task in tasks if task.workflow_task_key.startswith("fetch_transcript.source_")]
     if transcript_tasks:
         by_task = {task.id: task for task in transcript_tasks}

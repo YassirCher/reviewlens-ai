@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Check, Clock3, GitBranch, MessageSquareText, ShieldCheck, Youtube } from "lucide-react";
+import { ArrowRight, Check, Clock3, GitBranch, MessageSquareText, ShieldCheck, UserRoundCheck, Youtube } from "lucide-react";
 import { createRun, preflight, productError, V2ApiError, type AnalysisInput, type Preflight } from "@/lib/v2";
 
 const PENDING_KEY = "reviewlens:v2:pending-submission";
@@ -75,6 +75,7 @@ export function V2Intake() {
       <div className="v2-hero-content"><span className="v2-kicker"><span className="v2-kicker-line" /> CLEARER PRODUCT DECISIONS</span>
         <h1 id="v2-hero-title">See the buying signal<br /><span>behind the reviews.</span></h1>
         <p>Compare relevant YouTube reviews through timestamped evidence. See where reviewers agree, where they differ, and how much confidence the sources deserve.</p>
+        <p className="v2-access-note"><UserRoundCheck size={17} aria-hidden="true" /> No researcher account required. This browser session securely owns your runs.</p>
       </div>
       <div className="v2-hero-aside" aria-hidden="true"><div className="v2-aside-number">01 / 03</div><div className="v2-aside-rule" /><p>DISCOVER <span>→</span> EXAMINE <span>→</span> DECIDE</p></div>
     </section>

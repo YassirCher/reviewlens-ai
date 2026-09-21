@@ -13,7 +13,7 @@ from pydantic import ValidationError
 from app.config import Settings
 from app.db import models as db_models  # noqa: F401
 from app.db.base import Base
-from app.llmops.client import OpenRouterClient
+from app.llmops.client import OpenRouterClient, _decode_chat_content
 from app.llmops.contracts import (
     ChatInvocation,
     ChatMessage,
@@ -218,6 +218,67 @@ def test_chat_client_sends_safe_headers_strict_schema_and_normalizes_usage() -> 
     assert captured["payload"]["provider"]["require_parameters"] is True
     assert captured["payload"]["response_format"]["json_schema"]["strict"] is True
     assert captured["payload"]["response_format"]["json_schema"]["schema"]["additionalProperties"] is False
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        {"content": {"ok": True}},
+        {"parsed": {"ok": True}, "content": None},
+        {"content": "```json\n{\"ok\": true}\n```"},
+        {"content": "Here is the requested object:\n{\"ok\": true}"},
+        {"content": [{"type": "text", "text": "{\"ok\":"}, {"type": "text", "text": "true}"}]},
+    ],
+)
+def test_chat_content_decoder_accepts_supported_structured_forms(message: dict) -> None:
+    assert _decode_chat_content(message) == {"ok": True}
+
+
+@pytest.mark.parametrize(
+    ("message", "code"),
+    [
+        ({"content": None}, "chat_content_missing"),
+        ({"content": ""}, "chat_content_empty"),
+        ({"content": "```json\n{broken}\n```"}, "chat_content_invalid_json"),
+        ({"content": "[1, 2]"}, "chat_content_not_object"),
+        ({"content": [{"type": "image", "image_url": "redacted"}]}, "chat_content_parts_invalid"),
+    ],
+)
+def test_chat_content_decoder_rejects_unsafe_or_incomplete_forms(message: dict, code: str) -> None:
+    with pytest.raises(ValueError, match=code):
+        _decode_chat_content(message)
+
+
+def test_chat_client_reports_truncated_structured_output() -> None:
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={"choices": [{"finish_reason": "length", "message": {"content": "{\"ok\":"}}]},
+        )
+
+    async def run() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as raw:
+            client = OpenRouterClient(_config(), client=raw)
+            invocation = ChatInvocation(
+                context=_context(),
+                policy=ModelPolicyDocument(
+                    name="test",
+                    purpose="test truncated structured output",
+                    models=("deepseek/deepseek-v4-flash",),
+                    provider=ProviderRouting(),
+                    max_completion_tokens=32,
+                ),
+                messages=(ChatMessage(role="user", content="Return fixture JSON"),),
+                response_schema={"type": "object"},
+                schema_name="fixture",
+                estimated_prompt_tokens=10,
+                estimated_cost_microusd=100,
+            )
+            with pytest.raises(OpenRouterError) as raised:
+                await client.chat(invocation, "request-truncated")
+            assert raised.value.provider_code == "chat_content_truncated"
+
+    asyncio.run(run())
 
 
 def test_embedding_client_orders_vectors_and_rejects_redirects() -> None:

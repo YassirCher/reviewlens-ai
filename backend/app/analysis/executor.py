@@ -45,7 +45,7 @@ from app.db.models import (
 )
 from app.db.session import session_scope
 from app.knowledge.contracts import NodeDraft, NodeType, RelationDraft, RelationType, RetrievalPolicy, RetrievalRequest, TrustLevel
-from app.knowledge.retrieval import build_context_packet, estimate_tokens
+from app.knowledge.retrieval import ContextBudgetExceeded, build_context_packet, estimate_tokens
 from app.knowledge.service import create_node, create_relation, create_workspace
 from app.llmops.accounting import BudgetRejected
 from app.llmops.contracts import ChatInvocation, ChatMessage, InvocationContext, ModelPolicyDocument, OpenRouterError
@@ -67,6 +67,9 @@ from app.tools.errors import ToolExecutionError
 from app.tools.runner import invoke_tool
 from app.tools.scoring import preview_scoring
 from app.tools.youtube import chunk_transcript, rank_candidates
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def utc_now() -> datetime:
@@ -562,6 +565,9 @@ def _agent_task_input(spec: AgentSpec, task: TaskRun, run: AnalysisRun) -> tuple
         source = _task_output(run.id, f"fetch_transcript.source_{source_index}") or {}
         if not source.get("available"):
             return {"_skip": "source_unavailable", "source_index": source_index}, ()
+        chunk_ids = source.get("transcript_chunk_ids") or []
+        if not chunk_ids:
+            raise RuntimeTaskError("transcript_chunks_missing", category="quality")
         return {
             "source_id": source["source_id"],
             "transcript_node_id": source["transcript_node_id"],
@@ -570,7 +576,7 @@ def _agent_task_input(spec: AgentSpec, task: TaskRun, run: AnalysisRun) -> tuple
             "transcript_language": source["transcript_language"],
             "translated": source["translated"],
             "caption_kind": source["caption_kind"],
-        }, (uuid.UUID(source["transcript_node_id"]),)
+        }, (uuid.UUID(chunk_ids[0]),)
     if spec.key == "audience_analyst":
         comments = _task_output(run.id, f"fetch_comments.source_{source_index}") or {}
         if not comments.get("available"):
@@ -622,6 +628,15 @@ def _agent_task_input(spec: AgentSpec, task: TaskRun, run: AnalysisRun) -> tuple
     raise RuntimeTaskError("unknown_agent_role", category="configuration")
 
 
+def _all_source_candidates_excluded(payload: dict[str, Any]) -> bool:
+    """Return true when deterministic filtering left nothing for curation."""
+    candidates = payload.get("candidates")
+    return bool(candidates) and isinstance(candidates, list) and all(
+        isinstance(candidate, dict) and bool(candidate.get("deterministic_exclusion"))
+        for candidate in candidates
+    )
+
+
 def _model_estimated_cost(db, slug: str, prompt_tokens: int, completion_tokens: int) -> int:
     model = db.scalar(
         select(OpenRouterModelSnapshot)
@@ -640,6 +655,24 @@ def _model_estimated_cost(db, slug: str, prompt_tokens: int, completion_tokens: 
         raise RuntimeTaskError("agent_model_pricing_invalid", category="configuration")
     estimate = (prompt_price * prompt_tokens + completion_price * completion_tokens) * Decimal(1_000_000)
     return int(estimate.quantize(Decimal("1"), rounding=ROUND_CEILING))
+
+
+def _bounded_agent_policy(policy: ModelPolicyDocument, spec: AgentSpec) -> ModelPolicyDocument:
+    """Apply the published agent's generation bounds to its model policy."""
+    return policy.model_copy(
+        update={
+            "temperature": spec.temperature,
+            "max_completion_tokens": min(
+                spec.max_output_tokens + spec.max_reasoning_tokens,
+                policy.max_completion_tokens,
+            ),
+            # Reasoning tokens consume the completion ceiling. Without this cap,
+            # a reasoning model can exhaust the request before emitting JSON.
+            # OpenRouter enforces that only one of "effort" and "max_tokens" can be specified.
+            # Using "effort": "low" cuts reasoning time from ~140s down to ~20s.
+            "reasoning": {"effort": "low", "exclude": True},
+        }
+    )
 
 
 def _safe_validation(exc: ValidationError) -> dict[str, Any]:
@@ -662,6 +695,7 @@ def _context_packet(
     query: str,
     *,
     config: Settings,
+    budget_override: int | None = None,
 ) -> tuple[str, uuid.UUID | None, int]:
     if not seeds:
         return "<no-authorized-context />", None, 0
@@ -669,7 +703,10 @@ def _context_packet(
         workspace = db.scalar(select(Workspace).where(Workspace.run_id == run.id))
         if workspace is None:
             raise RuntimeTaskError("analysis_workspace_missing", category="storage")
-        policy = RetrievalPolicy.model_validate(spec.retrieval_policy.model_dump(mode="json"))
+        policy_payload = spec.retrieval_policy.model_dump(mode="json")
+        if budget_override is not None:
+            policy_payload["input_token_budget"] = max(100, budget_override)
+        policy = RetrievalPolicy.model_validate(policy_payload)
         packet = build_context_packet(
             db,
             RetrievalRequest(
@@ -713,6 +750,7 @@ async def _call_agent(
             role_prompt=version.system_prompt[len(prefix):],
             prohibited_behaviors=tuple(version.prohibited_behaviors),
             retrieval_policy=RetrievalPolicy.model_validate(version.retrieval_policy),
+            temperature=float(version.generation_config.get("temperature", 0.1)),
             max_input_tokens=int(version.execution_limits["max_input_tokens"]),
             max_output_tokens=int(version.generation_config["max_output_tokens"]),
             max_reasoning_tokens=int(version.generation_config["max_reasoning_tokens"]),
@@ -727,6 +765,12 @@ async def _call_agent(
             category="validation",
             validator_results=_safe_validation(exc),
         ) from exc
+    task_input_data = validated_input.model_dump(mode="json")
+    task_input_tokens = estimate_tokens(json.dumps(task_input_data))
+    # Reserve tokens for system prompt (~600 tokens), task wrapper (~300 tokens), and safety margin (400 tokens)
+    available_context = max(0, spec.max_input_tokens - task_input_tokens - 1300)
+    budget_override = min(spec.retrieval_policy.input_token_budget, available_context) if available_context > 0 else None
+
     rendered, manifest_id, context_tokens = _context_packet(
         attempt_id,
         run,
@@ -734,18 +778,28 @@ async def _call_agent(
         seeds,
         run.canonical_product,
         config=config,
+        budget_override=budget_override,
     )
     correction = attempt_input.get("correction")
     envelope = build_prompt_envelope(
         spec,
         task_instruction=spec.purpose,
-        task_input=validated_input.model_dump(mode="json"),
+        task_input=task_input_data,
         context_manifest_id=str(manifest_id) if manifest_id else None,
         rendered_context=rendered,
         correction=correction if isinstance(correction, dict) else None,
     )
     prompt_tokens = estimate_tokens(envelope.system) + estimate_tokens(envelope.user)
     if prompt_tokens > spec.max_input_tokens:
+        logger.error(
+            "Agent input token limit exceeded for %s (%s): prompt_tokens=%d > max_input_tokens=%d (task_input=%d, context=%d)",
+            task.workflow_task_key,
+            spec.key,
+            prompt_tokens,
+            spec.max_input_tokens,
+            task_input_tokens,
+            context_tokens,
+        )
         raise RuntimeTaskError("agent_input_token_limit_exceeded", category="limit")
 
     with session_scope() as db:
@@ -767,15 +821,7 @@ async def _call_agent(
             or policy_row.lifecycle != "published"
         ):
             raise RuntimeTaskError("agent_snapshot_mismatch", category="configuration")
-        policy = ModelPolicyDocument.model_validate(policy_row.policy).model_copy(
-            update={
-                "temperature": float(agent.generation_config.get("temperature", 0.1)),
-                "max_completion_tokens": min(
-                    spec.max_output_tokens,
-                    ModelPolicyDocument.model_validate(policy_row.policy).max_completion_tokens,
-                ),
-            }
-        )
+        policy = _bounded_agent_policy(ModelPolicyDocument.model_validate(policy_row.policy), spec)
         estimated_cost = _model_estimated_cost(
             db, policy.models[0], prompt_tokens, policy.max_completion_tokens
         )
@@ -816,13 +862,27 @@ async def _call_agent(
         raise RuntimeTaskError(str(exc), category="budget") from exc
     except OpenRouterError as exc:
         category = "transient" if exc.retryable else "provider"
-        if exc.provider_code in {"schema_validation_failed", "invalid_chat_shape"}:
+        if exc.provider_code in {"schema_validation_failed", "invalid_chat_shape"} or (
+            exc.provider_code is not None and exc.provider_code.startswith("chat_")
+        ):
             category = "validation"
+        logger.error(
+            "OpenRouter call failed for %s (%s): provider_code=%s, category=%s, retryable=%s",
+            task.workflow_task_key,
+            spec.key,
+            exc.provider_code,
+            category,
+            exc.retryable,
+        )
         raise RuntimeTaskError(
             exc.provider_code or exc.category.value,
             category=category,
             retryable=exc.retryable or category == "validation",
-            validator_results={"status": "failed", "provider_category": exc.category.value},
+            validator_results={
+                "status": "failed",
+                "provider_category": exc.category.value,
+                "provider_code": exc.provider_code,
+            },
         ) from exc
     try:
         return spec.output_model.model_validate(result.content)
@@ -1208,6 +1268,10 @@ async def _execute_agent(
         return {"skipped": True, "reason": payload["_skip"], "source_index": payload.get("source_index")}
     if "_shortcut" in payload:
         return {**payload["_shortcut"], "correction_skipped": True}
+    if spec.key == "source_curator" and _all_source_candidates_excluded(payload):
+        # A valid curation must select at least one source. Stop before spending
+        # tokens on schema retries when deterministic matching rejected all of them.
+        raise RuntimeTaskError("youtube_no_candidates", category="not_found")
     result = await _call_agent(
         attempt_id,
         task,
@@ -1429,6 +1493,34 @@ async def _execute(
     raise RuntimeTaskError("analysis_handler_unknown", category="configuration")
 
 
+async def _execute_with_heartbeat(
+    attempt_id: uuid.UUID,
+    handler: str,
+    input_payload: dict[str, Any],
+    *,
+    config: Settings,
+) -> dict[str, Any]:
+    import contextlib
+    from app.runtime.service import heartbeat_attempt
+
+    async def _heartbeat_loop() -> None:
+        interval = max(5, min(15, config.runtime_task_lease_seconds // 3))
+        while True:
+            await asyncio.sleep(interval)
+            try:
+                heartbeat_attempt(attempt_id, config)
+            except Exception:
+                pass
+
+    heartbeat_task = asyncio.create_task(_heartbeat_loop())
+    try:
+        return await _execute(attempt_id, handler, input_payload, config=config)
+    finally:
+        heartbeat_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await heartbeat_task
+
+
 def execute_analysis_handler(
     attempt_id: uuid.UUID,
     handler: str,
@@ -1437,6 +1529,8 @@ def execute_analysis_handler(
     config: Settings = settings,
 ) -> dict[str, Any]:
     try:
-        return asyncio.run(_execute(attempt_id, handler, input_payload, config=config))
+        return asyncio.run(_execute_with_heartbeat(attempt_id, handler, input_payload, config=config))
+    except ContextBudgetExceeded as exc:
+        raise RuntimeTaskError("context_budget_exceeded", category="limit", retryable=False) from exc
     except ToolExecutionError as exc:
         raise RuntimeTaskError(exc.code, category=exc.category, retryable=exc.retryable) from exc

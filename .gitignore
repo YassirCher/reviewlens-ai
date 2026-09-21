@@ -1,7 +1,10 @@
 .env
-.env.local
-.env.*.local
-.env.phase1.local
+.env.*
+!.env.example
+*.credentials
+*.credentials.*
+*.bak
+scratch*
 __pycache__/
 *.pyc
 .venv/
@@ -19,3 +22,4 @@ playwright-report/
 *.tsbuildinfo
 context/
 .DS_Store
+

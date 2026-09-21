@@ -111,22 +111,29 @@ export function V2Progress({ runId }: { runId: string }) {
 
   const token = reportTokenFromApiPath(run.report_url);
   const isActive = !TERMINAL.has(run.status);
+  const headingLabel = isActive ? "RESEARCH IN PROGRESS" : run.status === "failed" ? "RESEARCH STOPPED" : "RESEARCH FINISHED";
+  const connectionLabel = connection === "live" ? "Live updates connected"
+    : connection === "closed" && run.status === "failed" ? "Run ended with an error"
+    : connection === "closed" && run.status === "cancelled" ? "Run was cancelled"
+    : connection === "closed" ? "Run finished"
+    : connection === "polling" ? "Polling for updates"
+    : "Reconnecting — work continues in the background";
   const sourceTasks = run.tasks.filter(task => /^(fetch_transcript|fetch_comments|analyze_review|analyze_audience)\.source_\d+$/.test(task.task_key));
   const slots = Array.from(new Set(sourceTasks.map(task => Number(task.task_key.match(/source_(\d+)$/)?.[1])))).sort((a,b) => a-b);
   return <>
-    <div className="v2-page-heading"><Link className="v2-back" href="/">← New research</Link><p className="v2-eyebrow">RESEARCH IN PROGRESS</p><h1>{run.product_name}</h1><p>Started {runDate(run.created_at)} UTC · Elapsed {elapsed(run.started_at || run.created_at, now)}</p></div>
+    <div className="v2-page-heading"><Link className="v2-back" href="/">← New research</Link><p className="v2-eyebrow">{headingLabel}</p><h1>{run.product_name}</h1><p>Started {runDate(run.created_at)} UTC · Elapsed {elapsed(run.started_at || run.created_at, now)}</p></div>
+    {run.status === "partial" && <div className="v2-alert v2-alert-warning v2-run-notice" role="status">Partial report: {run.source_count_analyzed} of {run.source_count_requested} requested sources could be analyzed. Valid evidence remains available.</div>}
+    {run.status === "failed" && <div className="v2-alert v2-alert-error v2-run-notice" role="alert">{run.failure?.message || "The analysis could not be completed."} <Link href="/">Start a new research run</Link>.</div>}
+    {run.status === "cancelled" && <div className="v2-alert v2-alert-warning v2-run-notice" role="status">This analysis was cancelled. No public report was published.</div>}
     <div className="v2-progress-layout"><section className="v2-panel v2-progress-main" aria-labelledby="v2-timeline-heading"><div className="v2-panel-heading"><div><p className="v2-eyebrow">LIVE WORKFLOW</p><h2 id="v2-timeline-heading">Research timeline</h2></div><span className={`v2-status v2-status-${run.status}`}>{run.status.replaceAll("_", " ")}</span></div>
-      <div className="v2-connection" role="status">{connection === "live" ? <Wifi size={16} /> : <WifiOff size={16} />}{connection === "live" ? "Live updates connected" : connection === "closed" ? "Run is complete" : connection === "polling" ? "Polling for updates" : "Reconnecting — work continues in the background"}</div>
+      <div className="v2-connection" role="status">{connection === "live" ? <Wifi size={16} /> : <WifiOff size={16} />}{connectionLabel}</div>
       <ol className="v2-timeline">{STAGES.map((stage, index) => { const tasks = run.tasks.filter(task => stage.keys.some(key => task.task_key === key || task.task_key.startsWith(`${key}.`))); const state = stageState(tasks); return <li key={stage.name} className={`v2-timeline-item v2-timeline-${state}`}><span className="v2-timeline-index">{String(index + 1).padStart(2,"0")}</span><div><div className="v2-timeline-title"><strong>{stage.name}</strong><span>{state}</span></div><p>{tasks.length ? `${tasks.filter(task => ["succeeded","failed","skipped","cancelled","timed_out"].includes(task.status)).length} of ${tasks.length} tasks terminal` : "Waiting for earlier work"}</p></div>{state === "succeeded" ? <Check size={18} aria-hidden="true" /> : state === "running" ? <CircleDashed size={18} aria-hidden="true" /> : null}</li>; })}</ol>
       {slots.length > 0 && <div className="v2-source-progress"><h3>Source progress</h3><ul>{slots.map(slot => { const tasks = sourceTasks.filter(task => task.task_key.endsWith(`source_${slot}`)); return <li key={slot}><span>Source {slot}</span><span className="v2-status">{stageState(tasks)}</span></li>; })}</ul></div>}
     </section>
-    <aside className="v2-panel v2-progress-aside"><p className="v2-eyebrow">RUN SNAPSHOT</p><h2>What’s happening</h2><div className="v2-metric"><strong>{run.completed_tasks} / {run.total_tasks}</strong><span>tasks completed</span></div><div className="v2-metric"><strong>{run.source_count_analyzed} / {run.source_count_requested}</strong><span>sources analyzed</span></div><div className="v2-metric"><strong>{run.total_tokens.toLocaleString()}</strong><span>tokens recorded{run.usage_pending ? " · accounting pending" : ""}</span></div>
+    <aside className="v2-panel v2-progress-aside"><p className="v2-eyebrow">RUN SNAPSHOT</p><h2>What’s happening</h2><div className="v2-metric"><strong>{run.completed_tasks} / {run.total_tasks}</strong><span>tasks finished</span></div><div className="v2-metric"><strong>{run.source_count_analyzed} / {run.source_count_requested}</strong><span>sources analyzed</span></div><div className="v2-metric"><strong>{run.total_tokens.toLocaleString()}</strong><span>tokens recorded{run.usage_pending ? " · accounting pending" : ""}</span></div>
       {isActive ? <><p className="v2-aside-note">Research continues if you leave this page. Return with the same browser session to follow it.</p><button className="v2-button-secondary" onClick={() => { setRetrySerial(value => value + 1); }}><RotateCcw size={16} aria-hidden="true" /> Retry connection</button><button className="v2-button-danger" disabled={cancelling || run.status === "cancelling"} onClick={cancel}><Square size={14} aria-hidden="true" />{cancelling || run.status === "cancelling" ? "Cancelling…" : "Cancel analysis"}</button></> : null}
       {token && <Link className="v2-button" href={`/r/${token}`}>Open report <ArrowRight size={17} aria-hidden="true" /></Link>}
     </aside></div>
-    {run.status === "partial" && <div className="v2-alert v2-alert-warning" role="status">Partial report: {run.source_count_analyzed} of {run.source_count_requested} requested sources could be analyzed. Valid evidence remains available.</div>}
-    {run.status === "failed" && <div className="v2-alert v2-alert-error" role="alert">{run.failure?.message || "The analysis could not be completed."} <Link href="/">Try a more specific product name</Link>.</div>}
-    {run.status === "cancelled" && <div className="v2-alert v2-alert-warning" role="status">This analysis was cancelled. No public report was published.</div>}
     {run.warnings.length > 0 && <section className="v2-panel v2-warnings"><h2>Research notes</h2><ul>{run.warnings.map((warning, index) => <li key={`${warning}-${index}`}>{warning}</li>)}</ul></section>}
     <p className="v2-sr-only" aria-live="polite" aria-atomic="true">{announcement}</p>
     {error && <div className="v2-alert v2-alert-error" role="alert">{error}</div>}

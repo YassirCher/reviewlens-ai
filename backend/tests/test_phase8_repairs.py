@@ -35,6 +35,26 @@ def test_public_failure_categories_are_allowlisted() -> None:
     assert routes._public_failure(db, run, [transcript])["code"] == "analysis_failed"
 
 
+def test_public_failure_recovers_legacy_all_excluded_discovery() -> None:
+    run = SimpleNamespace(id=uuid.uuid4())
+    discovery = SimpleNamespace(id=uuid.uuid4(), workflow_task_key="discover_candidates")
+    db = MagicMock()
+    db.scalars.return_value = [SimpleNamespace(
+        task_run_id=discovery.id,
+        status="succeeded",
+        error_code=None,
+        error_category=None,
+        output_payload={"candidates": [
+            {"video_id": "fixture01", "deterministic_exclusion": "irrelevant_product"},
+            {"video_id": "fixture02", "deterministic_exclusion": "irrelevant_product"},
+        ]},
+    )]
+    assert routes._public_failure(db, run, [discovery]) == {
+        "code": "no_relevant_videos",
+        "message": "No relevant review videos were found. Try a more specific product model.",
+    }
+
+
 def test_graph_page_retains_connections_to_nodes_on_other_pages(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(routes, "settings", Settings(
         _env_file=None, session_secret="s" * 40,

@@ -795,10 +795,12 @@ def execute_task_run(
         return _complete_attempt_failure(task_id, attempt_id, exc, config=config)
     except Exception as exc:
         logger.error(
-            "Runtime executor failed run_id=%s task_id=%s exception_type=%s",
+            "Runtime executor failed run_id=%s task_id=%s exception_type=%s error=%s",
             run_id,
             task_id,
             type(exc).__name__,
+            str(exc),
+            exc_info=True,
         )
         safe = RuntimeTaskError("executor_failed", category="internal", retryable=False)
         return _complete_attempt_failure(task_id, attempt_id, safe, config=config)

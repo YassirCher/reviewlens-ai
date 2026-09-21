@@ -150,9 +150,12 @@ AGENT_SPECS: tuple[AgentSpec, ...] = (
         # the immutable input limit before the model call.
         retrieval_policy=_retrieval((NodeType.PRODUCT,), tokens=400, hops=0),
         max_input_tokens=7000,
-        max_output_tokens=3500,
+        # A 20-candidate curation document can exceed 3,500 completion tokens
+        # once model reasoning is included in the provider limit. Keep the
+        # request bounded while leaving enough room for every required decision.
+        max_output_tokens=7000,
         max_reasoning_tokens=1500,
-        max_total_tokens=12000,
+        max_total_tokens=15500,
         timeout_seconds=120,
     ),
     AgentSpec(
@@ -166,14 +169,17 @@ AGENT_SPECS: tuple[AgentSpec, ...] = (
         tool_keys=("graph.get_nodes", "graph.query_relations", "evidence.validate", "scoring.preview"),
         retrieval_policy=_retrieval(
             (NodeType.SOURCE, NodeType.TRANSCRIPT, NodeType.TRANSCRIPT_CHUNK),
-            required=(NodeType.TRANSCRIPT,),
+            # Seed one bounded chunk, then traverse through the transcript node
+            # to add as many sibling chunks as fit. A full transcript can exceed
+            # the context budget and must never be a required packet item.
+            required=(NodeType.TRANSCRIPT_CHUNK,),
             tokens=14000,
-            hops=1,
+            hops=2,
         ),
-        max_input_tokens=16000,
-        max_output_tokens=4500,
+        max_input_tokens=22000,
+        max_output_tokens=7500,
         max_reasoning_tokens=2500,
-        max_total_tokens=23000,
+        max_total_tokens=32000,
         timeout_seconds=180,
     ),
     AgentSpec(
@@ -203,17 +209,17 @@ AGENT_SPECS: tuple[AgentSpec, ...] = (
         prohibited_behaviors=("edit source bodies", "remove contradictions", "create claims without provenance"),
         input_model=KnowledgeCuratorInput,
         output_model=GraphMutationPlan,
-        role_prompt="Return only a graph mutation plan grounded in supplied source analyses and evidence node IDs.",
+        role_prompt="Return only a graph mutation plan grounded in supplied source analyses and their evidence node IDs. For each finding, evidence_node_ids must only contain valid evidence_node_id UUIDs from the claims in the supplied source_analyses. Synthesize the key cross-source agreements and disagreements into 8 to 15 concise, high-impact findings without duplicating similar points.",
         tool_keys=("graph.get_nodes", "graph.query_relations", "graph.create_nodes", "graph.create_edges", "vector.request_upsert", "evidence.validate"),
         retrieval_policy=_retrieval(
             (NodeType.SOURCE_ANALYSIS, NodeType.AUDIENCE_SIGNAL, NodeType.EVIDENCE, NodeType.CLAIM, NodeType.FINDING),
-            tokens=10000,
+            tokens=5000,
             hops=2,
         ),
-        max_input_tokens=12000,
-        max_output_tokens=4000,
-        max_reasoning_tokens=1800,
-        max_total_tokens=17800,
+        max_input_tokens=28000,
+        max_output_tokens=8000,
+        max_reasoning_tokens=3000,
+        max_total_tokens=38000,
         timeout_seconds=180,
     ),
     AgentSpec(
@@ -223,17 +229,17 @@ AGENT_SPECS: tuple[AgentSpec, ...] = (
         prohibited_behaviors=("hide disagreement", "read unselected transcripts", "let comments outweigh reviewers"),
         input_model=ConsensusAnalystInput,
         output_model=FinalReportDraft,
-        role_prompt="Synthesize independent reviewer agreement and disagreement. Do not calculate overall_score, verdict, or final confidence.",
+        role_prompt="Synthesize independent reviewer agreement and disagreement. Focus on the most salient consensus pros, cons, and genuine reviewer disagreements grounded in the supplied analyses. Do not calculate overall_score, verdict, or final confidence.",
         tool_keys=("graph.get_nodes", "graph.query_relations", "vector.search", "scoring.preview"),
         retrieval_policy=_retrieval(
             (NodeType.SOURCE_ANALYSIS, NodeType.AUDIENCE_SIGNAL, NodeType.EVIDENCE, NodeType.CLAIM, NodeType.FINDING, NodeType.COMPARISON),
-            tokens=14000,
+            tokens=6000,
             hops=2,
         ),
-        max_input_tokens=16000,
-        max_output_tokens=4500,
-        max_reasoning_tokens=2500,
-        max_total_tokens=23000,
+        max_input_tokens=30000,
+        max_output_tokens=8000,
+        max_reasoning_tokens=3000,
+        max_total_tokens=40000,
         timeout_seconds=180,
     ),
     AgentSpec(
@@ -247,13 +253,13 @@ AGENT_SPECS: tuple[AgentSpec, ...] = (
         tool_keys=("graph.get_nodes", "graph.query_relations", "evidence.validate", "scoring.preview"),
         retrieval_policy=_retrieval(
             (NodeType.SOURCE_ANALYSIS, NodeType.AUDIENCE_SIGNAL, NodeType.EVIDENCE, NodeType.CLAIM, NodeType.FINDING, NodeType.COMPARISON, NodeType.VERDICT),
-            tokens=12000,
+            tokens=6000,
             hops=2,
         ),
-        max_input_tokens=14000,
-        max_output_tokens=3000,
-        max_reasoning_tokens=1800,
-        max_total_tokens=18800,
+        max_input_tokens=28000,
+        max_output_tokens=5000,
+        max_reasoning_tokens=2500,
+        max_total_tokens=35000,
         timeout_seconds=180,
     ),
 )

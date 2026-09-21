@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 from decimal import Decimal
 from typing import Any
 from urllib.parse import quote
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 from app.config import Settings, settings
 from app.llmops.contracts import (
@@ -92,6 +95,64 @@ def normalize_usage(payload: Any) -> NormalizedUsage | None:
         total_cost_microusd=dollars_to_microusd(payload.get("cost")) or 0,
         upstream_cost_microusd=dollars_to_microusd(upstream),
     )
+
+
+def _decode_json_object(text: str) -> dict[str, Any]:
+    candidate = text.strip()
+    if not candidate:
+        raise ValueError("chat_content_empty")
+    if candidate.startswith("```"):
+        lines = candidate.splitlines()
+        if lines and lines[0].strip().lower() in {"```", "```json"}:
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        candidate = "\n".join(lines).strip()
+    try:
+        decoded = json.loads(candidate)
+    except json.JSONDecodeError:
+        start = candidate.find("{")
+        if start < 0:
+            raise ValueError("chat_content_invalid_json") from None
+        try:
+            decoded, end = json.JSONDecoder().raw_decode(candidate[start:])
+        except json.JSONDecodeError:
+            raise ValueError("chat_content_invalid_json") from None
+        suffix = candidate[start + end :].strip()
+        if suffix not in {"", "```"}:
+            raise ValueError("chat_content_invalid_json")
+    if not isinstance(decoded, dict):
+        raise ValueError("chat_content_not_object")
+    return decoded
+
+
+def _decode_chat_content(message: Any) -> dict[str, Any]:
+    if not isinstance(message, dict):
+        raise ValueError("chat_message_invalid")
+    parsed = message.get("parsed")
+    if isinstance(parsed, dict):
+        return parsed
+    content = message.get("content")
+    if isinstance(content, dict):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if isinstance(item, str):
+                parts.append(item)
+                continue
+            if not isinstance(item, dict):
+                raise ValueError("chat_content_parts_invalid")
+            value = item.get("text")
+            if not isinstance(value, str):
+                value = item.get("content")
+            if not isinstance(value, str):
+                raise ValueError("chat_content_parts_invalid")
+            parts.append(value)
+        content = "".join(parts)
+    if not isinstance(content, str):
+        raise ValueError("chat_content_missing")
+    return _decode_json_object(content)
 
 
 class OpenRouterClient:
@@ -270,12 +331,23 @@ class OpenRouterClient:
         )
         try:
             choice = payload["choices"][0]
-            content = choice["message"]["content"]
-            decoded = json.loads(content) if isinstance(content, str) else content
-            if not isinstance(decoded, dict):
-                raise TypeError
-        except (KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
+            if not isinstance(choice, dict):
+                raise ValueError("chat_choice_invalid")
+            decoded = _decode_chat_content(choice.get("message"))
+        except (KeyError, IndexError, TypeError) as exc:
             raise OpenRouterError(OpenRouterErrorCategory.UNKNOWN, provider_code="invalid_chat_shape") from exc
+        except ValueError as exc:
+            is_length = choice.get("finish_reason") == "length"
+            code = "chat_content_truncated" if is_length else str(exc)
+            if is_length:
+                raw_msg = choice.get("message")
+                raw_content = raw_msg.get("content", "") if isinstance(raw_msg, dict) else ""
+                logger.warning(
+                    "Chat completion truncated by max completion tokens (finish_reason=length) for %s (len=%d chars)",
+                    invocation.context.call_key,
+                    len(raw_content) if isinstance(raw_content, str) else 0,
+                )
+            raise OpenRouterError(OpenRouterErrorCategory.UNKNOWN, provider_code=code) from exc
         metadata = payload.get("openrouter_metadata") or {}
         endpoints = metadata.get("endpoints") if isinstance(metadata, dict) else {}
         available = endpoints.get("available") if isinstance(endpoints, dict) else []

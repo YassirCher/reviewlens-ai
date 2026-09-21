@@ -97,7 +97,8 @@ class OpenRouterGateway:
                 await self.sleeper(delay)
                 continue
             validation = Draft202012Validator(invocation.response_schema)
-            valid = not list(validation.iter_errors(result.content))
+            schema_errors = list(validation.iter_errors(result.content))
+            valid = not schema_errors
             finalize_successful_request(
                 reservation_id,
                 generation_id=result.generation_id,
@@ -117,6 +118,13 @@ class OpenRouterGateway:
                 logger.error("Encrypted raw content retention failed: %s", type(exc).__name__)
             update_account_state(config=self.config)
             if not valid:
+                formatted_errors = [f"{list(err.path)}: {err.message}" for err in schema_errors[:10]]
+                logger.error(
+                    "Schema validation failed for call_key=%s (task=%s): %s",
+                    invocation.context.call_key,
+                    invocation.context.task_run_id,
+                    formatted_errors,
+                )
                 raise OpenRouterError(
                     OpenRouterErrorCategory.UNKNOWN,
                     provider_code="schema_validation_failed",

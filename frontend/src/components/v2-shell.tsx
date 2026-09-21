@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Aperture, ArrowUpRight } from "lucide-react";
+import { Aperture, ArrowUpRight, LogIn } from "lucide-react";
 import type { ReactNode } from "react";
 
 export function V2Shell({ children, section = "Product research" }: { children: ReactNode; section?: string }) {
@@ -8,7 +8,7 @@ export function V2Shell({ children, section = "Product research" }: { children: 
     <header className="v2-header">
       <div className="v2-container v2-header-inner">
         <Link href="/" className="v2-brand" aria-label="ReviewLens research home"><span className="v2-mark"><Aperture size={19} aria-hidden="true" /></span><span><strong>ReviewLens</strong><small>PRODUCT RESEARCH</small></span></Link>
-        <nav aria-label="Public navigation" className="v2-nav"><span className="v2-section-name">{section}</span><Link href="/#how-it-works">How it works <ArrowUpRight size={15} aria-hidden="true" /></Link></nav>
+        <nav aria-label="Public navigation" className="v2-nav"><span className="v2-section-name">{section}</span><Link className="v2-how-link" href="/#how-it-works">How it works <ArrowUpRight size={15} aria-hidden="true" /></Link><Link className="v2-admin-link" href="/admin/login"><LogIn size={15} aria-hidden="true" /> Admin sign in</Link></nav>
       </div>
     </header>
     <main id="v2-main" className="v2-container">{children}</main>
