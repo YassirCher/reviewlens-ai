@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowRight, ArrowUpRight, Check, Clock3, ExternalLink, GitBranch, Info, Share2, ShieldCheck, Youtube } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Check, Clock3, Download, ExternalLink, GitBranch, Info, Share2, ShieldCheck, Youtube } from "lucide-react";
 import type { Evidence, Finding, Report, Source } from "@/lib/v2";
 import { V2Graph } from "./v2-graph";
 
@@ -36,12 +36,56 @@ function SourceCard({ source, index }: { source: Source; index: number }) {
 export function V2Report({ report, token }: { report: Report; token: string }) {
   const [copied, setCopied] = useState(false);
   const sourceById = new Map(report.sources.map(source => [source.id, source]));
+
   async function share() {
     try { await navigator.clipboard.writeText(window.location.href); setCopied(true); setTimeout(() => setCopied(false), 3000); }
     catch { setCopied(false); }
   }
+
+  function handleDownloadPdf() {
+    // Open all accordions before printing so full evidence and claims are included in the PDF
+    const allDetails = document.querySelectorAll<HTMLDetailsElement>("details.v2-finding, details.v2-source-claims");
+    allDetails.forEach(el => { el.open = true; });
+    window.print();
+  }
+
   return <>
-    <div className="v2-report-top"><div><p className="v2-eyebrow">RESEARCH REPORT · {reportDate(report.generated_at)}</p><h1>{report.product_name}</h1><p>{report.source_count_analyzed} of {report.source_count_requested} requested sources analyzed {report.status === "partial" && <span className="v2-partial">PARTIAL COVERAGE</span>}</p></div><button className="v2-button-secondary" onClick={share}><Share2 size={16} aria-hidden="true" />{copied ? "Link copied" : "Copy report link"}</button></div>
+    <div className="v2-print-header" aria-hidden="true">
+      <div className="v2-print-brand-row">
+        <div className="v2-print-brand">
+          <span className="v2-print-badge">REVIEWLENS RESEARCH DOSSIER</span>
+          <h2 className="v2-print-title">{report.product_name}</h2>
+        </div>
+        <div className="v2-print-score-pill">
+          <div className="v2-print-score-val">{report.overall_score}<small>/100</small></div>
+          <div className="v2-print-score-tag">{verdictLabel(report.verdict)}</div>
+        </div>
+      </div>
+      <div className="v2-print-meta-grid">
+        <div><span>Date:</span> {reportDate(report.generated_at)} UTC</div>
+        <div><span>Confidence:</span> {report.confidence}% ({verdictLabel(report.confidence_band)})</div>
+        <div><span>Sources:</span> {report.source_count_analyzed} of {report.source_count_requested} analyzed</div>
+        <div><span>Report Token:</span> <code>{token}</code></div>
+      </div>
+    </div>
+
+    <div className="v2-report-top">
+      <div>
+        <p className="v2-eyebrow">RESEARCH REPORT · {reportDate(report.generated_at)}</p>
+        <h1>{report.product_name}</h1>
+        <p>{report.source_count_analyzed} of {report.source_count_requested} requested sources analyzed {report.status === "partial" && <span className="v2-partial">PARTIAL COVERAGE</span>}</p>
+      </div>
+      <div className="v2-report-actions">
+        <button className="v2-button-secondary" onClick={handleDownloadPdf} title="Download or print a comprehensive PDF report">
+          <Download size={16} aria-hidden="true" />
+          Download PDF
+        </button>
+        <button className="v2-button-secondary" onClick={share}>
+          <Share2 size={16} aria-hidden="true" />
+          {copied ? "Link copied" : "Copy report link"}
+        </button>
+      </div>
+    </div>
     <section className="v2-report-hero" aria-labelledby="v2-verdict"><div className="v2-verdict-block"><span className="v2-eyebrow">BUYING SIGNAL</span><div className="v2-score">{report.overall_score}<span>/100</span></div><h2 id="v2-verdict">{verdictLabel(report.verdict)}</h2><p>Overall product score</p></div><div className="v2-report-intro"><span className="v2-eyebrow">THE BOTTOM LINE</span><p>{report.summary}</p><div className="v2-confidence"><ShieldCheck size={19} aria-hidden="true" /><div><strong>{report.confidence}% confidence · {verdictLabel(report.confidence_band)}</strong><span>Confidence reflects evidence quality and coverage—not product quality.</span></div></div></div></section>
     <section className="v2-footprint" aria-label="Analysis footprint"><div><strong>{report.source_count_analyzed}<span> / {report.source_count_requested}</span></strong><small>source reviews</small></div><div><strong>{report.total_tokens.toLocaleString()}</strong><small>tokens used{report.usage_pending ? " · accounting pending" : ""}</small></div><div><strong>{report.model_call_count}</strong><small>model calls</small></div></section>
     {report.status === "partial" && <div className="v2-alert v2-alert-warning" role="status"><strong>Partial evidence.</strong> Some requested sources were unavailable or could not be analyzed. Read the limitations before relying on the conclusion.</div>}
@@ -54,5 +98,12 @@ export function V2Report({ report, token }: { report: Report; token: string }) {
     <section className="v2-report-section" aria-labelledby="v2-sources"><div className="v2-section-top"><div><p className="v2-eyebrow">ORIGINAL REVIEWS</p><h2 id="v2-sources">Inspect every source</h2><p>Claims are paired with short excerpts and links to the matching video moment.</p></div><span className="v2-step">03 — SOURCES</span></div><div className="v2-source-list">{report.sources.map((source,index) => <SourceCard key={source.id} source={source} index={index} />)}</div></section>
     <section className="v2-report-section" aria-labelledby="v2-map"><div className="v2-section-top"><div><p className="v2-eyebrow">EVIDENCE STRUCTURE</p><h2 id="v2-map">Follow the connections</h2><p>A public-safe view of how sources, findings, and excerpts relate.</p></div><Link className="v2-text-link" href={`/r/${token}/evidence`}>Open full evidence map <ArrowRight size={17} aria-hidden="true" /></Link></div><V2Graph report={report} token={token} /></section>
     <div className="v2-report-bottom"><span><GitBranch size={17} aria-hidden="true" /> Every central claim must be traceable before a report is published.</span><Link href="/">Research another product <ArrowRight size={16} aria-hidden="true" /></Link></div>
+
+    <div className="v2-print-footer" aria-hidden="true">
+      <div className="v2-print-footer-inner">
+        <div>ReviewLens AI · Verified Grounded Product Intelligence</div>
+        <div>Every claim traceable to timestamped source evidence · {token}</div>
+      </div>
+    </div>
   </>;
 }
