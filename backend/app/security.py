@@ -19,8 +19,8 @@ def normalize_admin_identifier(value: str) -> str:
 
 
 def hash_password(password: str) -> str:
-    if len(password) < 12:
-        raise ValueError("Admin password must contain at least 12 characters")
+    if len(password) < 8:
+        raise ValueError("Admin password must contain at least 8 characters")
     return PASSWORD_HASHER.hash(password)
 
 
