@@ -42,13 +42,6 @@ export function V2Report({ report, token }: { report: Report; token: string }) {
     catch { setCopied(false); }
   }
 
-  function handleDownloadPdf() {
-    // Open all accordions before printing so full evidence and claims are included in the PDF
-    const allDetails = document.querySelectorAll<HTMLDetailsElement>("details.v2-finding, details.v2-source-claims");
-    allDetails.forEach(el => { el.open = true; });
-    window.print();
-  }
-
   return <>
     <div className="v2-print-header" aria-hidden="true">
       <div className="v2-print-brand-row">
@@ -76,10 +69,15 @@ export function V2Report({ report, token }: { report: Report; token: string }) {
         <p>{report.source_count_analyzed} of {report.source_count_requested} requested sources analyzed {report.status === "partial" && <span className="v2-partial">PARTIAL COVERAGE</span>}</p>
       </div>
       <div className="v2-report-actions">
-        <button className="v2-button-secondary" onClick={handleDownloadPdf} title="Download or print a comprehensive PDF report">
+        <a
+          className="v2-button-secondary"
+          href={`${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000"}/api/v2/reports/${token}/pdf`}
+          download={`ReviewLens-${report.product_name.replace(/[^a-zA-Z0-9_-]+/g, "-")}-Dossier.pdf`}
+          title="Download comprehensive PDF intelligence dossier"
+        >
           <Download size={16} aria-hidden="true" />
           Download PDF
-        </button>
+        </a>
         <button className="v2-button-secondary" onClick={share}>
           <Share2 size={16} aria-hidden="true" />
           {copied ? "Link copied" : "Copy report link"}

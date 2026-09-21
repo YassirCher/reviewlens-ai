@@ -16,3 +16,4 @@ neo4j>=5.28,<7
 qdrant-client>=1.14,<2
 pytest>=9.0.3,<10
 pytest-asyncio>=1.1,<2
+reportlab>=4.4,<6

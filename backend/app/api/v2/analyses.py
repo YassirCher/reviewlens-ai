@@ -351,6 +351,27 @@ def read_report(public_token: str, response: Response, db: Session = Depends(get
     return result
 
 
+@router.get("/reports/{public_token}/pdf")
+def download_report_pdf(public_token: str, db: Session = Depends(get_v2_db)) -> Response:
+    from app.services.pdf_generator import generate_report_pdf
+
+    publication = _publication(db, public_token)
+    payload = {**publication.payload, **usage_summary(db, publication.run_id)}
+    pdf_bytes = generate_report_pdf(payload, public_token)
+    raw_name = payload.get("product_name", "product")
+    slug = re.sub(r"[^a-zA-Z0-9_-]+", "-", raw_name).strip("-") or "research"
+    filename = f"ReviewLens-{slug}-Dossier.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "private, no-store",
+            "X-Robots-Tag": "noindex, nofollow, noarchive",
+        },
+    )
+
+
 def _cursor(report_id: uuid.UUID, offset: int, type_filter: str | None) -> str:
     body = f"{report_id}:{offset}:{type_filter or '*'}".encode()
     signature = hmac.new(settings.public_token_hash_secret.encode(), b"graph-cursor-v1:" + body, hashlib.sha256).digest()
