@@ -144,7 +144,7 @@ def test_agent_policy_caps_reasoning_before_structured_output() -> None:
         max_completion_tokens=20_000,
     ), spec)
     assert policy.max_completion_tokens == spec.max_output_tokens + spec.max_reasoning_tokens
-    assert policy.reasoning == {"effort": "low", "exclude": True}
+    assert policy.reasoning == {"effort": "none", "exclude": True}
 
 
 def test_review_context_seeds_a_bounded_transcript_chunk(monkeypatch: pytest.MonkeyPatch) -> None:

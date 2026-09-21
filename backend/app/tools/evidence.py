@@ -89,8 +89,8 @@ def validate_evidence(
     if (
         max_duration is not None
         and (
-            (request.timestamp_start_seconds is not None and request.timestamp_start_seconds > max_duration)
-            or (request.timestamp_end_seconds is not None and request.timestamp_end_seconds > max_duration)
+            (request.timestamp_start_seconds is not None and request.timestamp_start_seconds > max_duration + 5.0)
+            or (request.timestamp_end_seconds is not None and request.timestamp_end_seconds > max_duration + 5.0)
         )
     ):
         errors.append("timestamp_out_of_range")

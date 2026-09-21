@@ -667,8 +667,8 @@ def _bounded_agent_policy(policy: ModelPolicyDocument, spec: AgentSpec) -> Model
             # Reasoning tokens consume the completion ceiling. Without this cap,
             # a reasoning model can exhaust the request before emitting JSON.
             # OpenRouter enforces that only one of "effort" and "max_tokens" can be specified.
-            # Using "effort": "low" cuts reasoning time from ~140s down to ~20s.
-            "reasoning": {"effort": "low", "exclude": True},
+            # Using "effort": "none" eliminates reasoning token overhead, preventing chat_content_truncated.
+            "reasoning": {"effort": "none", "exclude": True},
         }
     )
 
@@ -941,10 +941,22 @@ async def _postprocess_review(
         source_version_id = source_node.current_version_id
         source_version = db.get(ContextNodeVersion, source_version_id)
         source_uri = source_version.source_uri if source_version else None
+        source_duration: float | None = None
+        if source_version and isinstance(source_version.provenance.get("duration_seconds"), (int, float)):
+            source_duration = float(source_version.provenance["duration_seconds"])
         claims: list[dict[str, Any]] = []
         for claim_index, claim in enumerate(draft.claims):
             evidence_rows: list[dict[str, Any]] = []
             for evidence_index, evidence in enumerate(claim.evidence):
+                start_sec = evidence.timestamp_start_seconds
+                end_sec = evidence.timestamp_end_seconds
+                if source_duration is not None and source_duration > 0:
+                    if end_sec is not None and end_sec > source_duration:
+                        end_sec = source_duration
+                    if start_sec is not None and start_sec > source_duration:
+                        start_sec = max(0.0, source_duration - 1.0)
+                    if start_sec is not None and end_sec is not None and end_sec < start_sec:
+                        end_sec = start_sec
                 version = create_node(
                     db,
                     workspace.id,
@@ -958,8 +970,8 @@ async def _postprocess_review(
                         confidence=evidence.confidence,
                         tags=("evidence", evidence.support_type),
                         provenance={
-                            "timestamp_start_seconds": evidence.timestamp_start_seconds,
-                            "timestamp_end_seconds": evidence.timestamp_end_seconds,
+                            "timestamp_start_seconds": start_sec,
+                            "timestamp_end_seconds": end_sec,
                             "central_claim": claim.central,
                         },
                         public_visibility="admin",
@@ -981,9 +993,12 @@ async def _postprocess_review(
                         ),
                     ),
                 )
+                evidence_dict = evidence.model_dump(mode="json")
+                evidence_dict["timestamp_start_seconds"] = start_sec
+                evidence_dict["timestamp_end_seconds"] = end_sec
                 evidence_rows.append(
                     {
-                        **evidence.model_dump(mode="json"),
+                        **evidence_dict,
                         "source_node_id": str(draft.source_id),
                         "evidence_node_id": str(version.node_id),
                     }

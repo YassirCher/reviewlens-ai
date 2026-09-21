@@ -183,7 +183,13 @@ def _public_failure(db: Session, run: AnalysisRun, tasks: list[TaskRun]) -> dict
         ]
         if transcript_outputs and len(transcript_outputs) == len(transcript_tasks) and all(not output.get("available") for output in transcript_outputs):
             return {"code": "no_transcripts", "message": "Review videos were found, but usable captions were unavailable. Try another product or model."}
-    if any(attempt.error_category == "budget" for attempt in attempts if attempt.status == "failed"):
+    failed_task_ids = {task.id for task in tasks if getattr(task, "status", None) == "failed"}
+    relevant_attempts = (
+        [a for a in attempts if a.task_run_id in failed_task_ids]
+        if failed_task_ids
+        else attempts
+    )
+    if any(attempt.error_category == "budget" for attempt in relevant_attempts if attempt.status == "failed"):
         return {"code": "analysis_capacity_reached", "message": "Research capacity was reached before a report could be completed. Try again later."}
     return {"code": "analysis_failed", "message": "The analysis could not be completed. Try again later."}
 

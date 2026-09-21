@@ -101,10 +101,12 @@ def _model_policy(db: Session, config: Settings) -> ModelPolicyVersion:
             allow_fallbacks=False,
             require_parameters=True,
             data_collection="deny",
+            sort="throughput",
         ),
         temperature=0.1,
         minimum_context_tokens=32_000,
         max_completion_tokens=16_000,
+        reasoning={"effort": "none", "exclude": True},
         compatibility_mode="strict",
     )
     payload = document.model_dump(mode="json")
@@ -161,8 +163,8 @@ def _budget_policy(db: Session, config: Settings) -> BudgetPolicyVersion:
         "max_video_count": config.max_video_count,
         "comments_enabled_default": False,
         "token_limits": {
-            "run_total_tokens": 250_000,
-            "task_total_tokens": {"default": 45_000},
+            "run_total_tokens": 350_000,
+            "task_total_tokens": {"default": 90_000},
             "task_cost_microusd": {"default": 1_000_000},
         },
     }

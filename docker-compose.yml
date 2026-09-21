@@ -123,7 +123,7 @@ services:
 
   worker:
     <<: *backend-service
-    command: ["sh", "-c", "python -m app.cli validate worker && exec celery -A app.worker:celery_app worker --loglevel=INFO --concurrency=$${CELERY_WORKER_CONCURRENCY:-4}"]
+    command: ["sh", "-c", "python -m app.cli validate worker && exec celery -A app.worker:celery_app worker --loglevel=INFO --concurrency=$${CELERY_WORKER_CONCURRENCY:-8}"]
     hostname: reviewlens-worker
     volumes:
       - markdown_workspaces:/data/workspaces
