@@ -23,8 +23,11 @@ function stageState(tasks: PublicTask[]): string {
   return "queued";
 }
 
-function elapsed(start: string, now: number): string {
-  const seconds = Math.max(0, Math.floor((now - new Date(start).getTime()) / 1000));
+function elapsed(start: string, endOrNow: string | number): string {
+  const endTime = typeof endOrNow === "string" ? new Date(endOrNow).getTime() : endOrNow;
+  const startTime = new Date(start).getTime();
+  if (isNaN(startTime) || isNaN(endTime)) return "0m 00s";
+  const seconds = Math.max(0, Math.floor((endTime - startTime) / 1000));
   return `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, "0")}s`;
 }
 function runDate(value: string): string { return new Intl.DateTimeFormat("en-US", { timeZone: "UTC", dateStyle: "medium", timeStyle: "short" }).format(new Date(value)); }
@@ -34,7 +37,7 @@ export function V2Progress({ runId }: { runId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [connection, setConnection] = useState<"connecting" | "live" | "reconnecting" | "polling" | "closed">("connecting");
   const [announcement, setAnnouncement] = useState("");
-  const [now, setNow] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
   const [cancelling, setCancelling] = useState(false);
   const [retrySerial, setRetrySerial] = useState(0);
   const sequence = useRef(0);
@@ -57,7 +60,10 @@ export function V2Progress({ runId }: { runId: string }) {
     let stopped = false;
     const saved = Number(sessionStorage.getItem(`reviewlens:v2:sequence:${runId}`));
     sequence.current = Number.isSafeInteger(saved) && saved >= 0 ? saved : 0;
-    const clock = setInterval(() => setNow(Date.now()), 1000);
+    const clock = setInterval(() => {
+      if (TERMINAL.has(runRef.current?.status || "")) return;
+      setNow(Date.now());
+    }, 1000);
     const poll = setInterval(() => {
       if (stopped || TERMINAL.has(runRef.current?.status || "")) return;
       refresh(controller.signal).catch(() => setConnection(current => current === "live" ? "live" : "polling"));
@@ -120,8 +126,12 @@ export function V2Progress({ runId }: { runId: string }) {
     : "Reconnecting — work continues in the background";
   const sourceTasks = run.tasks.filter(task => /^(fetch_transcript|fetch_comments|analyze_review|analyze_audience)\.source_\d+$/.test(task.task_key));
   const slots = Array.from(new Set(sourceTasks.map(task => Number(task.task_key.match(/source_(\d+)$/)?.[1])))).sort((a,b) => a-b);
+  const terminalEnd = run.completed_at || (run.tasks?.length ? run.tasks.map(t => t.completed_at).filter((t): t is string => Boolean(t)).sort().pop() : null);
+  const durationText = !isActive && terminalEnd
+    ? elapsed(run.started_at || run.created_at, terminalEnd)
+    : elapsed(run.started_at || run.created_at, now);
   return <>
-    <div className="v2-page-heading"><Link className="v2-back" href="/">← New research</Link><p className="v2-eyebrow">{headingLabel}</p><h1>{run.product_name}</h1><p>Started {runDate(run.created_at)} UTC · Elapsed {elapsed(run.started_at || run.created_at, now)}</p></div>
+    <div className="v2-page-heading"><Link className="v2-back" href="/">← New research</Link><p className="v2-eyebrow">{headingLabel}</p><h1>{run.product_name}</h1><p>Started {runDate(run.created_at)} UTC · {isActive ? "Elapsed" : "Duration"} {durationText}</p></div>
     {run.status === "partial" && <div className="v2-alert v2-alert-warning v2-run-notice" role="status">Partial report: {run.source_count_analyzed} of {run.source_count_requested} requested sources could be analyzed. Valid evidence remains available.</div>}
     {run.status === "failed" && <div className="v2-alert v2-alert-error v2-run-notice" role="alert">{run.failure?.message || "The analysis could not be completed."} <Link href="/">Start a new research run</Link>.</div>}
     {run.status === "cancelled" && <div className="v2-alert v2-alert-warning v2-run-notice" role="status">This analysis was cancelled. No public report was published.</div>}
