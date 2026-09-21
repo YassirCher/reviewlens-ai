@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import uuid
 from dataclasses import replace
 from datetime import datetime, timezone
@@ -791,9 +792,20 @@ async def _call_agent(
         budget_override=budget_override,
     )
     correction = attempt_input.get("correction")
+    task_instruction = spec.purpose
+    if spec.key == "quality_auditor":
+        task_instruction = (
+            "Verify the report_draft against the supplied source_analyses. "
+            "Return verdict 'pass' with empty issues if the consensus claims are supported by the reviews. "
+            "Return 'pass_with_warnings' if there are minor limitations or caveats noted in the reviews. "
+            "Return 'fail' only if there are critical fabricated claims contradicted by the sources. "
+            "Note: Only consensus_pros and consensus_cons require evidence_node_ids (which are already linked to the sources). "
+            "Narrative fields (summary, who_should_buy, who_should_avoid, limitations, product names) synthesize findings and do not take evidence_node_ids. "
+            "Do not return missing_central_evidence on narrative fields or on items that already have evidence_node_ids."
+        )
     envelope = build_prompt_envelope(
         spec,
-        task_instruction=spec.purpose,
+        task_instruction=task_instruction,
         task_input=task_input_data,
         context_manifest_id=str(manifest_id) if manifest_id else None,
         rendered_context=rendered,
@@ -1245,7 +1257,6 @@ def _score(reviews: list[dict[str, Any]], audiences: list[dict[str, Any]], reque
 
 
 def _deterministic_audit(draft: FinalReportDraft, reviews: list[dict[str, Any]], model_audit: AuditResult) -> AuditResult:
-    issues = list(model_audit.issues)
     evidence_ids = {
         evidence["evidence_node_id"]
         for review in reviews
@@ -1264,14 +1275,54 @@ def _deterministic_audit(draft: FinalReportDraft, reviews: list[dict[str, Any]],
         for consensus in (*draft.consensus_pros, *draft.consensus_cons)
         for item in consensus.evidence_node_ids
     }
+    fatal_issues: list[AuditIssue] = []
     if not central_ids:
-        issues.append(AuditIssue(code="central_evidence_missing", field_path="source_analyses", retryable=False))
+        fatal_issues.append(AuditIssue(code="central_evidence_missing", field_path="source_analyses", retryable=False))
     if referenced - evidence_ids:
-        issues.append(AuditIssue(code="untraceable_report_evidence", field_path="consensus", retryable=True))
-    unique = tuple({(item.code, item.field_path): item for item in issues}.values())
-    if unique:
-        return AuditResult(verdict="fail", issues=unique)
-    return model_audit
+        fatal_issues.append(AuditIssue(code="untraceable_report_evidence", field_path="consensus", retryable=True))
+
+    narrative_fields = {
+        "report_draft.summary",
+        "report_draft.who_should_buy",
+        "report_draft.who_should_avoid",
+        "report_draft.limitations",
+        "report_draft.longest_usage_period",
+        "report_draft.longest_usage_source_id",
+        "report_draft.product_canonical_name",
+        "report_draft.product_display_name",
+    }
+    valid_pro_indices = {
+        i for i, item in enumerate(draft.consensus_pros)
+        if item.evidence_node_ids and set(str(eid) for eid in item.evidence_node_ids) <= evidence_ids
+    }
+    valid_con_indices = {
+        i for i, item in enumerate(draft.consensus_cons)
+        if item.evidence_node_ids and set(str(eid) for eid in item.evidence_node_ids) <= evidence_ids
+    }
+
+    filtered_model_issues: list[AuditIssue] = []
+    for issue in model_audit.issues:
+        if issue.code == "missing_central_evidence":
+            if any(issue.field_path.startswith(prefix) for prefix in narrative_fields):
+                continue
+            if issue.field_path.startswith("report_draft.disagreements"):
+                continue
+            pro_match = re.search(r"consensus_pros\[(\d+)\]", issue.field_path)
+            if pro_match and int(pro_match.group(1)) in valid_pro_indices:
+                continue
+            con_match = re.search(r"consensus_cons\[(\d+)\]", issue.field_path)
+            if con_match and int(con_match.group(1)) in valid_con_indices:
+                continue
+        filtered_model_issues.append(issue)
+
+    all_issues = tuple({(item.code, item.field_path): item for item in (*fatal_issues, *filtered_model_issues)}.values())
+    if fatal_issues:
+        return AuditResult(verdict="fail", issues=all_issues)
+    if not all_issues:
+        return AuditResult(verdict="pass", issues=())
+    if model_audit.verdict == "pass_with_warnings":
+        return AuditResult(verdict="pass_with_warnings", issues=all_issues)
+    return AuditResult(verdict="fail", issues=all_issues)
 
 
 async def _execute_agent(
