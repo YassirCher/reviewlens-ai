@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     openrouter_management_key: str = ""
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     openrouter_catalog_refresh_minutes: int = Field(default=15, ge=1, le=1440)
-    openrouter_request_timeout_seconds: int = Field(default=120, ge=1, le=600)
+    openrouter_request_timeout_seconds: int = Field(default=300, ge=1, le=600)
     openrouter_connect_timeout_seconds: float = Field(default=10, gt=0, le=60)
     openrouter_write_timeout_seconds: float = Field(default=30, gt=0, le=120)
     openrouter_pool_timeout_seconds: float = Field(default=10, gt=0, le=60)
@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     # Initial seed model. Published policies and active pointers own routing.
     v2_agent_chat_models: str = "deepseek/deepseek-v4-flash"
     v2_agent_max_concurrency: int = Field(default=4, ge=1, le=32)
-    v2_analysis_run_timeout_seconds: int = Field(default=900, ge=60, le=3600)
+    v2_analysis_run_timeout_seconds: int = Field(default=1800, ge=60, le=3600)
 
     app_env: str = "development"
     app_public_url: str = "http://localhost:3000"
@@ -76,12 +76,12 @@ class Settings(BaseSettings):
     celery_broker_url: str = ""
     celery_result_backend: str = ""
     celery_worker_concurrency: int = Field(default=4, ge=1, le=64)
-    celery_visibility_timeout_seconds: int = Field(default=1200, ge=60, le=86400)
+    celery_visibility_timeout_seconds: int = Field(default=2400, ge=60, le=86400)
     run_event_stream_ttl_hours: int = Field(default=24, ge=1, le=720)
     run_event_stream_max_length: int = Field(default=2000, ge=100, le=100000)
     runtime_outbox_batch_size: int = Field(default=50, ge=1, le=1000)
     runtime_outbox_lease_seconds: int = Field(default=60, ge=10, le=900)
-    runtime_task_lease_seconds: int = Field(default=240, ge=30, le=1800)
+    runtime_task_lease_seconds: int = Field(default=480, ge=30, le=1800)
     runtime_recovery_interval_seconds: int = Field(default=30, ge=5, le=600)
     runtime_dispatch_lock_seconds: int = Field(default=30, ge=5, le=300)
 

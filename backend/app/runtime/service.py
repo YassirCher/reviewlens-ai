@@ -794,6 +794,15 @@ def execute_task_run(
     except RuntimeTaskError as exc:
         return _complete_attempt_failure(task_id, attempt_id, exc, config=config)
     except Exception as exc:
+        if type(exc).__name__ == "SoftTimeLimitExceeded":
+            logger.warning(
+                "Runtime task soft time limit exceeded run_id=%s task_id=%s attempt_id=%s",
+                run_id,
+                task_id,
+                attempt_id,
+            )
+            timeout_err = RuntimeTaskError("task_soft_time_limit", category="timeout", retryable=True)
+            return _complete_attempt_failure(task_id, attempt_id, timeout_err, config=config)
         logger.error(
             "Runtime executor failed run_id=%s task_id=%s exception_type=%s error=%s",
             run_id,

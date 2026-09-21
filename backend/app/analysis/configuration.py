@@ -356,6 +356,7 @@ def _default_workflow(
         dependency_mode: str = "all_succeeded",
         minimum_successes: int = 0,
         input_payload: dict[str, Any] | None = None,
+        timeout_seconds: int = 300,
     ) -> WorkflowTaskTemplate:
         return WorkflowTaskTemplate(
             template_key=template_key,
@@ -365,7 +366,7 @@ def _default_workflow(
             dependencies=dependencies,
             input=input_payload or {},
             retry=agent_retry,
-            timeout_seconds=180,
+            timeout_seconds=timeout_seconds,
             agent_version_id=agents[role].id,
             fanout=fanout,
             conditional=conditional,
@@ -381,7 +382,7 @@ def _default_workflow(
             retry=RetryPolicy(max_attempts=1),
             timeout_seconds=30,
         ),
-        agent_task("plan_research", "plan_research", "research_coordinator", ("validate_request",)),
+        agent_task("plan_research", "plan_research", "research_coordinator", ("validate_request",), timeout_seconds=180),
         WorkflowTaskTemplate(
             template_key="discover_candidates",
             task_key="discover_candidates",
@@ -396,7 +397,7 @@ def _default_workflow(
                 tools["graph.create_edges"].id,
             ),
         ),
-        agent_task("curate_sources", "curate_sources", "source_curator", ("discover_candidates",)),
+        agent_task("curate_sources", "curate_sources", "source_curator", ("discover_candidates",), timeout_seconds=300),
         WorkflowTaskTemplate(
             template_key="fetch_transcript",
             task_key="fetch_transcript.source_{index}",
@@ -435,6 +436,7 @@ def _default_workflow(
             fanout="source_slots",
             dependency_mode="all_terminal_min_success",
             minimum_successes=1,
+            timeout_seconds=300,
         ),
         agent_task(
             "analyze_audience",
@@ -445,6 +447,7 @@ def _default_workflow(
             conditional="comments_enabled",
             dependency_mode="all_terminal_min_success",
             minimum_successes=1,
+            timeout_seconds=240,
         ),
         agent_task(
             "curate_knowledge",
@@ -453,15 +456,17 @@ def _default_workflow(
             ("analyze_review", "analyze_audience"),
             dependency_mode="all_terminal_min_success",
             minimum_successes=1,
+            timeout_seconds=300,
         ),
-        agent_task("build_consensus", "build_consensus", "consensus_analyst", ("curate_knowledge",)),
-        agent_task("audit_report", "audit_report", "quality_auditor", ("build_consensus",)),
+        agent_task("build_consensus", "build_consensus", "consensus_analyst", ("curate_knowledge",), timeout_seconds=420),
+        agent_task("audit_report", "audit_report", "quality_auditor", ("build_consensus",), timeout_seconds=300),
         agent_task(
             "correct_consensus",
             "correct_consensus",
             "consensus_analyst",
             ("audit_report",),
             input_payload={"correction_stage": True},
+            timeout_seconds=420,
         ),
         agent_task(
             "reaudit_report",
@@ -469,6 +474,7 @@ def _default_workflow(
             "quality_auditor",
             ("correct_consensus",),
             input_payload={"reaudit_stage": True},
+            timeout_seconds=300,
         ),
         WorkflowTaskTemplate(
             template_key="publish_report",
@@ -521,7 +527,7 @@ def _workflow(
         version_number=_next_version(db, WorkflowVersion, definition.id),
         lifecycle="published",
         content_hash=content_hash,
-        change_note="Phase 6 initial bounded multi-agent workflow",
+        change_note="Phase 6 bounded multi-agent workflow with extended consensus timeouts",
         published_at=datetime.now(timezone.utc),
         dag=payload,
     )

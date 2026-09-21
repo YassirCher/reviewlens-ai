@@ -243,7 +243,7 @@ class WorkflowTaskTemplate(StrictModel):
 
 class WorkflowDag(StrictModel):
     schema_version: Literal[1, 2] = 1
-    run_timeout_seconds: int = Field(default=900, ge=1, le=3600)
+    run_timeout_seconds: int = Field(default=1800, ge=1, le=3600)
     tasks: tuple[WorkflowTaskSpec, ...] = Field(default=(), max_length=200)
     templates: tuple[WorkflowTaskTemplate, ...] = Field(default=(), max_length=40)
 
