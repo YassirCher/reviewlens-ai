@@ -6,6 +6,46 @@
   min-height:100vh; background:var(--v2-bg); color:var(--v2-text);
   font-family:Geist,"Segoe UI",system-ui,sans-serif; font-size:16px; line-height:1.5;
 }
+[data-theme="light"] .v2,
+:root[data-theme="light"] {
+  --v2-bg: #F8FAFC;
+  --v2-s1: #FFFFFF;
+  --v2-s2: #F1F5F9;
+  --v2-s3: #E2E8F0;
+  --v2-border: #CBD5E1;
+  --v2-border-strong: #94A3B8;
+  --v2-text: #0F172A;
+  --v2-muted: #475569;
+  --v2-subtle: #526173;
+  --v2-primary: #6D28D9;
+  --v2-teal: #0F766E;
+  --v2-blue: #1D4ED8;
+  --v2-amber: #B45309;
+  --v2-rose: #BE123C;
+}
+.v2-theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--v2-s2);
+  border: 1px solid var(--v2-border-strong);
+  color: var(--v2-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex: none;
+}
+.v2-theme-toggle:hover {
+  background: var(--v2-s3);
+  color: var(--v2-text);
+  border-color: var(--v2-primary);
+  transform: translateY(-1px);
+}
+[data-theme="light"] .v2-button {
+  color: #FFFFFF !important;
+}
 .v2 *{box-sizing:border-box}
 .v2 a{color:inherit;text-decoration:none}
 .v2 button,.v2 input,.v2 select{font:inherit}

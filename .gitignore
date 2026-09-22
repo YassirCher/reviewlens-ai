@@ -22,4 +22,5 @@ playwright-report/
 *.tsbuildinfo
 context/
 .DS_Store
+ui-enhancement/
 

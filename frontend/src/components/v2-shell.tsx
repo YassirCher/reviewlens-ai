@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Aperture, ArrowUpRight, Clock, LogIn, LogOut, User as UserIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { useUserAuth } from "./v2-auth-context";
+import { V2ThemeToggle } from "./v2-theme-toggle";
 
 export function V2Shell({ children, section = "Product research" }: { children: ReactNode; section?: string }) {
   const { user, loading, openAuthModal, logout } = useUserAuth();
@@ -55,6 +56,8 @@ export function V2Shell({ children, section = "Product research" }: { children: 
                 <span>Sign in</span>
               </button>
             ) : null}
+
+            <V2ThemeToggle />
 
             <Link className="v2-admin-link" href="/admin/login" title="Admin control plane">
               <LogIn size={14} aria-hidden="true" />

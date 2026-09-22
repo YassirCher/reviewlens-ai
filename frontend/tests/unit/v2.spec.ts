@@ -67,3 +67,26 @@ test("core graphite text and action colors meet WCAG AA contrast", () => {
   }
   expect(contrast(token("bg"), token("primary")), "button label on primary").toBeGreaterThanOrEqual(4.5);
 });
+
+test("light mode text and action colors meet WCAG AA contrast", () => {
+  const css = readFileSync("src/app/v2.css", "utf8");
+  const token = (name: string) => {
+    const matches = Array.from(css.matchAll(new RegExp(`--v2-${name}:\\s*(#[0-9A-Fa-f]{6})`, "g")));
+    expect(matches.length, `missing light ${name} token`).toBeGreaterThanOrEqual(2);
+    return matches[1][1];
+  };
+  const luminance = (hex: string) => {
+    const channels = [1, 3, 5].map(index => parseInt(hex.slice(index, index + 2), 16) / 255)
+      .map(value => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+    return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+  };
+  const contrast = (a: string, b: string) => {
+    const values = [luminance(a), luminance(b)].sort((x, y) => y - x);
+    return (values[0] + 0.05) / (values[1] + 0.05);
+  };
+  for (const foreground of ["text", "muted", "subtle", "primary", "teal", "rose"]) {
+    expect(contrast(token(foreground), token("s2")), `light ${foreground} on s2`).toBeGreaterThanOrEqual(4.5);
+  }
+  expect(contrast("#FFFFFF", token("primary")), "white button label on light primary").toBeGreaterThanOrEqual(4.5);
+});
+
