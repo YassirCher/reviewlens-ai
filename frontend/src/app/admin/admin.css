@@ -80,11 +80,15 @@
   text-decoration: none;
 }
 
+.admin-brand span {
+  color: var(--admin-text);
+}
+
 .admin-brand small {
   display: block;
   font: 650 10px var(--v2-mono, monospace);
   letter-spacing: 0.15em;
-  color: var(--admin-subtle);
+  color: var(--admin-muted);
   margin-top: 2px;
 }
 
@@ -349,7 +353,8 @@
 }
 
 .admin-card h2,
-.admin-panel h2 {
+.admin-panel h2,
+.admin-alerts h2 {
   font-size: 18px;
   letter-spacing: -0.025em;
   margin: 0 0 15px;

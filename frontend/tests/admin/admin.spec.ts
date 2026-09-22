@@ -230,11 +230,20 @@ async function confirm(page: Page, label: string, phrase: string) {
   await expect(dialog).toBeHidden();
 }
 
-test("admin overview has no serious automated accessibility violations", async ({ page }) => {
+test("admin overview has no serious automated accessibility violations in light or dark mode", async ({ page }) => {
   await mockAdmin(page);
   await signIn(page);
-  const results = await new AxeBuilder({ page }).analyze();
-  expect(results.violations.filter(item => ["serious", "critical"].includes(item.impact || ""))).toEqual([]);
+  for (const theme of ["dark", "light"] as const) {
+    await page.evaluate(t => {
+      document.documentElement.setAttribute("data-theme", t);
+      document.documentElement.style.colorScheme = t;
+      localStorage.setItem("reviewlens-theme", t);
+    }, theme);
+    await page.waitForTimeout(100);
+
+    const results = await new AxeBuilder({ page }).analyze();
+    expect(results.violations.filter(item => ["serious", "critical"].includes(item.impact || ""))).toEqual([]);
+  }
 });
 
 test("protected login, navigation, keyboard, and responsive layouts", async ({ page, context }) => {

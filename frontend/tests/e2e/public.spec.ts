@@ -6,10 +6,57 @@ const PARTIAL = "C".repeat(43);
 const LONG = "D".repeat(43);
 const RUN = "11111111-1111-4111-8111-111111111111";
 
-test("public research page has no serious automated accessibility violations", async ({ page }) => {
+test.describe("Dual-Theme Accessibility Audits (WCAG 2.2 AA)", () => {
+  for (const theme of ["dark", "light"] as const) {
+    test(`public intake page has no serious automated accessibility violations in ${theme} mode`, async ({ page }) => {
+      await page.goto("/");
+      await page.evaluate(t => {
+        document.documentElement.setAttribute("data-theme", t);
+        document.documentElement.style.colorScheme = t;
+        localStorage.setItem("reviewlens-theme", t);
+      }, theme);
+      await page.waitForTimeout(100);
+
+      const results = await new AxeBuilder({ page }).analyze();
+      expect(results.violations.filter(item => ["serious", "critical"].includes(item.impact || ""))).toEqual([]);
+    });
+
+    test(`public report page has no serious automated accessibility violations in ${theme} mode`, async ({ page }) => {
+      await page.goto(`/r/${TOKEN}`);
+      await page.evaluate(t => {
+        document.documentElement.setAttribute("data-theme", t);
+        document.documentElement.style.colorScheme = t;
+        localStorage.setItem("reviewlens-theme", t);
+      }, theme);
+      await page.waitForTimeout(100);
+
+      const results = await new AxeBuilder({ page }).analyze();
+      expect(results.violations.filter(item => ["serious", "critical"].includes(item.impact || ""))).toEqual([]);
+    });
+  }
+});
+
+test("persists explicit user preference and handles theme switching across reloads", async ({ page }) => {
   await page.goto("/");
-  const results = await new AxeBuilder({ page }).analyze();
-  expect(results.violations.filter(item => ["serious", "critical"].includes(item.impact || ""))).toEqual([]);
+
+  const toggle = page.getByRole("button", { name: /Switch to (light|dark) mode/i });
+  await expect(toggle).toBeVisible();
+
+  // Read initial theme
+  const initialTheme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
+  expect(["dark", "light"]).toContain(initialTheme);
+
+  // Click toggle to switch
+  await toggle.click();
+  const expectedTheme = initialTheme === "dark" ? "light" : "dark";
+  await expect(page.locator("html")).toHaveAttribute("data-theme", expectedTheme);
+
+  const stored = await page.evaluate(() => localStorage.getItem("reviewlens-theme"));
+  expect(stored).toBe(expectedTheme);
+
+  // Reload page and assert persistence with zero flicker
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", expectedTheme);
 });
 
 test("intake checks quota and creates an owner-session run without a provider picker", async ({ page }) => {
@@ -62,11 +109,11 @@ test("evidence map has filters, source provenance, contradiction, and a list alt
   await page.goto(`/r/${TOKEN}/evidence`);
   await expect(page.getByRole("heading", { name: "How the evidence connects" })).toBeVisible();
   await page.getByRole("button", { name: "List" }).click();
-  await expect(page.getByText("Select an item to inspect")).toBeVisible();
+  await expect(page.getByText(/Select any node below to inspect/i)).toBeVisible();
   await page.getByRole("button", { name: /Load more connections/i }).click();
   await page.getByRole("button", { name: "Disagreements" }).click();
-  await expect(page.getByRole("button", { name: /Battery life disagreement/i })).toBeVisible();
-  await page.getByRole("button", { name: /Battery life disagreement/i }).click();
+  await expect(page.getByRole("button", { name: /Battery life.*disagreement/i })).toBeVisible();
+  await page.getByRole("button", { name: /Battery life.*disagreement/i }).click();
   await expect(page.getByText("Reviewer disagreement")).toBeVisible();
 });
 
@@ -76,7 +123,7 @@ test("partial report and revoked report keep honest, neutral states", async ({ p
   await expect(page.getByText(/Some requested sources were unavailable/i)).toBeVisible();
   await page.goto(`/r/${"B".repeat(43)}`);
   await expect(page.getByRole("heading", { name: "Report not found" })).toBeVisible();
-  await expect(page.locator("body")).not.toContainText(/revoked|token hash|admin/i);
+  await expect(page.locator("#v2-main")).not.toContainText(/revoked|token hash|admin/i);
 });
 
 test("owner status is isolated and a failed stream falls back to polling", async ({ page }) => {

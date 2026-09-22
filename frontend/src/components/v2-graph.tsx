@@ -101,7 +101,7 @@ function getNodeDetail(report: Report, node: GraphNode, isLight = false): NodeDe
     return {
       title: report.product_name,
       category: "TARGET PRODUCT",
-      badgeColor: isLight ? "#6D28D9" : "#8B5CF6",
+      badgeColor: isLight ? "#6D28D9" : "#A78BFA",
       description: report.summary,
       metrics: [
         { label: "Overall Score", value: `${report.overall_score}/100` },
@@ -117,7 +117,7 @@ function getNodeDetail(report: Report, node: GraphNode, isLight = false): NodeDe
     return {
       title: source?.title || node.label,
       category: "YOUTUBE REVIEW",
-      badgeColor: isLight ? "#1D4ED8" : "#3B82F6",
+      badgeColor: isLight ? "#1D4ED8" : "#60A5FA",
       sourceChannel: source?.channel,
       videoId: source?.video_id,
       description: source?.recommendation_summary || "Source review contributing to cross-evidence synthesis.",
