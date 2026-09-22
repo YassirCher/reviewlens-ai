@@ -345,6 +345,13 @@ def _analysis_config_seed() -> int:
     from app.db.session import session_scope
 
     try:
+        if settings.openrouter_api_key:
+            try:
+                from app.llmops.catalog import refresh_catalogs
+
+                asyncio.run(refresh_catalogs(manual=False))
+            except Exception as refresh_exc:
+                print(f"Catalog refresh pre-seed note: {refresh_exc}", file=sys.stderr)
         with session_scope() as db:
             result = seed_analysis_configuration(db)
     except Exception as exc:
