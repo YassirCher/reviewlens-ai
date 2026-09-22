@@ -3,11 +3,14 @@
 import { useMemo } from "react";
 import { ReactFlow, Background, Controls, MiniMap, type Edge, type Node } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import { useTheme } from "@/components/v2-theme-provider";
 
 type GraphItem = { id: string; label: string; kind: string };
 type GraphLink = { source: string; target: string; label: string };
 
 export function AdminGraph({ items, links, title, onSelect }: { items: GraphItem[]; links: GraphLink[]; title: string; onSelect?: (id: string) => void }) {
+  const { resolvedTheme } = useTheme();
+  const isLight = resolvedTheme === "light";
   const graph = useMemo(() => {
     const nodes: Node[] = items.slice(0, 100).map((item, index) => ({ id: item.id,
       position: { x: (index % 5) * 230, y: Math.floor(index / 5) * 115 },
@@ -16,11 +19,18 @@ export function AdminGraph({ items, links, title, onSelect }: { items: GraphItem
     }));
     const ids = new Set(nodes.map(node => node.id));
     const edges: Edge[] = links.filter(item => ids.has(item.source) && ids.has(item.target)).slice(0, 200)
-      .map((item, index) => ({ id: `edge-${index}`, source: item.source, target: item.target,
-        label: item.label, style: { stroke: "#64748b" }, labelStyle: { fill: "#aab4c3" } }));
+      .map((item, index) => ({
+        id: `edge-${index}`,
+        source: item.source,
+        target: item.target,
+        label: item.label,
+        style: { stroke: isLight ? "#94A3B8" : "#64748b" },
+        labelStyle: { fill: isLight ? "#475569" : "#aab4c3" },
+      }));
     return { nodes, edges };
-  }, [items, links]);
-  return <div><div className="admin-graph" role="region" aria-label={title + " canvas"}><ReactFlow nodes={graph.nodes} edges={graph.edges} fitView nodesDraggable={false} nodesConnectable={false} nodesFocusable={false} edgesFocusable={false} elementsSelectable={false} zoomOnDoubleClick={false} minZoom={0.25} maxZoom={1.5}><Background color="#2a3342" /><MiniMap pannable /><Controls showInteractive={false} /></ReactFlow></div><details className="admin-graph-alt"><summary>Readable {title} list ({items.length} nodes, {links.length} relations)</summary><ul className="admin-list">{items.map(item => <li key={item.id}><div><strong>{item.label}</strong><br /><span className="admin-muted">{item.kind} · {item.id}</span></div>{onSelect && <button className="admin-secondary" onClick={() => onSelect(item.id)}>Inspect</button>}</li>)}</ul><h3>Relations</h3><ul>{links.map((link, index) => <li key={index}>{link.source} → {link.target} ({link.label})</li>)}</ul></details></div>;
+  }, [items, links, isLight]);
+
+  return <div><div className="admin-graph" role="region" aria-label={title + " canvas"}><ReactFlow nodes={graph.nodes} edges={graph.edges} fitView nodesDraggable={false} nodesConnectable={false} nodesFocusable={false} edgesFocusable={false} elementsSelectable={false} zoomOnDoubleClick={false} minZoom={0.25} maxZoom={1.5}><Background color={isLight ? "#E2E8F0" : "#2a3342"} /><MiniMap pannable /><Controls showInteractive={false} /></ReactFlow></div><details className="admin-graph-alt"><summary>Readable {title} list ({items.length} nodes, {links.length} relations)</summary><ul className="admin-list">{items.map(item => <li key={item.id}><div><strong>{item.label}</strong><br /><span className="admin-muted">{item.kind} · {item.id}</span></div>{onSelect && <button className="admin-secondary" onClick={() => onSelect(item.id)}>Inspect</button>}</li>)}</ul><h3>Relations</h3><ul>{links.map((link, index) => <li key={index}>{link.source} → {link.target} ({link.label})</li>)}</ul></details></div>;
 }
 
 export function WorkflowGraph({ dag }: { dag: Record<string, unknown> }) {

@@ -7,6 +7,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { Activity, BookOpen, Bot, ChartNoAxesCombined, Command, GitBranch, LayoutDashboard, LogOut, Menu, Network, ScrollText, Settings, Wrench, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { adminGet, adminRequest, clearAdminCsrf, type AdminSession } from "@/lib/admin";
+import { V2ThemeToggle } from "@/components/v2-theme-toggle";
 
 const nav = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
@@ -49,7 +50,18 @@ export function AdminShell({ children }: { children: ReactNode }) {
       <div className="admin-sidebar-bottom"><span title={session?.admin.email}>{session?.admin.email}</span><button onClick={logout}><LogOut size={16} aria-hidden="true" /> Sign out</button></div>
     </aside>
     <div className="admin-main-column">
-      <header className="admin-topbar"><button className="admin-mobile-menu" aria-label="Open navigation" onClick={() => setMenu(!menu)}><Menu size={19} /></button><span>Admin / {nav.find(item => item.href !== "/admin" && path.startsWith(item.href))?.label || "Overview"}</span><button className="admin-command" onClick={() => setPalette(true)}><Command size={15} aria-hidden="true" /> Search sections <kbd>⌘ K</kbd></button></header>
+      <header className="admin-topbar">
+        <button className="admin-mobile-menu" aria-label="Open navigation" onClick={() => setMenu(!menu)}>
+          <Menu size={19} />
+        </button>
+        <span>Admin / {nav.find(item => item.href !== "/admin" && path.startsWith(item.href))?.label || "Overview"}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button className="admin-command" onClick={() => setPalette(true)}>
+            <Command size={15} aria-hidden="true" /> Search sections <kbd>⌘ K</kbd>
+          </button>
+          <V2ThemeToggle />
+        </div>
+      </header>
       <main id="admin-main" className="admin-content">{children}</main>
     </div>
     <Dialog.Root open={palette} onOpenChange={setPalette}><Dialog.Portal><Dialog.Overlay className="admin-dialog-overlay" /><Dialog.Content className="admin-dialog admin-palette"><Dialog.Title>Go to section</Dialog.Title><Dialog.Description>Choose an admin section.</Dialog.Description><div className="admin-palette-list">{nav.map(item => <Link key={item.href} href={item.href} onClick={() => setPalette(false)}><item.icon size={17} aria-hidden="true" />{item.label}</Link>)}</div><Dialog.Close className="admin-dialog-close" aria-label="Close"><X size={18} /></Dialog.Close></Dialog.Content></Dialog.Portal></Dialog.Root>

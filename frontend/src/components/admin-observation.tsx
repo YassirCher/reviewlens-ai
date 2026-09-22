@@ -10,6 +10,7 @@ import { adminPost, dateTime, downloadAdminCsv, money, type AdminRun, type Page 
 import { AdminHeading, AdminState, ConfirmAction, DataTable, Status, useAdminData } from "@/components/admin-ui";
 import { WorkflowGraph } from "@/components/admin-graph";
 import { CutoverEvidence, type CutoverObservation } from "@/components/admin-cutover";
+import { useTheme } from "@/components/v2-theme-provider";
 
 type OperationalAlert = {
   severity: "critical" | "warning";
@@ -33,11 +34,22 @@ type Overview = {
 };
 
 export function AdminOverview() {
+  const { resolvedTheme } = useTheme();
+  const isLight = resolvedTheme === "light";
   const { data, loading, error, reload } = useAdminData<Overview>("/overview");
   const chart = data?.hourly.map(row => ({
     time: new Date(row.bucket_start).toLocaleTimeString([], { hour: "2-digit" }),
     cost: row.total_cost_microusd / 1_000_000,
   })) || [];
+
+  const chartGridStroke = isLight ? "#E2E8F0" : "#2A3342";
+  const chartAxisStroke = isLight ? "#64748B" : "#AAB4C3";
+  const chartTooltipStyle = isLight
+    ? { background: "#FFFFFF", border: "1px solid #CBD5E1", color: "#0F172A", borderRadius: 8, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }
+    : { background: "#151A23", border: "1px solid #3A4659", color: "#F4F7FB", borderRadius: 8 };
+  const areaStroke = isLight ? "#7C3AED" : "#8B7CF6";
+  const areaFill = isLight ? "rgba(124, 58, 237, 0.12)" : "#8B7CF633";
+
   return <>
     <AdminHeading eyebrow="OPERATIONS / 24 HOURS" title="System overview" description="Local run activity and ledger cost, with OpenRouter credit shown separately." actions={<button className="admin-secondary" onClick={() => void reload()}><RefreshCw size={15} /> Refresh</button>} />
     <AdminState loading={loading} error={error}>
@@ -59,7 +71,7 @@ export function AdminOverview() {
       </section> : data && <div className="admin-banner admin-banner-good" role="status">No operational alerts are active.</div>}
       {data?.cutover && <CutoverEvidence observation={data.cutover} />}
       <div className="admin-two-col">
-        <section className="admin-panel"><div className="admin-panel-head"><h2>Hourly local cost</h2><span className="admin-muted">Last reconciliation {dateTime(data?.aggregates_refreshed_at)}</span></div>{chart.length ? <div style={{ width: "100%", height: 250 }} role="img" aria-label="Hourly local cost chart; data also available in Analytics"><ResponsiveContainer><AreaChart data={chart}><CartesianGrid stroke="#2a3342" strokeDasharray="3 3" /><XAxis dataKey="time" stroke="#aab4c3" fontSize={11} /><YAxis stroke="#aab4c3" fontSize={11} /><Tooltip contentStyle={{ background: "#151a23", border: "1px solid #3a4659" }} /><Area dataKey="cost" stroke="#8b7cf6" fill="#8b7cf633" /></AreaChart></ResponsiveContainer></div> : <p className="admin-muted">No usage has been aggregated yet.</p>}</section>
+        <section className="admin-panel"><div className="admin-panel-head"><h2>Hourly local cost</h2><span className="admin-muted">Last reconciliation {dateTime(data?.aggregates_refreshed_at)}</span></div>{chart.length ? <div style={{ width: "100%", height: 250 }} role="img" aria-label="Hourly local cost chart; data also available in Analytics"><ResponsiveContainer><AreaChart data={chart}><CartesianGrid stroke={chartGridStroke} strokeDasharray="3 3" /><XAxis dataKey="time" stroke={chartAxisStroke} fontSize={11} /><YAxis stroke={chartAxisStroke} fontSize={11} /><Tooltip contentStyle={chartTooltipStyle} /><Area dataKey="cost" stroke={areaStroke} fill={areaFill} /></AreaChart></ResponsiveContainer></div> : <p className="admin-muted">No usage has been aggregated yet.</p>}</section>
         <section className="admin-panel"><h2>Go to</h2><ul className="admin-list"><li><Link href="/admin/runs">Inspect run traces →</Link></li><li><Link href="/admin/agents">Review agent drafts →</Link></li><li><Link href="/admin/models">Browse model routes →</Link></li><li><Link href="/admin/settings">Manage budgets and kill switch →</Link></li></ul></section>
       </div>
     </AdminState>
@@ -94,6 +106,8 @@ export function AdminRunDetail({ id }: { id: string }) {
 
 type AnalyticsRow = { bucket_start: string; dimension_key: string; request_count: number; error_count: number; total_tokens: number; total_cost_microusd: number };
 export function AdminAnalytics() {
+  const { resolvedTheme } = useTheme();
+  const isLight = resolvedTheme === "light";
   const search = useSearchParams(); const router = useRouter();
   const granularity = search.get("granularity") || "day"; const dimension = search.get("dimension") || "all";
   const dimensionKey = search.get("dimension_key") || ""; const start = search.get("start") || ""; const end = search.get("end") || "";
@@ -105,11 +119,20 @@ export function AdminAnalytics() {
   function update(name: string, value: string) { const next = new URLSearchParams(search.toString()); next.set(name, value); router.replace(`/admin/analytics?${next}`); }
   function updateDate(name: string, value: string) { const next = new URLSearchParams(search.toString()); if (value) next.set(name, `${value}T00:00:00Z`); else next.delete(name); router.replace(`/admin/analytics?${next}`); }
   const chart = [...(data?.items || [])].reverse().map(item => ({ name: new Date(item.bucket_start).toLocaleDateString(), cost: item.total_cost_microusd / 1_000_000 }));
+
+  const chartGridStroke = isLight ? "#E2E8F0" : "#2A3342";
+  const chartAxisStroke = isLight ? "#64748B" : "#AAB4C3";
+  const chartTooltipStyle = isLight
+    ? { background: "#FFFFFF", border: "1px solid #CBD5E1", color: "#0F172A", borderRadius: 8, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }
+    : { background: "#151A23", border: "1px solid #3A4659", color: "#F4F7FB", borderRadius: 8 };
+  const areaStroke = isLight ? "#0D9488" : "#35D0BA";
+  const areaFill = isLight ? "rgba(13, 148, 136, 0.12)" : "#35D0BA22";
+
   const columns: ColumnDef<AnalyticsRow, unknown>[] = [
     { accessorKey: "bucket_start", header: "Bucket", cell: context => dateTime(context.row.original.bucket_start) },
     { accessorKey: "dimension_key", header: "Key" }, { accessorKey: "request_count", header: "Calls" },
     { accessorKey: "error_count", header: "Errors" }, { accessorKey: "total_tokens", header: "Tokens" },
     { accessorKey: "total_cost_microusd", header: "Local cost", cell: context => money(context.row.original.total_cost_microusd) },
   ];
-  return <><AdminHeading eyebrow="INTELLIGENCE / ANALYTICS" title="Usage analytics" description="Hourly and daily projections reconciled from the local usage ledger." actions={<button className="admin-secondary" onClick={() => { downloadAdminCsv(`/analytics/export.csv?${exportParams}`, "reviewlens-analytics.csv").catch(value => setMessage(value.message)); }}><Download size={16} /> Export CSV</button>} /><section className="admin-panel"><div className="admin-filter"><label>Interval<select value={granularity} onChange={event => update("granularity", event.target.value)}><option value="day">Daily</option><option value="hour">Hourly</option></select></label><label>Group by<select value={dimension} onChange={event => update("dimension", event.target.value)}>{["all", "model", "provider", "agent", "operation", "initiator"].map(item => <option key={item}>{item}</option>)}</select></label><label>Exact key<input value={dimensionKey} onChange={event => update("dimension_key", event.target.value)} placeholder="Optional dimension key" /></label><label>From (UTC)<input type="date" value={start.slice(0, 10)} onChange={event => updateDate("start", event.target.value)} /></label><label>To (UTC)<input type="date" value={end.slice(0, 10)} onChange={event => updateDate("end", event.target.value)} /></label></div>{message && <div role="alert" className="admin-banner admin-banner-error">{message}</div>}<AdminState loading={loading} error={error} empty={data?.items.length === 0}>{chart.length > 0 && <div style={{ width: "100%", height: 240 }} role="img" aria-label="Local cost over time; exact figures follow in the table"><ResponsiveContainer><AreaChart data={chart}><CartesianGrid stroke="#2a3342" strokeDasharray="3 3" /><XAxis dataKey="name" stroke="#aab4c3" fontSize={11} /><YAxis stroke="#aab4c3" fontSize={11} /><Tooltip contentStyle={{ background: "#151a23", border: "1px solid #3a4659" }} /><Area dataKey="cost" stroke="#35d0ba" fill="#35d0ba22" /></AreaChart></ResponsiveContainer></div>}<DataTable data={data?.items || []} columns={columns} caption="Usage analytics" /></AdminState></section></>;
+  return <><AdminHeading eyebrow="INTELLIGENCE / ANALYTICS" title="Usage analytics" description="Hourly and daily projections reconciled from the local usage ledger." actions={<button className="admin-secondary" onClick={() => { downloadAdminCsv(`/analytics/export.csv?${exportParams}`, "reviewlens-analytics.csv").catch(value => setMessage(value.message)); }}><Download size={16} /> Export CSV</button>} /><section className="admin-panel"><div className="admin-filter"><label>Interval<select value={granularity} onChange={event => update("granularity", event.target.value)}><option value="day">Daily</option><option value="hour">Hourly</option></select></label><label>Group by<select value={dimension} onChange={event => update("dimension", event.target.value)}>{["all", "model", "provider", "agent", "operation", "initiator"].map(item => <option key={item}>{item}</option>)}</select></label><label>Exact key<input value={dimensionKey} onChange={event => update("dimension_key", event.target.value)} placeholder="Optional dimension key" /></label><label>From (UTC)<input type="date" value={start.slice(0, 10)} onChange={event => updateDate("start", event.target.value)} /></label><label>To (UTC)<input type="date" value={end.slice(0, 10)} onChange={event => updateDate("end", event.target.value)} /></label></div>{message && <div role="alert" className="admin-banner admin-banner-error">{message}</div>}<AdminState loading={loading} error={error} empty={data?.items.length === 0}>{chart.length > 0 && <div style={{ width: "100%", height: 240 }} role="img" aria-label="Local cost over time; exact figures follow in the table"><ResponsiveContainer><AreaChart data={chart}><CartesianGrid stroke={chartGridStroke} strokeDasharray="3 3" /><XAxis dataKey="name" stroke={chartAxisStroke} fontSize={11} /><YAxis stroke={chartAxisStroke} fontSize={11} /><Tooltip contentStyle={chartTooltipStyle} /><Area dataKey="cost" stroke={areaStroke} fill={areaFill} /></AreaChart></ResponsiveContainer></div>}<DataTable data={data?.items || []} columns={columns} caption="Usage analytics" /></AdminState></section></>;
 }
