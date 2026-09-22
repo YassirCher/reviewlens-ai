@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowRight,
-  CheckCircle2,
   ChevronRight,
   ExternalLink,
   GitBranch,
@@ -525,7 +524,7 @@ export function V2Graph({ report, token, full = false }: { report: Report; token
                   >
                     <defs>
                       <pattern id="graph-grid" width="28" height="28" patternUnits="userSpaceOnUse">
-                        <circle cx="2" cy="2" r="1.2" fill="rgba(255,255,255,0.07)" />
+                        <circle cx="2" cy="2" r="1.2" fill="var(--v2-border-strong)" opacity="0.35" />
                       </pattern>
                       <filter id="edge-glow" x="-20%" y="-20%" width="140%" height="140%">
                         <feGaussianBlur stdDeviation="2.5" result="blur" />
