@@ -347,6 +347,31 @@
   background: rgba(109, 40, 217, 0.08);
   border-color: rgba(109, 40, 217, 0.22);
 }
+[data-theme="light"] .v2-button-secondary:not(:disabled):hover {
+  background: #CBD5E1;
+  border-color: var(--v2-primary);
+}
+[data-theme="light"] .v2-button-danger:not(:disabled):hover {
+  background: rgba(190, 18, 60, 0.08);
+}
+[data-theme="light"] .v2-alert-error {
+  background: #FFF1F2;
+  border-color: #FECDD3;
+  color: #9F1239;
+}
+[data-theme="light"] .v2-alert-warning {
+  background: #FFFBEB;
+  border-color: #FDE68A;
+  color: #92400E;
+}
+[data-theme="light"] .v2-partial {
+  background: rgba(180, 83, 9, 0.08);
+  border-color: rgba(180, 83, 9, 0.3);
+  color: #B45309;
+}
+[data-theme="light"] .v2-timeline-item:hover {
+  background: rgba(0, 0, 0, 0.015);
+}
 .v2 *{box-sizing:border-box}
 .v2 a{color:inherit;text-decoration:none}
 .v2 button,.v2 input,.v2 select{font:inherit}
