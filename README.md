@@ -3,8 +3,8 @@
 <div align="center">
 
 [![LLMOps](https://img.shields.io/badge/LLMOps-OpenRouter_Routing_%26_Budgets-0052CC?style=for-the-badge&logo=prometheus&logoColor=white)](#-llmops--control-plane)
-[![Multi-Agent Systems](https://img.shields.io/badge/Multi--Agent_Systems-7--Role_Analysis_DAG-4B32C3?style=for-the-badge&logo=diagram-next&logoColor=white)](#-multi-agent-system-architecture)
-[![MCP Ready](https://img.shields.io/badge/MCP-Model_Context_Protocol_Ready-2563EB?style=for-the-badge&logo=anthropic&logoColor=white)](#-mcp-model-context-protocol-alignment)
+[![Multi-Agent Systems](https://img.shields.io/badge/Multi--Agent_Systems-8--Role_Analysis_DAG-4B32C3?style=for-the-badge&logo=diagram-next&logoColor=white)](#-multi-agent-system-architecture)
+[![Grounded Product Details](https://img.shields.io/badge/Product_Details-Source_Grounded-2563EB?style=for-the-badge)](#product-information-card)
 [![Knowledge Graph](https://img.shields.io/badge/Context_Graph-Neo4j_%2B_Qdrant_%2B_Markdown-008080?style=for-the-badge&logo=neo4j&logoColor=white)](#-hybrid-storage--knowledge-graph)
 
 [![Next.js 16](https://img.shields.io/badge/Next.js-16_%7C_React_19-black?style=flat-square&logo=next.js)](https://nextjs.org/)
@@ -18,7 +18,7 @@
 
 **Turn hours of conflicting, noisy YouTube product reviews into structured, evidence-linked buying reports.**
 
-[Quick Start](#-quick-start) • [Architecture](#-system-architecture) • [Multi-Agent DAG](#-multi-agent-system-architecture) • [LLMOps](#-llmops--control-plane) • [MCP Alignment](#-mcp-model-context-protocol-alignment) • [Verification](#-acceptance-gates--verification) • [Vault Docs](#-vault-documentation)
+[Quick Start](#-quick-start) • [Product Card](#product-information-card) • [Architecture](#-system-architecture) • [Multi-Agent DAG](#-multi-agent-system-architecture) • [LLMOps](#-llmops--control-plane) • [Verification](#-acceptance-gates--verification) • [Documentation](#documentation)
 
 </div>
 
@@ -26,10 +26,10 @@
 
 ## 📌 Repository Topics (GitHub Tags)
 
-When configuring repository settings on GitHub, apply the following topic tags:
+The repository uses these six GitHub topics to describe the implemented system:
 
 ```text
-llmops  multi-agent-systems  mcp  model-context-protocol  knowledge-graph  rag  fastapi  nextjs  youtube-analysis  qdrant  neo4j  openrouter
+llmops  multi-agent-systems  knowledge-graph  rag  dag  fastapi
 ```
 
 ---
@@ -44,9 +44,16 @@ The legacy V1 UI, provider selection, direct provider clients, `/api/config`, `/
 
 ### Core Distinctions
 - **Strict Evidence Gating:** Every pro, con, sentiment score, and verdict links directly to immutable, timestamped transcript nodes. Unsubstantiated claims are rejected by an automated Quality Auditor.
-- **Deterministic 7-Agent DAG:** Replaces uncontrolled recursive agent loops with a bounded directed acyclic graph. Each agent has strict capability boundaries, schema contracts, and single-cycle correction rules.
+- **Deterministic 8-Agent DAG:** Replaces uncontrolled recursive agent loops with a bounded directed acyclic graph. Each agent has strict capability boundaries, schema contracts, and single-cycle correction rules.
+- **Product Information Card:** An agent selects useful attributes for the researched product category, validates each value against YouTube titles, descriptions, or timestamped transcripts, and separates listed options from each reviewer's stated sample. The card appears during research, in the published report, and in the PDF.
 - **Hybrid Context & Knowledge Graph:** PostgreSQL manages transactional records, portable Markdown files store readable node bodies, and Neo4j + Qdrant act as rebuildable graph topology and semantic vector retrieval projections.
 - **Production LLMOps Control Plane:** OpenRouter gateway with policy routing, token spend attribution, budget caps, rate limits, and an administrative operations cockpit.
+
+### Product Information Card
+
+For each selected video, the **Product Information Analyst** chooses attribute groups that fit the researched product. A camera might yield optics and sensor details; headphones might yield battery and connectivity details. There are no category-specific fields to fill. Each displayed fact and listed variant option links to the exact video title, description, or timestamped transcript passage that supports it. Conflicting review statements keep their separate citations.
+
+Each video card also shows only the reviewer's stated sample details. Missing configuration is labeled **Unconfirmed**; a manufacturer's or another reviewer's options are never treated as that reviewer's unit. Validated facts appear on the live progress page, remain in the published report, and are included in the PDF. Extraction failure leaves the existing review report publishable. This release uses stored YouTube evidence only; official product-page retrieval is deferred.
 
 ---
 
@@ -61,29 +68,31 @@ flowchart TD
         API -->|3. Snapshot Workflow| DB[(PostgreSQL + Alembic)]
         API -->|4. Enqueue Pipeline| Q[Redis / Celery Queue]
         Q --> W[Distributed Worker Pool]
-        W -->|5. Execute Analysis DAG| DAG{7-Role Task DAG}
+        W -->|5. Execute Analysis DAG| DAG{8-Role Task DAG}
     end
 
-    subgraph Agents ["Multi-Agent System (7 Roles)"]
+    subgraph Agents ["Multi-Agent System (8 Roles)"]
         DAG --> A1[1. Research Coordinator]
         A1 --> A2[2. Source Curator]
         A2 --> A3[3. Review Analyst - Parallel Fan-Out]
-        A2 --> A4[4. Audience Analyst - Optional]
-        A3 & A4 --> A5[5. Knowledge Curator]
-        A5 --> A6[6. Consensus Analyst]
-        A6 --> A7[7. Quality Auditor Gate]
+        A2 --> A4[4. Product Information Analyst - Parallel Fan-Out]
+        A2 --> A5[5. Audience Analyst - Optional]
+        A3 & A5 --> A6[6. Knowledge Curator]
+        A6 --> A7[7. Consensus Analyst]
+        A7 --> A8[8. Quality Auditor Gate]
     end
 
     subgraph LLMOps ["LLMOps & Context Management"]
         DAG <-->|Bounded Tool Calls| YT[YouTube Data & Transcript Tools]
         DAG <-->|Policy-Routed Inference| OR[OpenRouter Gateway\nSpend, Budget & Model Router]
-        A5 -->|Graph Projections| N4J[(Neo4j Graph)]
-        A5 -->|Vector Embeddings| QD[(Qdrant Vector DB)]
-        A5 -->|Authoritative Context| MD[(Markdown + PostgreSQL)]
+        A6 -->|Graph Projections| N4J[(Neo4j Graph)]
+        A6 -->|Vector Embeddings| QD[(Qdrant Vector DB)]
+        A6 -->|Authoritative Context| MD[(Markdown + PostgreSQL)]
     end
 
     subgraph Delivery ["Report & Inspection"]
-        A7 -->|Pass / Warn| Pub[Publish Report]
+        A8 -->|Pass / Warn| Pub[Publish Report]
+        A4 -->|Validated product details| Pub
         Pub -->|High-Entropy Token| Rep[/r/{public_token}]
         W -->|Real-time SSE Events| SSE[/api/v2/analyses/{run_id}/events]
         SSE --> UI
@@ -94,17 +103,18 @@ flowchart TD
 
 ## 🤖 Multi-Agent System Architecture
 
-The analysis pipeline executes a deterministic 7-agent DAG with strict separation of concerns and negative capabilities:
+The analysis pipeline executes a deterministic 8-agent DAG with strict separation of concerns and negative capabilities:
 
 | # | Role | Core Responsibility | Allowed Tools | Invariant Prohibitions |
 |---|---|---|---|---|
 | **1** | **Research Coordinator** | Converts product requests into targeted YouTube search plans and exclusion rules. | Structured plan generation | Cannot call external APIs or create arbitrary tasks. |
 | **2** | **Source Curator** | Scores discovered videos for relevance, review intent, sponsor bias, and Shorts filtering. | YouTube metadata, graph deduplication | Cannot analyze product verdict or fetch arbitrary URLs. |
 | **3** | **Review Analyst** | Analyzes one selected video transcript in parallel fan-out; extracts claims with timestamps. | Graph retrieval, transcript reader, evidence validator | Cannot use outside world knowledge or cross-source data. |
-| **4** | **Audience Analyst** | Assesses YouTube comments as secondary signals for recurring sentiment and user issues. | Comment reader, source nodes | Inactive if comments disabled; cannot override video evidence. |
-| **5** | **Knowledge Curator** | Normalizes findings into a typed evidence graph with support and contradiction edges. | Graph read/write, vector upsert, evidence validator | Cannot alter source transcript nodes or omit contradictions. |
-| **6** | **Consensus Analyst** | Synthesizes multi-source findings into final score, pros/cons, fit, and avoidance guidance. | Graph & vector retrieval, consensus calculator | Cannot read unselected transcripts or suppress dissenting reviews. |
-| **7** | **Quality Auditor** | Formally validates every claim against linked evidence nodes before authorizing publication. | Graph traversal, evidence validator, schema validator | Cannot silently rewrite reports; rejects ungrounded drafts. |
+| **4** | **Product Information Analyst** | Extracts category-relevant facts, explicitly listed options, and stated sample details from one selected video's stored evidence. | Bounded source and transcript context | Cannot fetch URLs or infer unstated variants or sample details. |
+| **5** | **Audience Analyst** | Assesses YouTube comments as secondary signals for recurring sentiment and user issues. | Comment reader, source nodes | Inactive if comments disabled; cannot override video evidence. |
+| **6** | **Knowledge Curator** | Normalizes findings into a typed evidence graph with support and contradiction edges. | Graph read/write, vector upsert, evidence validator | Cannot alter source transcript nodes or omit contradictions. |
+| **7** | **Consensus Analyst** | Synthesizes multi-source findings into final score, pros/cons, fit, and avoidance guidance. | Graph & vector retrieval, consensus calculator | Cannot read unselected transcripts or suppress dissenting reviews. |
+| **8** | **Quality Auditor** | Formally validates every claim against linked evidence nodes before authorizing publication. | Graph traversal, evidence validator, schema validator | Cannot silently rewrite reports; rejects ungrounded drafts. |
 
 ### Single-Cycle Schema Correction
 When an agent produces an invalid schema or broken evidence link, the orchestrator triggers exactly **one bounded correction attempt**. The correction task receives only the invalid output plus validator issues, preventing runaway loops and preserving token budgets.
@@ -123,13 +133,13 @@ ReviewLens provides a native LLMOps suite for enterprise observability, spend co
 
 ---
 
-## 🔌 MCP (Model Context Protocol) Alignment
+## 🔌 Typed Tools and Bounded Context
 
-ReviewLens embraces the **Model Context Protocol (MCP)** architecture:
+ReviewLens uses its own versioned tool registry and source-grounded context retrieval:
 
 - **Decoupled Tool Contracts:** Tools (YouTube metadata search, transcript extraction, comment filtering, evidence validation) follow standardized, typed input/output schemas.
 - **Bounded Context Slices:** Agents receive structured context slices retrieved from the knowledge graph rather than raw, noisy prompt stuffing.
-- **Extensible Integration:** The tool registry is architected to allow external MCP client/server bridges (such as Reddit discussion extractors, Amazon review checkers, or external fact-checking tools) to plug in without altering the core orchestrator DAG.
+- **Integration Boundary:** An MCP client or server bridge could be added later. The current runtime calls the internal registry; it does not implement MCP transport.
 
 ---
 
@@ -164,8 +174,8 @@ ReviewLens decouples transactional records, human readability, and retrieval int
 | **Frontend** | [Next.js 16](https://nextjs.org/) & [React 19](https://react.dev/) | App router, Server Components, interactive evidence graph, admin console |
 | **Backend** | [FastAPI](https://fastapi.tiangolo.com/) & [Python 3.12](https://python.org) | Async V2 API, strict Pydantic v2 validation, SSE streaming, security |
 | **Orchestration** | [Redis](https://redis.io/) & [Celery](https://docs.celeryq.dev/) | Distributed queue, task DAG scheduling, leases, retry handling |
-| **Relational DB** | [PostgreSQL 16](https://www.postgresql.org/) & [Alembic](https://alembic.sqlalchemy.org/) | Authoritative runs, snapshots, configurations, token accounting, audit logs |
-| **Graph DB** | [Neo4j 5](https://neo4j.com/) | Rebuildable projection of evidence nodes, support, contradiction, derivation |
+| **Relational DB** | [PostgreSQL 17](https://www.postgresql.org/) & [Alembic](https://alembic.sqlalchemy.org/) | Authoritative runs, snapshots, configurations, token accounting, audit logs |
+| **Graph DB** | [Neo4j](https://neo4j.com/) | Rebuildable projection of evidence nodes, support, contradiction, derivation |
 | **Vector DB** | [Qdrant](https://qdrant.tech/) | Dense embeddings index for fast semantic context retrieval |
 | **LLM Gateway** | [OpenRouter](https://openrouter.ai/) | Multi-model routing, unified inference, token spend reconciliation |
 | **Containerization** | [Docker Compose](https://www.docker.com/) | Reproducible multi-service deployment with isolated testing environments |
@@ -204,13 +214,12 @@ Launch the full stack with Docker Compose:
 docker compose up --build --wait
 ```
 
-### 4. Seed OpenRouter Catalog & Initial Workflow
-Refresh the OpenRouter catalog and seed the initial published workflow before accepting submissions:
+### 4. Refresh the Model Catalog
+The Compose migration service seeds the published workflow. With OpenRouter credentials configured, refresh the catalog before accepting submissions. The seed command is safe to rerun after a workflow update:
 
 ```bash
-cd backend
-python -m app.cli openrouter-catalog-refresh
-python -m app.cli analysis-config-seed
+docker compose exec -T api python -m app.cli openrouter-catalog-refresh
+docker compose exec -T api python -m app.cli analysis-config-seed
 ```
 
 ### 5. Access Interfaces
@@ -267,9 +276,9 @@ The stack gate creates isolated credentials and storage, migrates from empty sta
 
 ---
 
-## 📚 Vault Documentation
+## Documentation
 
-Start with [the V2 context home](./context/00_INDEX_AND_PROJECT_OVERVIEW.md) and [the codebase map](./context/codebase/00_CODEBASE_MAP.md). The final specification matrix is [Phase 12 conformance](./docs/release-evidence/phase12-conformance.md).
+The local `context/` vault is intentionally Git-ignored. Start locally with `context/00_INDEX_AND_PROJECT_OVERVIEW.md` and `context/codebase/00_CODEBASE_MAP.md`. The public specification and test mapping is [Phase 12 conformance](./docs/release-evidence/phase12-conformance.md).
 
 Validate the local context vault with:
 
