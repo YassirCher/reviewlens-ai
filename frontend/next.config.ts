@@ -8,7 +8,7 @@ const apiOrigin = (() => {
 const contentSecurityPolicy = [
   "default-src 'self'", "base-uri 'self'", "object-src 'none'", "frame-ancestors 'none'",
   "form-action 'self'", "img-src 'self' data: https:", "font-src 'self'",
-  "script-src 'self' 'unsafe-inline'", "style-src 'self' 'unsafe-inline'",
+  `script-src 'self' 'unsafe-inline'${production ? "" : " 'unsafe-eval'"}`, "style-src 'self' 'unsafe-inline'",
   `connect-src 'self' ${apiOrigin}`,
   ...(production ? ["upgrade-insecure-requests"] : []),
 ].join("; ");
