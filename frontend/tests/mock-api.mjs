@@ -15,7 +15,8 @@ const retryKeys = new Map();
 const LONG_TOKEN = "D".repeat(43);
 
 function send(res, status, value, extras = {}) {
-  res.writeHead(status, { "Content-Type": "application/json", "Cache-Control": "no-store", "Access-Control-Allow-Origin": "http://127.0.0.1:3000", "Access-Control-Allow-Credentials": "true", "Access-Control-Allow-Headers": "Content-Type, Idempotency-Key, Last-Event-ID", "Access-Control-Allow-Methods": "GET, POST, OPTIONS", ...extras });
+  const origin = res._origin || "http://127.0.0.1:3000";
+  res.writeHead(status, { "Content-Type": "application/json", "Cache-Control": "no-store", "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true", "Access-Control-Allow-Headers": "Content-Type, Idempotency-Key, Last-Event-ID", "Access-Control-Allow-Methods": "GET, POST, OPTIONS", ...extras });
   res.end(JSON.stringify(value));
 }
 function body(req) { return new Promise(resolve => { let data = ""; req.on("data", chunk => { data += chunk; }); req.on("end", () => { try { resolve(JSON.parse(data || "{}")); } catch { resolve({}); } }); }); }
@@ -58,6 +59,8 @@ function status(id) {
 }
 
 createServer(async (req, res) => {
+  const origin = req.headers.origin;
+  res._origin = origin && (origin.includes("localhost") || origin.includes("127.0.0.1")) ? origin : "http://127.0.0.1:3000";
   const path = new URL(req.url || "/", "http://127.0.0.1:8899").pathname;
   if (req.method === "OPTIONS") return send(res, 204, {});
   if (path === "/health") return send(res, 200, { status: "ok" });
@@ -83,7 +86,7 @@ createServer(async (req, res) => {
     if (runMatch[2] === "/cancel" && req.method === "POST") { cancelled.add(id); return send(res, 202, { run_id: id, status: "cancelling" }); }
     if (runMatch[2] === "/events") {
       if (id === PARTIAL_RUN || id === CANCEL_RUN || id === FAIL_RUN) return send(res, 503, error("stream_unavailable", "Live stream unavailable."));
-      res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-store", "Access-Control-Allow-Origin": "http://127.0.0.1:3000", "Access-Control-Allow-Credentials": "true", "Access-Control-Allow-Headers": "Last-Event-ID" });
+      res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-store", "Access-Control-Allow-Origin": res._origin, "Access-Control-Allow-Credentials": "true", "Access-Control-Allow-Headers": "Last-Event-ID" });
       res.write(`id: 2\nevent: run.completed\ndata: ${JSON.stringify({ sequence: 2, run_id: id, label: "Analysis complete", detail: "", completed_tasks: 7, total_tasks: 7, percent: 100, timestamp: "2026-09-17T09:01:00Z" })}\n\n`); res.end(); return;
     }
     return send(res, 200, status(id));

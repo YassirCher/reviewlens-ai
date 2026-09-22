@@ -25,6 +25,7 @@ import {
   ZoomOut,
 } from "lucide-react";
 import { getGraphPage, type GraphEdge, type GraphNode, type Report, type Source } from "@/lib/v2";
+import { useTheme } from "@/components/v2-theme-provider";
 
 type Filter = "all" | "strengths" | "caveats" | "disagreements" | "source";
 const FILTERS: { key: Filter; label: string }[] = [
@@ -95,12 +96,12 @@ type NodeDetailInfo = {
   metrics: { label: string; value: string }[];
 };
 
-function getNodeDetail(report: Report, node: GraphNode): NodeDetailInfo {
+function getNodeDetail(report: Report, node: GraphNode, isLight = false): NodeDetailInfo {
   if (node.type === "product") {
     return {
       title: report.product_name,
       category: "TARGET PRODUCT",
-      badgeColor: "#8B5CF6",
+      badgeColor: isLight ? "#6D28D9" : "#8B5CF6",
       description: report.summary,
       metrics: [
         { label: "Overall Score", value: `${report.overall_score}/100` },
@@ -116,7 +117,7 @@ function getNodeDetail(report: Report, node: GraphNode): NodeDetailInfo {
     return {
       title: source?.title || node.label,
       category: "YOUTUBE REVIEW",
-      badgeColor: "#3B82F6",
+      badgeColor: isLight ? "#1D4ED8" : "#3B82F6",
       sourceChannel: source?.channel,
       videoId: source?.video_id,
       description: source?.recommendation_summary || "Source review contributing to cross-evidence synthesis.",
@@ -142,7 +143,11 @@ function getNodeDetail(report: Report, node: GraphNode): NodeDetailInfo {
       : isCon
       ? "CONSENSUS CAVEAT"
       : "REVIEWER DISAGREEMENT";
-    const badgeColor = isPro ? "#10B981" : isCon ? "#F59E0B" : "#F43F5E";
+    const badgeColor = isPro
+      ? (isLight ? "#047857" : "#10B981")
+      : isCon
+      ? (isLight ? "#B45309" : "#F59E0B")
+      : (isLight ? "#BE123C" : "#F43F5E");
 
     const description = finding
       ? finding.statement
@@ -193,7 +198,7 @@ function getNodeDetail(report: Report, node: GraphNode): NodeDetailInfo {
   return {
     title: `Transcript Quote (${matchSupport.toUpperCase()})`,
     category: "DIRECT CITATION",
-    badgeColor: "#06B6D4",
+    badgeColor: isLight ? "#0369A1" : "#06B6D4",
     sourceChannel: matchSource?.channel,
     videoId: matchSource?.video_id,
     seconds: matchSeconds,
@@ -208,6 +213,8 @@ function getNodeDetail(report: Report, node: GraphNode): NodeDetailInfo {
 }
 
 export function V2Graph({ report, token, full = false }: { report: Report; token: string; full?: boolean }) {
+  const { resolvedTheme } = useTheme();
+  const isLight = resolvedTheme === "light";
   const [nodes, setNodes] = useState<GraphNode[]>([]);
   const [edges, setEdges] = useState<GraphEdge[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -271,7 +278,7 @@ export function V2Graph({ report, token, full = false }: { report: Report; token
   );
 
   const current = filtered.find((node) => node.id === selected) || filtered[0] || null;
-  const detail = current ? getNodeDetail(report, current) : null;
+  const detail = current ? getNodeDetail(report, current, isLight) : null;
 
   // Slicing: On review page show up to 6 per column, on full page show up to 14
   const columns = useMemo(() => {
@@ -524,23 +531,29 @@ export function V2Graph({ report, token, full = false }: { report: Report; token
                   >
                     <defs>
                       <pattern id="graph-grid" width="28" height="28" patternUnits="userSpaceOnUse">
-                        <circle cx="2" cy="2" r="1.2" fill="var(--v2-border-strong)" opacity="0.35" />
+                        <circle
+                          cx="2"
+                          cy="2"
+                          r="1.2"
+                          fill={isLight ? "rgba(15, 23, 42, 0.12)" : "var(--v2-border-strong)"}
+                          opacity={isLight ? "1" : "0.35"}
+                        />
                       </pattern>
                       <filter id="edge-glow" x="-20%" y="-20%" width="140%" height="140%">
                         <feGaussianBlur stdDeviation="2.5" result="blur" />
                         <feComposite in="SourceGraphic" in2="blur" operator="over" />
                       </filter>
                       <linearGradient id="grad-supports" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" stopColor="#35D0BA" />
-                        <stop offset="100%" stopColor="#10B981" />
+                        <stop offset="0%" stopColor={isLight ? "#0D9488" : "#35D0BA"} />
+                        <stop offset="100%" stopColor={isLight ? "#059669" : "#10B981"} />
                       </linearGradient>
                       <linearGradient id="grad-contradicts" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" stopColor="#F43F5E" />
-                        <stop offset="100%" stopColor="#FB7185" />
+                        <stop offset="0%" stopColor={isLight ? "#E11D48" : "#F43F5E"} />
+                        <stop offset="100%" stopColor={isLight ? "#F43F5E" : "#FB7185"} />
                       </linearGradient>
                       <linearGradient id="grad-about" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" stopColor="#8B5CF6" />
-                        <stop offset="100%" stopColor="#6366F1" />
+                        <stop offset="0%" stopColor={isLight ? "#7C3AED" : "#8B5CF6"} />
+                        <stop offset="100%" stopColor={isLight ? "#6366F1" : "#818CF8"} />
                       </linearGradient>
                     </defs>
 

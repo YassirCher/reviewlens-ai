@@ -216,6 +216,16 @@
 [data-theme="light"] .v2-map-scroll {
   background: radial-gradient(ellipse at center, #FFFFFF 0%, #F1F5F9 100%);
 }
+[data-theme="light"] .v2-map-scroll::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.03);
+}
+[data-theme="light"] .v2-map-scroll::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 6px;
+}
+[data-theme="light"] .v2-map-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
 [data-theme="light"] .v2-col-header {
   background: rgba(255, 255, 255, 0.85);
   border-color: var(--v2-border);
@@ -223,6 +233,10 @@
 }
 [data-theme="light"] .v2-col-title-wrap {
   color: var(--v2-text);
+}
+[data-theme="light"] .v2-col-count {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--v2-muted);
 }
 [data-theme="light"] .v2-map-card {
   background: rgba(255, 255, 255, 0.95);
@@ -233,9 +247,50 @@
 [data-theme="light"] .v2-card-label {
   color: var(--v2-text);
 }
+[data-theme="light"] .v2-card-channel,
+[data-theme="light"] .v2-card-footer {
+  color: #475569;
+}
+[data-theme="light"] .v2-card-product .v2-card-badge { color: #6D28D9; }
+[data-theme="light"] .v2-card-source .v2-card-badge { color: #1D4ED8; }
+[data-theme="light"] .v2-card-pro .v2-card-badge { color: #047857; }
+[data-theme="light"] .v2-card-con .v2-card-badge { color: #B45309; }
+[data-theme="light"] .v2-card-disagreement .v2-card-badge { color: #BE123C; }
+[data-theme="light"] .v2-card-evidence .v2-card-badge { color: #0369A1; }
 [data-theme="light"] .v2-card-hovered {
   border-color: var(--v2-border-strong);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+}
+[data-theme="light"] .v2-card-selected {
+  box-shadow: 0 0 0 2px var(--v2-primary), 0 10px 24px rgba(109, 40, 217, 0.18);
+  border-color: var(--v2-primary) !important;
+}
+[data-theme="light"] .v2-card-product.v2-card-selected {
+  border-color: #6D28D9 !important;
+  box-shadow: 0 0 0 2px #6D28D9, 0 8px 20px rgba(109, 40, 217, 0.15);
+}
+[data-theme="light"] .v2-card-source.v2-card-selected {
+  border-color: #1D4ED8 !important;
+  box-shadow: 0 0 0 2px #1D4ED8, 0 8px 20px rgba(29, 78, 216, 0.15);
+}
+[data-theme="light"] .v2-card-pro.v2-card-selected {
+  border-color: #047857 !important;
+  box-shadow: 0 0 0 2px #047857, 0 8px 20px rgba(4, 120, 87, 0.15);
+}
+[data-theme="light"] .v2-card-con.v2-card-selected {
+  border-color: #B45309 !important;
+  box-shadow: 0 0 0 2px #B45309, 0 8px 20px rgba(180, 83, 9, 0.15);
+}
+[data-theme="light"] .v2-card-disagreement.v2-card-selected {
+  border-color: #BE123C !important;
+  box-shadow: 0 0 0 2px #BE123C, 0 8px 20px rgba(190, 18, 60, 0.15);
+}
+[data-theme="light"] .v2-card-evidence.v2-card-selected {
+  border-color: #0369A1 !important;
+  box-shadow: 0 0 0 2px #0369A1, 0 8px 20px rgba(3, 105, 161, 0.15);
+}
+[data-theme="light"] .v2-card-dimmed {
+  opacity: 0.45;
 }
 [data-theme="light"] .v2-graph-detail {
   background: #FFFFFF;
@@ -252,11 +307,23 @@
   color: var(--v2-text);
 }
 [data-theme="light"] .v2-detail-body {
-  color: var(--v2-muted);
+  color: #334155;
 }
 [data-theme="light"] .v2-detail-quote {
-  color: #0C4A6E;
   border-left-color: var(--v2-blue);
+  color: #1E293B;
+  background: #F1F5F9;
+  padding: 8px 12px;
+  border-radius: 0 6px 6px 0;
+}
+[data-theme="light"] .v2-detail-video-btn {
+  background: rgba(29, 78, 216, 0.08);
+  border-color: rgba(29, 78, 216, 0.3);
+  color: #1D4ED8 !important;
+}
+[data-theme="light"] .v2-detail-video-btn:hover {
+  background: rgba(29, 78, 216, 0.15);
+  border-color: #1D4ED8;
 }
 [data-theme="light"] .v2-relations strong {
   color: var(--v2-text);
@@ -270,6 +337,61 @@
   border-color: var(--v2-border-strong);
 }
 [data-theme="light"] .v2-conn-label {
+  color: var(--v2-text);
+}
+[data-theme="light"] .v2-pill-support {
+  background: rgba(4, 120, 87, 0.1);
+  color: #047857;
+  border-color: rgba(4, 120, 87, 0.3);
+}
+[data-theme="light"] .v2-pill-contradict {
+  background: rgba(190, 18, 60, 0.1);
+  color: #BE123C;
+  border-color: rgba(190, 18, 60, 0.3);
+}
+[data-theme="light"] .v2-pill-about {
+  background: rgba(109, 40, 217, 0.1);
+  color: #6D28D9;
+  border-color: rgba(109, 40, 217, 0.3);
+}
+[data-theme="light"] .v2-zoom-controls {
+  background: #FFFFFF;
+  border-color: var(--v2-border);
+}
+[data-theme="light"] .v2-zoom-label {
+  border-left-color: var(--v2-border) !important;
+  border-right-color: var(--v2-border) !important;
+  color: var(--v2-text);
+}
+[data-theme="light"] .v2-zoom-controls button:hover,
+[data-theme="light"] .v2-tool-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--v2-text);
+}
+[data-theme="light"] .v2-tool-btn {
+  background: #FFFFFF;
+  border-color: var(--v2-border);
+  color: var(--v2-muted);
+}
+[data-theme="light"] .v2-tool-active {
+  background: rgba(109, 40, 217, 0.08) !important;
+  border-color: rgba(109, 40, 217, 0.25) !important;
+  color: #6D28D9 !important;
+}
+[data-theme="light"] .v2-view-toggle {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: var(--v2-border);
+}
+[data-theme="light"] .v2-view-toggle button[aria-pressed=true] {
+  background: #FFFFFF;
+  color: var(--v2-text);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+[data-theme="light"] .v2-detail-category-pill {
+  background: rgba(0, 0, 0, 0.03);
+}
+[data-theme="light"] .v2-detail-close-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
   color: var(--v2-text);
 }
 [data-theme="light"] .v2-graph-legend {
@@ -288,6 +410,17 @@
   background: #F8FAFC;
   border-color: var(--v2-border-strong);
 }
+[data-theme="light"] .v2-list-selected {
+  border-color: #6D28D9 !important;
+  background: rgba(109, 40, 217, 0.08) !important;
+}
+[data-theme="light"] .v2-node-product { background: #6D28D9; }
+[data-theme="light"] .v2-node-source { background: #1D4ED8; }
+[data-theme="light"] .v2-node-finding { background: #047857; }
+[data-theme="light"] .v2-node-evidence { background: #0369A1; }
+[data-theme="light"] .v2-dot-pro { background: #047857; }
+[data-theme="light"] .v2-dot-con { background: #B45309; }
+[data-theme="light"] .v2-dot-disagreement { background: #BE123C; }
 [data-theme="light"] .v2-list-text strong {
   color: var(--v2-text);
 }
