@@ -84,7 +84,7 @@ flowchart TD
 
     subgraph LLMOps ["LLMOps & Context Management"]
         DAG <-->|Bounded Tool Calls| YT[YouTube Data & Transcript Tools]
-        DAG <-->|Policy-Routed Inference| OR[OpenRouter Gateway\nSpend, Budget & Model Router]
+        DAG <-->|Policy-Routed Inference| OR["OpenRouter Gateway: Spend, Budget and Model Router"]
         A6 -->|Graph Projections| N4J[(Neo4j Graph)]
         A6 -->|Vector Embeddings| QD[(Qdrant Vector DB)]
         A6 -->|Authoritative Context| MD[(Markdown + PostgreSQL)]
@@ -93,8 +93,8 @@ flowchart TD
     subgraph Delivery ["Report & Inspection"]
         A8 -->|Pass / Warn| Pub[Publish Report]
         A4 -->|Validated product details| Pub
-        Pub -->|High-Entropy Token| Rep[/r/{public_token}]
-        W -->|Real-time SSE Events| SSE[/api/v2/analyses/{run_id}/events]
+        Pub -->|High-Entropy Token| Rep["Report: /r/{public_token}"]
+        W -->|Real-time SSE Events| SSE["Events: /api/v2/analyses/{run_id}/events"]
         SSE --> UI
     end
 ```
