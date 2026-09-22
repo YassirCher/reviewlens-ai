@@ -3,12 +3,12 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
-from fastapi import APIRouter, Cookie, Depends, Request, Response
+from fastapi import APIRouter, Depends, Request, Response
 from redis import Redis
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.api.v2.dependencies import get_optional_user, get_v2_db, get_v2_redis, require_user
+from app.api.v2.dependencies import get_v2_db, get_v2_redis, require_user
 from app.config import settings
 from app.errors import V2Error
 from app.services.user_auth import AuthenticatedUser, UserAuthService
