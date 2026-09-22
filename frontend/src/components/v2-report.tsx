@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ArrowRight, ArrowUpRight, Check, Clock3, Download, ExternalLink, GitBranch, Info, Share2, ShieldCheck, Youtube } from "lucide-react";
 import type { Evidence, Finding, Report, Source } from "@/lib/v2";
 import { V2Graph } from "./v2-graph";
+import { ProductInformationCard, SampleUsedBlock } from "./v2-product-info";
 
 const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
 
@@ -28,6 +29,7 @@ function SourceCard({ source, index }: { source: Source; index: number }) {
   const url = videoLink(source);
   return <article className="v2-source-card" id={`source-${source.id}`}><div className="v2-source-art"><Youtube size={28} aria-hidden="true" />{VIDEO_ID.test(source.video_id) && <img src={`https://i.ytimg.com/vi/${source.video_id}/hqdefault.jpg`} alt={`Thumbnail for ${source.title}`} loading="lazy" onError={event => { event.currentTarget.hidden = true; }} />}</div><div className="v2-source-content"><div className="v2-source-top"><span className="v2-eyebrow">SOURCE {String(index+1).padStart(2,"0")}</span><span className="v2-score-mini">{source.source_score}<small>/100 source score</small></span></div><h3>{source.title}</h3><p className="v2-muted">{source.channel} · {source.views == null ? "Views unavailable" : `${new Intl.NumberFormat("en", { notation: "compact" }).format(source.views)} views`} · {duration(source.duration_seconds)}</p><p className="v2-source-summary">{source.recommendation_summary}</p><div className="v2-tags"><span>{verdictLabel(source.review_type)}</span><span>{verdictLabel(source.ownership_context)}</span><span>Evidence quality {source.evidence_quality_score}/100</span></div><p className="v2-source-context"><Clock3 size={15} aria-hidden="true" /> Usage period: {source.usage_period || "Not established"} · Captions: {source.caption_kind}, {source.transcript_language}{source.translated ? " (translated)" : ""}</p>
     {source.claims.length > 0 && <details className="v2-source-claims"><summary>Inspect {source.claims.length} claim{source.claims.length === 1 ? "" : "s"} and evidence</summary><div>{source.claims.map((claim, claimIndex) => <div key={`${claim.claim}-${claimIndex}`} className="v2-claim"><strong>{claim.claim}</strong>{claim.evidence.map(item => <div key={item.id} className="v2-excerpt" id={`evidence-${item.id}`}><p>“{item.text}”</p><div><span>{item.support_type === "contradicts" ? "Contradicts" : "Supports"} · Evidence confidence {item.confidence}/100</span>{url && <a href={videoLink(source,item)!} target="_blank" rel="noopener noreferrer">{time(item.timestamp_start_seconds)} <ExternalLink size={13} aria-hidden="true" /><span className="v2-sr-only"> in YouTube, new tab</span></a>}</div></div>)}</div>)}</div></details>}
+    <SampleUsedBlock sample={source.sample_used} />
     {source.limitations.length > 0 && <p className="v2-source-context"><Info size={15} aria-hidden="true" /> {source.limitations.join(" · ")}</p>}
     {url && <a className="v2-source-link" href={url} target="_blank" rel="noopener noreferrer">Watch original review <ArrowUpRight size={16} aria-hidden="true" /><span className="v2-sr-only"> in new tab</span></a>}
   </div></article>;
@@ -84,6 +86,7 @@ export function V2Report({ report, token }: { report: Report; token: string }) {
         </button>
       </div>
     </div>
+    <ProductInformationCard info={report.product_info} />
     <section className="v2-report-hero" aria-labelledby="v2-verdict"><div className="v2-verdict-block"><span className="v2-eyebrow">BUYING SIGNAL</span><div className="v2-score">{report.overall_score}<span>/100</span></div><h2 id="v2-verdict">{verdictLabel(report.verdict)}</h2><p>Overall product score</p></div><div className="v2-report-intro"><span className="v2-eyebrow">THE BOTTOM LINE</span><p>{report.summary}</p><div className="v2-confidence"><ShieldCheck size={19} aria-hidden="true" /><div><strong>{report.confidence}% confidence · {verdictLabel(report.confidence_band)}</strong><span>Confidence reflects evidence quality and coverage—not product quality.</span></div></div></div></section>
     <section className="v2-footprint" aria-label="Analysis footprint"><div><strong>{report.source_count_analyzed}<span> / {report.source_count_requested}</span></strong><small>source reviews</small></div><div><strong>{report.total_tokens.toLocaleString()}</strong><small>tokens used{report.usage_pending ? " · accounting pending" : ""}</small></div><div><strong>{report.model_call_count}</strong><small>model calls</small></div></section>
     {report.status === "partial" && <div className="v2-alert v2-alert-warning" role="status"><strong>Partial evidence.</strong> Some requested sources were unavailable or could not be analyzed. Read the limitations before relying on the conclusion.</div>}

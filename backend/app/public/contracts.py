@@ -7,6 +7,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.analysis.product_info import ProductInfo, SampleUsed
+
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -108,6 +110,7 @@ class StatusResponse(StrictModel):
     tasks: tuple[PublicTask, ...]
     report_url: str | None
     progress_sequence: int = Field(ge=0)
+    product_info: ProductInfo | None = None
 
 
 class PublicEvidence(StrictModel):
@@ -147,6 +150,7 @@ class PublicSource(StrictModel):
     translated: bool
     caption_kind: str
     claims: tuple[PublicClaim, ...]
+    sample_used: SampleUsed | None = None
 
 
 class PublicFinding(StrictModel):
@@ -186,6 +190,7 @@ class PublicReportResponse(StrictModel):
     limitations: tuple[str, ...]
     warnings: tuple[str, ...]
     sources: tuple[PublicSource, ...]
+    product_info: ProductInfo | None = None
     generated_at: datetime
     total_tokens: int = Field(ge=0)
     model_call_count: int = Field(ge=0)

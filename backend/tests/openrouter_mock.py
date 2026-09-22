@@ -332,6 +332,18 @@ def _structured_content(schema_name: str, trace_id: str, task_input: dict) -> di
             ],
             "limitations": ["Transcript-only analysis"],
         }
+    if schema_name == "ProductExtractionDraft":
+        if task_input.get("canonical_product") == "Aurora Headphones":
+            return {
+                "facts": [{"group": "Power", "label": "Battery runtime", "value": "30 hours",
+                           "evidence": {"source_part": "description", "excerpt": "Battery lasted 30 hours."}}],
+                "variants": [],
+                "sample_units": [{"role": "Review unit", "details": [{
+                    "label": "Color", "value": "black",
+                    "evidence": {"source_part": "description", "excerpt": "Review unit is black."},
+                }]}],
+            }
+        return {"facts": [], "variants": [], "sample_units": []}
     if schema_name == "AudienceAnalysisDraft":
         return {
             "source_id": task_input["source_id"],

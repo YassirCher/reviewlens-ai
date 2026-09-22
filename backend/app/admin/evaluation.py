@@ -122,6 +122,10 @@ def golden_fixture(role: str) -> dict:
         "review_analyst": {"source_id": str(SOURCE_ID), "transcript_node_id": str(TRANSCRIPT_ID),
                            "source_title": "Aurora Headphones six month review", "channel_id": "fixture-channel",
                            "transcript_language": "en", "translated": False, "caption_kind": "manual"},
+        "product_information_analyst": {
+            "canonical_product": "Aurora Headphones", "source_id": str(SOURCE_ID),
+            "transcript_node_id": str(TRANSCRIPT_ID),
+        },
         "audience_analyst": {"source_id": str(SOURCE_ID), "comment_set_node_id": str(TRANSCRIPT_ID),
                              "comments_sampled": 10, "comments_retained": 8},
         "knowledge_curator": {"source_analyses": [analysis], "audience_analyses": []},
@@ -195,6 +199,20 @@ def _checks(role: str, result: dict) -> dict[str, bool]:
                                              for e in claim.get("evidence", [])) and bool(claim.get("evidence"))
             for claim in claims)
         checks["evidence_quality_threshold"] = result.get("evidence_quality_score", 0) >= 60
+    elif role == "product_information_analyst":
+        facts = result.get("facts", [])
+        units = result.get("sample_units", [])
+        checks["source_grounded_product_fact"] = any(
+            item.get("value") == "30 hours"
+            and item.get("evidence", {}).get("source_part") == "description"
+            and "30 hours" in item.get("evidence", {}).get("excerpt", "")
+            for item in facts
+        )
+        checks["sample_not_inferred"] = any(
+            detail.get("value") == "black"
+            and detail.get("evidence", {}).get("source_part") == "description"
+            for unit in units for detail in unit.get("details", [])
+        )
     elif role == "audience_analyst":
         checks["sample_bounds"] = (result.get("comments_sampled", 999) <= 10
                                    and result.get("comments_retained", 999) <= 8

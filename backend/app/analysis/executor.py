@@ -27,6 +27,13 @@ from app.analysis.contracts import (
     SourceCuration,
 )
 from app.analysis.prompting import build_prompt_envelope
+from app.analysis.product_info import (
+    ProductExtractionDraft,
+    SampleUsed,
+    merge_product_info,
+    source_metadata,
+    validate_extraction,
+)
 from app.analysis.registry import AGENT_REGISTRY, AgentSpec, UNIVERSAL_POLICY
 from app.config import Settings, settings
 from app.db.models import (
@@ -47,7 +54,7 @@ from app.db.models import (
 from app.db.session import session_scope
 from app.knowledge.contracts import NodeDraft, NodeType, RelationDraft, RelationType, RetrievalPolicy, RetrievalRequest, TrustLevel
 from app.knowledge.retrieval import ContextBudgetExceeded, build_context_packet, estimate_tokens
-from app.knowledge.service import create_node, create_relation, create_workspace
+from app.knowledge.service import create_node, create_relation, create_workspace, read_version_body
 from app.llmops.accounting import BudgetRejected
 from app.llmops.contracts import ChatInvocation, ChatMessage, InvocationContext, ModelPolicyDocument, OpenRouterError
 from app.llmops.gateway import OpenRouterGateway
@@ -167,6 +174,42 @@ def _outputs_with_prefix(run_id: uuid.UUID, prefix: str) -> list[dict[str, Any]]
         seen.add(key)
         result.append(dict(payload))
     return result
+
+
+def _has_task_prefix(run_id: uuid.UUID, prefix: str) -> bool:
+    with session_scope() as db:
+        return db.scalar(select(TaskRun.id).where(
+            TaskRun.run_id == run_id,
+            TaskRun.workflow_task_key.like(f"{prefix}%"),
+        ).limit(1)) is not None
+
+
+def _product_source_material(run: AnalysisRun, source: dict[str, Any], config: Settings) -> tuple[dict, str]:
+    with session_scope() as db:
+        workspace = db.scalar(select(Workspace).where(Workspace.run_id == run.id))
+        source_node = db.get(ContextNode, uuid.UUID(source["source_id"]))
+        transcript_node = db.get(ContextNode, uuid.UUID(source["transcript_node_id"]))
+        if (
+            workspace is None or source_node is None or transcript_node is None
+            or source_node.workspace_id != workspace.id or transcript_node.workspace_id != workspace.id
+            or source_node.node_type != NodeType.SOURCE or transcript_node.node_type != NodeType.TRANSCRIPT
+            or source_node.current_version_id is None or transcript_node.current_version_id is None
+        ):
+            raise RuntimeTaskError("product_source_lineage_invalid", category="validation")
+        source_version = db.get(ContextNodeVersion, source_node.current_version_id)
+        transcript_version = db.get(ContextNodeVersion, transcript_node.current_version_id)
+        if source_version is None or transcript_version is None:
+            raise RuntimeTaskError("product_source_lineage_invalid", category="validation")
+        if (
+            transcript_version.provenance.get("video_id") != source.get("video_id")
+            or source_version.source_uri != f"https://www.youtube.com/watch?v={source.get('video_id')}"
+        ):
+            raise RuntimeTaskError("product_source_lineage_invalid", category="validation")
+        metadata = source_metadata(read_version_body(workspace, source_version, config=config)[1])
+        transcript_body = read_version_body(workspace, transcript_version, config=config)[1]
+    if metadata.get("video_id") != source.get("video_id"):
+        raise RuntimeTaskError("product_source_identity_invalid", category="validation")
+    return metadata, transcript_body
 
 
 def _node_identity(version_id: uuid.UUID) -> tuple[uuid.UUID, uuid.UUID]:
@@ -578,6 +621,18 @@ def _agent_task_input(spec: AgentSpec, task: TaskRun, run: AnalysisRun) -> tuple
             "translated": source["translated"],
             "caption_kind": source["caption_kind"],
         }, (uuid.UUID(chunk_ids[0]),)
+    if spec.key == "product_information_analyst":
+        source = _task_output(run.id, f"fetch_transcript.source_{source_index}") or {}
+        if not source.get("available"):
+            return {"_skip": "source_unavailable", "source_index": source_index}, ()
+        chunk_ids = source.get("transcript_chunk_ids") or []
+        if not chunk_ids:
+            return {"_skip": "transcript_unavailable", "source_index": source_index}, ()
+        return {
+            "canonical_product": run.canonical_product,
+            "source_id": source["source_id"],
+            "transcript_node_id": source["transcript_node_id"],
+        }, (uuid.UUID(source["source_id"]), uuid.UUID(chunk_ids[0]))
     if spec.key == "audience_analyst":
         comments = _task_output(run.id, f"fetch_comments.source_{source_index}") or {}
         if not comments.get("available"):
@@ -1362,6 +1417,26 @@ async def _execute_agent(
     )
     if spec.key == "review_analyst":
         return await _postprocess_review(attempt_id, run, SourceAnalysisDraft.model_validate(result), config=config)
+    if spec.key == "product_information_analyst":
+        source_index = int(task.input_payload.get("source_index", 0) or 0)
+        source = _task_output(run.id, f"fetch_transcript.source_{source_index}") or {}
+        if not source.get("available"):
+            return {"skipped": True, "reason": "source_unavailable", "source_index": source_index}
+        metadata, transcript_body = _product_source_material(run, source, config)
+        facts, variants, sample = validate_extraction(
+            ProductExtractionDraft.model_validate(result),
+            title=str(metadata.get("title") or ""),
+            description=str(metadata.get("description") or ""),
+            transcript_body=transcript_body,
+            video_id=source["video_id"],
+        )
+        return {
+            "source_id": source["source_id"],
+            "video_id": source["video_id"],
+            "facts": [item.model_dump(mode="json") for item in facts],
+            "variants": [item.model_dump(mode="json") for item in variants],
+            "sample_used": sample.model_dump(mode="json"),
+        }
     if spec.key == "audience_analyst":
         return _postprocess_audience(attempt_id, run, AudienceAnalysisDraft.model_validate(result), config=config)
     if spec.key == "knowledge_curator":
@@ -1412,6 +1487,21 @@ def _publish_report(
     if audit.verdict == "pass_with_warnings":
         warnings.append("quality_audit_warning")
     requested = int(run.requested_options.get("source_count", 5))
+    product_outputs = _outputs_with_prefix(run.id, "extract_product_information.source_")
+    product_info = merge_product_info(product_outputs)
+    has_product_tasks = _has_task_prefix(run.id, "extract_product_information.source_")
+    sample_by_source = {item.get("source_id"): item.get("sample_used") for item in product_outputs}
+
+    def sample_for(source_id: str) -> SampleUsed:
+        try:
+            return SampleUsed.model_validate(sample_by_source.get(source_id) or {})
+        except ValueError:
+            return SampleUsed()
+
+    sample_used_by_source = {
+        item["source_id"]: sample_for(item["source_id"])
+        for item in reviews
+    } if has_product_tasks else {}
     status = "partial" if len(reviews) < requested or warnings else "complete"
     report_id = uuid.uuid5(run.id, "validated-internal-report")
     with session_scope() as db:
@@ -1452,6 +1542,8 @@ def _publish_report(
             limitations=draft.limitations,
             warnings=tuple(dict.fromkeys(warnings)),
             source_analyses=tuple(reviews),
+            product_info=product_info,
+            sample_used_by_source=sample_used_by_source,
             audience_analyses=tuple(audiences),
             total_tokens=total_tokens,
             configuration_snapshot_id=snapshot.id,

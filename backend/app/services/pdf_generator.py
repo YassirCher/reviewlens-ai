@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import io
 import html
+import math
+import re
 from typing import Any
 from datetime import datetime
 
@@ -23,6 +25,10 @@ from reportlab.platypus import (
     HRFlowable,
 )
 from reportlab.pdfgen import canvas
+
+from app.analysis.product_info import ProductEvidence, ProductInfo, SampleUsed
+
+_VIDEO_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
 
 
 class NumberedCanvas(canvas.Canvas):
@@ -100,6 +106,22 @@ def _sanitize(val: Any) -> str:
 
 def _verdict_label(val: str) -> str:
     return val.replace("_", " ").title()
+
+
+def _evidence_links(raw: list[dict[str, Any]] | tuple[ProductEvidence, ...]) -> str:
+    links = []
+    for index, value in enumerate(raw):
+        try:
+            ref = value if isinstance(value, ProductEvidence) else ProductEvidence.model_validate(value)
+        except ValueError:
+            continue
+        if not _VIDEO_ID.fullmatch(ref.video_id):
+            continue
+        url = f"https://www.youtube.com/watch?v={ref.video_id}"
+        if ref.timestamp_seconds is not None and math.isfinite(ref.timestamp_seconds) and ref.timestamp_seconds >= 0:
+            url += f"&amp;t={int(ref.timestamp_seconds)}s"
+        links.append(f'<link href="{url}" color="#0284C7">Review source {index + 1}</link>')
+    return ", ".join(links)
 
 
 def generate_report_pdf(payload: dict[str, Any], token: str) -> bytes:
@@ -233,7 +255,8 @@ def generate_report_pdf(payload: dict[str, Any], token: str) -> bytes:
         gen_date = gen_at[:10] if gen_at else "Recent"
 
     score_cell = [
-        Paragraph(f"<font size=18 color='#0284C7'><b>{overall_score}</b></font><font size=9 color='#64748B'>/100</font>", style_pill_bold),
+        Paragraph(f"<font size=18 color='#0284C7'><b>{overall_score}</b></font><font size=9 color='#64748B'>/100</font>", ParagraphStyle("ScoreValue", parent=style_pill_bold, leading=23)),
+        Spacer(1, 3),
         Paragraph(f"<b>{verdict_str}</b>", ParagraphStyle("PillTag", parent=style_pill_sub, fontName="Helvetica-Bold", textColor=c_primary)),
     ]
 
@@ -284,6 +307,37 @@ def generate_report_pdf(payload: dict[str, Any], token: str) -> bytes:
     ]))
     story.append(summary_table)
     story.append(Spacer(1, 14))
+
+    raw_product_info = payload.get("product_info")
+    if raw_product_info:
+        info = ProductInfo.model_validate(raw_product_info)
+        if info.facts or info.variants:
+            story.append(Paragraph("PRODUCT DETAILS FROM REVIEWS", style_sec_heading))
+            story.append(Paragraph(_sanitize(info.coverage_note), style_meta))
+            groups: dict[str, list] = {}
+            for fact in info.facts:
+                groups.setdefault(fact.group, []).append(fact)
+            for group, facts in groups.items():
+                story.append(Paragraph(_sanitize(group), style_body_bold))
+                for fact in facts:
+                    scope = f" ({_sanitize(fact.scope)})" if fact.scope else ""
+                    conflict = " - conflicting review statements" if fact.conflicting else ""
+                    links = _evidence_links(fact.evidence)
+                    story.append(Paragraph(
+                        f"<b>{_sanitize(fact.label)}:</b> {_sanitize(fact.value)}{scope}{conflict}"
+                        + (f" - {links}" if links else ""), style_body,
+                    ))
+            if info.variants:
+                story.append(Paragraph("Options mentioned in reviews", style_body_bold))
+                story.append(Paragraph("Listed options do not imply every combination or current availability.", style_meta))
+                for option in info.variants:
+                    scope = f" ({_sanitize(option.scope)})" if option.scope else ""
+                    links = _evidence_links(option.evidence)
+                    story.append(Paragraph(
+                        f"<b>{_sanitize(option.dimension)}:</b> {_sanitize(option.value)}{scope}"
+                        + (f" - {links}" if links else ""), style_body,
+                    ))
+            story.append(Spacer(1, 12))
 
     # -------------------------------------------------------------
     # 3. METHODOLOGICAL CONTEXT & REVIEWER BIAS NOTES
@@ -525,6 +579,20 @@ def generate_report_pdf(payload: dict[str, Any], token: str) -> bytes:
                 ("RIGHTPADDING", (0, 0), (-1, -1), 8),
             ]))
             src_elements.append(t)
+            if "sample_used" in src:
+                sample = SampleUsed.model_validate(src["sample_used"] or {})
+                if not sample.units:
+                    src_elements.append(Paragraph("<b>Sample used:</b> Unconfirmed", style_meta))
+                else:
+                    for unit in sample.units:
+                        details = []
+                        for detail in unit.details:
+                            links = _evidence_links((detail.evidence,))
+                            details.append(f"{_sanitize(detail.label)}: {_sanitize(detail.value)}" + (f" ({links})" if links else ""))
+                        src_elements.append(Paragraph(
+                            f"<b>Sample used - {_sanitize(unit.role)}:</b> " + "; ".join(details), style_meta,
+                        ))
+                    src_elements.append(Paragraph("Other sample details: Unconfirmed", style_meta))
             src_elements.append(Spacer(1, 6))
 
         for elem in src_elements:

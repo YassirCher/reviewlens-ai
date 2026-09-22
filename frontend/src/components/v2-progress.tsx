@@ -4,12 +4,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Check, CircleAlert, CircleDashed, RotateCcw, Square, Wifi, WifiOff } from "lucide-react";
 import { cancelRun, getRun, readEvents, reportTokenFromApiPath, validRunId, V2ApiError, type PublicTask, type RunStatus } from "@/lib/v2";
+import { ProductInformationCard } from "./v2-product-info";
 
 const TERMINAL = new Set(["complete", "partial", "failed", "cancelled"]);
 const STAGES = [
   { name: "Discover", keys: ["validate_request", "plan_research", "discover_candidates", "curate_sources"] },
   { name: "Acquire", keys: ["fetch_transcript", "fetch_comments"] },
-  { name: "Analyze", keys: ["analyze_review", "analyze_audience"] },
+  { name: "Analyze", keys: ["analyze_review", "analyze_audience", "extract_product_information"] },
   { name: "Connect", keys: ["curate_knowledge"] },
   { name: "Decide", keys: ["build_consensus", "correct_consensus"] },
   { name: "Verify", keys: ["audit_report", "reaudit_report", "publish_report"] },
@@ -84,7 +85,7 @@ export function V2Progress({ runId }: { runId: string }) {
             sequence.current = event.sequence;
             sessionStorage.setItem(`reviewlens:v2:sequence:${runId}`, String(sequence.current));
             if (name !== "task.progress") setAnnouncement(event.label);
-            if (name.startsWith("run.") || name === "task.failed" || name === "source.completed") refresh(controller.signal).catch(() => {});
+            if (name.startsWith("run.") || name === "task.failed" || name === "source.completed" || (name === "task.progress" && event.task_key?.startsWith("extract_product_information."))) refresh(controller.signal).catch(() => {});
           }, controller.signal, () => setConnection("live"));
           if (stopped) return;
           const latest = await refresh(controller.signal);
@@ -135,6 +136,7 @@ export function V2Progress({ runId }: { runId: string }) {
     {run.status === "partial" && <div className="v2-alert v2-alert-warning v2-run-notice" role="status">Partial report: {run.source_count_analyzed} of {run.source_count_requested} requested sources could be analyzed. Valid evidence remains available.</div>}
     {run.status === "failed" && <div className="v2-alert v2-alert-error v2-run-notice" role="alert">{run.failure?.message || "The analysis could not be completed."} <Link href="/">Start a new research run</Link>.</div>}
     {run.status === "cancelled" && <div className="v2-alert v2-alert-warning v2-run-notice" role="status">This analysis was cancelled. No public report was published.</div>}
+    <ProductInformationCard info={run.product_info} live={isActive} />
     <div className="v2-progress-layout"><section className="v2-panel v2-progress-main" aria-labelledby="v2-timeline-heading"><div className="v2-panel-heading"><div><p className="v2-eyebrow">LIVE WORKFLOW</p><h2 id="v2-timeline-heading">Research timeline</h2></div><span className={`v2-status v2-status-${run.status}`}>{run.status.replaceAll("_", " ")}</span></div>
       <div className="v2-connection" role="status">{connection === "live" ? <Wifi size={16} /> : <WifiOff size={16} />}{connectionLabel}</div>
       <ol className="v2-timeline">{STAGES.map((stage, index) => { const tasks = run.tasks.filter(task => stage.keys.some(key => task.task_key === key || task.task_key.startsWith(`${key}.`))); const state = stageState(tasks); return <li key={stage.name} className={`v2-timeline-item v2-timeline-${state}`}><span className="v2-timeline-index">{String(index + 1).padStart(2,"0")}</span><div><div className="v2-timeline-title"><strong>{stage.name}</strong><span>{state}</span></div><p>{tasks.length ? `${tasks.filter(task => ["succeeded","failed","skipped","cancelled","timed_out"].includes(task.status)).length} of ${tasks.length} tasks terminal` : "Waiting for earlier work"}</p></div>{state === "succeeded" ? <Check size={18} aria-hidden="true" /> : state === "running" ? <CircleDashed size={18} aria-hidden="true" /> : null}</li>; })}</ol>

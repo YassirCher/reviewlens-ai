@@ -46,7 +46,7 @@ def test_phase6_seed_snapshot_and_database_immutability() -> None:
         run_id = run.id
         snapshot_id = run.configuration_snapshot_id
     assert first == second
-    assert len(first["agent_versions"]) == 7
+    assert len(first["agent_versions"]) == 8
 
     with session_scope() as db:
         snapshot = db.get(ConfigurationSnapshot, snapshot_id)
@@ -62,8 +62,8 @@ def test_phase6_seed_snapshot_and_database_immutability() -> None:
         evaluation_id = evaluation.id if evaluation else None
         original_prompt = agent.system_prompt if agent else None
     assert snapshot is not None
-    assert len(snapshot.snapshot["agents"]) == 6
-    assert len(tasks) == 20
+    assert len(snapshot.snapshot["agents"]) == 7
+    assert len(tasks) == 25
     assert any(task.workflow_task_key.startswith("analyze_review.source_") for task in tasks)
     assert all(not task.workflow_task_key.startswith("fetch_comments.source_") for task in tasks)
     assert original_prompt and evaluation_id is not None
@@ -86,7 +86,7 @@ def test_phase6_seed_snapshot_and_database_immutability() -> None:
     with session_scope() as db:
         snapshot = db.get(ConfigurationSnapshot, snapshot_id)
         agent = db.get(AgentVersion, agent_id)
-        assert snapshot is not None and len(snapshot.snapshot["agents"]) == 6
+        assert snapshot is not None and len(snapshot.snapshot["agents"]) == 7
         assert agent is not None and agent.system_prompt == original_prompt
 
 

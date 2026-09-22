@@ -566,7 +566,7 @@ def main() -> int:
     youtube_smoke.add_argument("--video-id", required=True)
     subcommands.add_parser(
         "analysis-config-seed",
-        help="Validate and publish the seven bounded Phase 6 agents and workflow",
+        help="Validate and publish the bounded analysis agents and workflow",
     )
     retirement_export = subcommands.add_parser(
         "phase12-export-cutover-evidence",

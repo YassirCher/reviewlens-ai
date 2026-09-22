@@ -21,6 +21,11 @@ export type Preflight = {
 
 export type CreatedRun = { run_id: string; status: string; status_url: string; events_url: string };
 export type PublicTask = { task_key: string; status: string; label: string; started_at: string | null; completed_at: string | null };
+export type ProductEvidence = { video_id: string; source_url: string; source_part: "title" | "description" | "transcript"; excerpt: string; timestamp_seconds: number | null };
+export type ProductFact = { group: string; label: string; value: string; scope: string | null; evidence: ProductEvidence[]; conflicting: boolean };
+export type ProductVariant = { dimension: string; value: string; scope: string | null; evidence: ProductEvidence[] };
+export type ProductInfo = { facts: ProductFact[]; variants: ProductVariant[]; coverage_note: string };
+export type SampleUsed = { units: { role: string; details: { label: string; value: string; evidence: ProductEvidence }[] }[] };
 export type RunStatus = {
   run_id: string;
   status: "queued" | "running" | "cancelling" | "complete" | "partial" | "failed" | "cancelled";
@@ -39,6 +44,7 @@ export type RunStatus = {
   tasks: PublicTask[];
   report_url: string | null;
   progress_sequence: number;
+  product_info?: ProductInfo | null;
 };
 export type ProgressEvent = {
   sequence: number;
@@ -62,6 +68,7 @@ export type Source = {
   source_score: number; evidence_quality_score: number; recommendation_summary: string;
   pros: string[]; cons: string[]; limitations: string[];
   transcript_language: string; translated: boolean; caption_kind: string; claims: Claim[];
+  sample_used?: SampleUsed | null;
 };
 export type Finding = { id: string; statement: string; source_ids: string[]; evidence_ids: string[] };
 export type Disagreement = { topic: string; side_a: string; side_a_source_ids: string[]; side_b: string; side_b_source_ids: string[] };
@@ -73,6 +80,7 @@ export type Report = {
   longest_usage_period: string | null; longest_usage_source_id: string | null;
   who_should_buy: string[]; who_should_avoid: string[]; limitations: string[]; warnings: string[];
   sources: Source[]; generated_at: string; total_tokens: number; model_call_count: number; usage_pending: boolean;
+  product_info?: ProductInfo | null;
 };
 export type GraphNode = { id: string; type: "product" | "source" | "finding" | "evidence"; label: string; video_id?: string | null; polarity?: string | null };
 export type GraphEdge = { source: string; target: string; type: "ABOUT" | "SUPPORTS" | "CONTRADICTS" };

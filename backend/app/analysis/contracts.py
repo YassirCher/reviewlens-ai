@@ -7,6 +7,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.analysis.product_info import ProductInfo, SampleUsed
+
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -340,6 +342,8 @@ class FinalReport(StrictModel):
     limitations: tuple[str, ...]
     warnings: tuple[str, ...]
     source_analyses: tuple[SourceAnalysis, ...]
+    product_info: ProductInfo | None = None
+    sample_used_by_source: dict[str, SampleUsed] = Field(default_factory=dict)
     audience_analyses: tuple[AudienceAnalysis, ...] = ()
     total_tokens: int = Field(ge=0)
     configuration_snapshot_id: uuid.UUID

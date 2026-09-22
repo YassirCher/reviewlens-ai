@@ -1,5 +1,4 @@
 from unittest.mock import MagicMock
-import hmac
 import uuid
 from app.api.v2 import analyses as routes
 from app.db.models import Report, ReportPublication, AnalysisRun
@@ -46,6 +45,27 @@ def test_generate_report_pdf_direct():
     pdf_bytes = generate_report_pdf(payload, token)
     assert pdf_bytes.startswith(b"%PDF")
     assert len(pdf_bytes) > 2000
+
+
+def test_pdf_accepts_product_details_and_unconfirmed_sample():
+    video_id = "abc123DEF45"
+    evidence = {
+        "video_id": video_id,
+        "source_url": f"https://www.youtube.com/watch?v={video_id}&t=12s",
+        "source_part": "transcript",
+        "excerpt": "The tested unit has a 5000 mAh battery.",
+        "timestamp_seconds": 12,
+    }
+    payload = {
+        "product_name": "Test device",
+        "summary": "A source-grounded report.",
+        "product_info": {"facts": [{"group": "Power", "label": "Battery", "value": "5000 mAh", "scope": None,
+                                    "evidence": [evidence], "conflicting": False}], "variants": []},
+        "sources": [{"id": "s1", "title": "Review", "channel": "Reviewer", "video_id": video_id,
+                     "recommendation_summary": "A qualified recommendation.", "sample_used": {"units": []}}],
+    }
+    data = generate_report_pdf(payload, "a" * 43)
+    assert data.startswith(b"%PDF") and len(data) > 2000
 
 def test_download_report_pdf_route():
     token = "b" * 43

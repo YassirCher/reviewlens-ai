@@ -23,6 +23,7 @@ from app.db.models import AnalysisRun, Report, ReportPublication, TaskAttempt, T
 from app.db.session import session_scope
 from app.errors import V2Error
 from app.public.admission import client_ip_hash, create_analysis, preflight, resolve_session
+from app.analysis.product_info import ProductInfo
 from app.public.contracts import (
     AnalysisRequest,
     CreateResponse,
@@ -31,7 +32,7 @@ from app.public.contracts import (
     PublicReportResponse,
     StatusResponse,
 )
-from app.public.reports import report_token, token_hash, usage_summary
+from app.public.reports import product_info_from_tasks, report_token, token_hash, usage_summary
 from app.runtime.outbox import read_progress
 from app.runtime.service import request_cancellation
 from app.services.admin_auth import AdminAuthService, AuthenticatedAdmin
@@ -152,6 +153,11 @@ def _status(db: Session, run: AnalysisRun) -> StatusResponse:
         ),
         report_url=report_url,
         progress_sequence=run.progress_sequence,
+        product_info=(
+            ProductInfo.model_validate(publication.payload["product_info"])
+            if publication and publication.payload.get("product_info")
+            else product_info_from_tasks(db, run.id) if publication is None else None
+        ),
     )
 
 

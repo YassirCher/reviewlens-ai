@@ -74,6 +74,7 @@ test("intake checks quota and creates an owner-session run without a provider pi
   await page.getByRole("button", { name: /Analyze product/i }).click();
   await expect(page).toHaveURL(`/analysis/${RUN}`);
   await expect(page.getByRole("heading", { name: "Research timeline" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Product details from reviews" })).toBeVisible();
   await expect(page.getByRole("link", { name: /Open report/i })).toBeVisible();
   await page.getByRole("link", { name: /Open report/i }).click();
   await expect(page).toHaveURL(`/r/${TOKEN}`);
@@ -91,6 +92,11 @@ test("submission retry reuses its durable idempotency key", async ({ page }) => 
 
 test("report shows evidence and unlisted sharing without private fields", async ({ page }) => {
   await page.goto(`/r/${TOKEN}`);
+  const card = page.locator(".v2-product-card");
+  await expect(card.getByText("Battery runtime")).toBeVisible();
+  await expect(card.getByText("30 hours")).toBeVisible();
+  await expect(card.getByText("black")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Reviewer sample used" }).getByText("black")).toBeVisible();
   await expect(page.getByText("3 of 5 requested sources analyzed")).toBeVisible();
   await expect(page.getByText("3,128")).toBeVisible();
   await expect(page.getByText("8", { exact: true })).toBeVisible();
@@ -119,6 +125,7 @@ test("evidence map has filters, source provenance, contradiction, and a list alt
 
 test("partial report and revoked report keep honest, neutral states", async ({ page }) => {
   await page.goto(`/r/${PARTIAL}`);
+  await expect(page.locator(".v2-product-card")).toHaveCount(0);
   await expect(page.getByText("PARTIAL COVERAGE")).toBeVisible();
   await expect(page.getByText(/Some requested sources were unavailable/i)).toBeVisible();
   await page.goto(`/r/${"B".repeat(43)}`);

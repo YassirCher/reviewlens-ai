@@ -357,6 +357,7 @@ def _default_workflow(
         conditional: str = "always",
         dependency_mode: str = "all_succeeded",
         minimum_successes: int = 0,
+        optional: bool = False,
         input_payload: dict[str, Any] | None = None,
         timeout_seconds: int = 300,
     ) -> WorkflowTaskTemplate:
@@ -374,6 +375,7 @@ def _default_workflow(
             conditional=conditional,
             dependency_mode=dependency_mode,
             minimum_successes=minimum_successes,
+            optional=optional,
         )
 
     templates = (
@@ -441,6 +443,17 @@ def _default_workflow(
             timeout_seconds=300,
         ),
         agent_task(
+            "extract_product_information",
+            "extract_product_information.source_{index}",
+            "product_information_analyst",
+            ("fetch_transcript",),
+            fanout="source_slots",
+            dependency_mode="all_terminal_min_success",
+            minimum_successes=1,
+            timeout_seconds=240,
+            optional=True,
+        ),
+        agent_task(
             "analyze_audience",
             "analyze_audience.source_{index}",
             "audience_analyst",
@@ -482,7 +495,9 @@ def _default_workflow(
             template_key="publish_report",
             task_key="publish_report",
             handler="analysis.publish_report",
-            dependencies=("reaudit_report",),
+            dependencies=("reaudit_report", "extract_product_information"),
+            dependency_mode="all_terminal_min_success",
+            minimum_successes=1,
             retry=RetryPolicy(max_attempts=1),
             timeout_seconds=60,
         ),

@@ -22,6 +22,7 @@ from app.analysis.contracts import (
     SourceCuration,
     SourceCuratorInput,
 )
+from app.analysis.product_info import ProductAnalystInput, ProductExtractionDraft
 from app.knowledge.contracts import NodeType, RelationType, RetrievalPolicy, TrustLevel
 from app.runtime.contracts import canonical_json_hash
 
@@ -180,6 +181,34 @@ AGENT_SPECS: tuple[AgentSpec, ...] = (
         max_output_tokens=7500,
         max_reasoning_tokens=2500,
         max_total_tokens=32000,
+        timeout_seconds=180,
+    ),
+    AgentSpec(
+        key="product_information_analyst",
+        name="Product Information Analyst",
+        purpose="Extract category-relevant product details and the reviewer's stated sample from one selected video.",
+        prohibited_behaviors=("use outside product knowledge", "fetch URLs", "infer unstated variants or sample details"),
+        input_model=ProductAnalystInput,
+        output_model=ProductExtractionDraft,
+        role_prompt=(
+            "Use only this video's title, description, and timestamped transcript. Choose useful attribute groups "
+            "for the actual product category. Return concise product facts, only explicitly listed variant options, "
+            "and sample units with only explicitly stated details. A sample detail is not a product-wide option. "
+            "Never infer color, capacity, or combinations from model knowledge or unseen video frames. "
+            "For every item quote a short exact excerpt and identify title, description, or transcript; transcript "
+            "timestamps must be segment starts. Preserve model and region scope when stated. Return empty lists when unknown."
+        ),
+        tool_keys=(),
+        retrieval_policy=_retrieval(
+            (NodeType.SOURCE, NodeType.TRANSCRIPT, NodeType.TRANSCRIPT_CHUNK),
+            required=(NodeType.SOURCE, NodeType.TRANSCRIPT_CHUNK),
+            tokens=11000,
+            hops=2,
+        ),
+        max_input_tokens=18000,
+        max_output_tokens=5500,
+        max_reasoning_tokens=1500,
+        max_total_tokens=25000,
         timeout_seconds=180,
     ),
     AgentSpec(

@@ -21,8 +21,12 @@ function send(res, status, value, extras = {}) {
 }
 function body(req) { return new Promise(resolve => { let data = ""; req.on("data", chunk => { data += chunk; }); req.on("end", () => { try { resolve(JSON.parse(data || "{}")); } catch { resolve({}); } }); }); }
 function error(code, message) { return { error: { code, message, retryable: false, request_id: "test-request", details: {} } }; }
+function productInfo() {
+  const evidence = { video_id: "7lCDEYXw3mM", source_url: "https://www.youtube.com/watch?v=7lCDEYXw3mM&t=92s", source_part: "transcript", excerpt: "Battery lasted 30 hours in testing.", timestamp_seconds: 92 };
+  return { facts: [{ group: "Power", label: "Battery runtime", value: "30 hours", scope: null, evidence: [evidence], conflicting: false }], variants: [{ dimension: "Color", value: "black", scope: null, evidence: [{ ...evidence, source_url: "https://www.youtube.com/watch?v=7lCDEYXw3mM", source_part: "description", excerpt: "Available in black", timestamp_seconds: null }] }], coverage_note: "Details stated in selected reviews; available configurations may differ by model and region." };
+}
 function report(partial = false) {
-  return {
+  const value = {
     schema_version: 1, report_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", product_name: partial ? "Partial Widget" : "Sony WH-1000XM5 headphones", status: partial ? "partial" : "complete",
     source_count_requested: partial ? 3 : 5, source_count_analyzed: partial ? 1 : 3, overall_score: 78, verdict: "buy_with_caveats", confidence: partial ? 45 : 73, confidence_band: partial ? "medium" : "high",
     summary: "Comfort and noise isolation are strong in the reviewed sources. Battery behavior and value deserve a closer look before buying.",
@@ -33,6 +37,11 @@ function report(partial = false) {
     sources: [{ id: sourceId, video_id: "7lCDEYXw3mM", url: "https://www.youtube.com/watch?v=7lCDEYXw3mM", title: "A long reviewer title about the Sony WH-1000XM5 headphones", channel: "Reviewer One", views: 123456, duration_seconds: 542, published_at: "2026-01-01T00:00:00Z", review_type: "long_term", ownership_context: "owned", usage_period: "Three months", source_score: 82, evidence_quality_score: 77, recommendation_summary: "Comfort is strong, with battery caveats.", pros: ["Comfort"], cons: ["Battery life"], limitations: ["Automatic captions"], transcript_language: "en", translated: false, caption_kind: "automatic", claims: [{ claim: "Comfort holds up over extended sessions", central: true, evidence: [{ id: evidenceId, text: "The ear pads stayed comfortable during my long train rides.", timestamp_start_seconds: 92, timestamp_end_seconds: 99, support_type: "supports", confidence: 91 }] }] }],
     generated_at: "2026-09-17T10:00:00Z", total_tokens: 3128, model_call_count: 8, usage_pending: false,
   };
+  if (!partial) {
+    value.product_info = productInfo();
+    value.sources[0].sample_used = { units: [{ role: "Review unit", details: [{ label: "Color", value: "black", evidence: { video_id: "7lCDEYXw3mM", source_url: "https://www.youtube.com/watch?v=7lCDEYXw3mM", source_part: "description", excerpt: "Review unit is black", timestamp_seconds: null } }] }] };
+  }
+  return value;
 }
 function longReport() {
   const value = report();
@@ -47,7 +56,7 @@ function status(id) {
   const isCancelled = cancelled.has(id);
   const done = isCancelled || (id !== CANCEL_RUN && (partial ? reads > 2 : reads > 1));
   const state = isCancelled ? "cancelled" : done ? (id === FAIL_RUN ? "failed" : partial ? "partial" : "complete") : "running";
-  return { run_id: id, status: state, product_name: partial ? "Partial Widget" : "Sony WH-1000XM5 headphones", created_at: "2026-09-17T09:00:00Z", started_at: "2026-09-17T09:00:01Z", completed_at: done ? "2026-09-17T09:01:00Z" : null, source_count_requested: partial ? 3 : 5, source_count_analyzed: done && id !== FAIL_RUN ? (partial ? 1 : 3) : 0, completed_tasks: done ? 7 : 2, total_tasks: 7, warnings: partial && done ? ["transcript_unavailable"] : [], failure: state === "failed" ? { code: "no_transcripts", message: "Review videos were found, but usable captions were unavailable. Try another product or model." } : null, total_tokens: done ? 3128 : 84, usage_pending: false, tasks: [
+  return { run_id: id, status: state, product_name: partial ? "Partial Widget" : "Sony WH-1000XM5 headphones", product_info: id === RUN ? productInfo() : undefined, created_at: "2026-09-17T09:00:00Z", started_at: "2026-09-17T09:00:01Z", completed_at: done ? "2026-09-17T09:01:00Z" : null, source_count_requested: partial ? 3 : 5, source_count_analyzed: done && id !== FAIL_RUN ? (partial ? 1 : 3) : 0, completed_tasks: done ? 7 : 2, total_tasks: 7, warnings: partial && done ? ["transcript_unavailable"] : [], failure: state === "failed" ? { code: "no_transcripts", message: "Review videos were found, but usable captions were unavailable. Try another product or model." } : null, total_tokens: done ? 3128 : 84, usage_pending: false, tasks: [
     { task_key: "validate_request", status: "succeeded", label: "Validate request", started_at: "2026-09-17T09:00:01Z", completed_at: "2026-09-17T09:00:02Z" },
     { task_key: "plan_research", status: "succeeded", label: "Plan research", started_at: "2026-09-17T09:00:02Z", completed_at: "2026-09-17T09:00:04Z" },
     { task_key: "discover_candidates", status: done ? "succeeded" : "running", label: "Discover candidates", started_at: "2026-09-17T09:00:04Z", completed_at: done ? "2026-09-17T09:00:08Z" : null },
