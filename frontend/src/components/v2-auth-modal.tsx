@@ -4,9 +4,15 @@ import React, { useEffect, useState } from "react";
 import { AlertCircle, CheckCircle, Eye, EyeOff, Loader2, Lock, Mail, User as UserIcon, X } from "lucide-react";
 import { useUserAuth } from "./v2-auth-context";
 
-export function V2AuthModal() {
-  const { isAuthModalOpen, authModalTab, closeAuthModal, login, register } = useUserAuth();
-  const [tab, setTab] = useState<"login" | "register">(authModalTab);
+interface V2AuthModalDialogProps {
+  initialTab: "login" | "register";
+  closeAuthModal: () => void;
+  login: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, name?: string) => Promise<void>;
+}
+
+function V2AuthModalDialog({ initialTab, closeAuthModal, login, register }: V2AuthModalDialogProps) {
+  const [tab, setTab] = useState<"login" | "register">(initialTab);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -16,22 +22,14 @@ export function V2AuthModal() {
   const [success, setSuccess] = useState<string | null>(null);
 
   useEffect(() => {
-    setTab(authModalTab);
-    setError(null);
-    setSuccess(null);
-  }, [authModalTab, isAuthModalOpen]);
-
-  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isAuthModalOpen) {
+      if (e.key === "Escape") {
         closeAuthModal();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isAuthModalOpen, closeAuthModal]);
-
-  if (!isAuthModalOpen) return null;
+  }, [closeAuthModal]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -207,5 +205,21 @@ export function V2AuthModal() {
         </div>
       </div>
     </div>
+  );
+}
+
+export function V2AuthModal() {
+  const { isAuthModalOpen, authModalTab, closeAuthModal, login, register } = useUserAuth();
+
+  if (!isAuthModalOpen) return null;
+
+  return (
+    <V2AuthModalDialog
+      key={authModalTab}
+      initialTab={authModalTab}
+      closeAuthModal={closeAuthModal}
+      login={login}
+      register={register}
+    />
   );
 }

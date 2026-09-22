@@ -67,12 +67,23 @@ export default function ResearchesPage() {
   };
 
   useEffect(() => {
-    if (user) {
-      loadResearches();
-    } else if (!authLoading) {
-      setLoading(false);
-    }
-  }, [user, authLoading]);
+    if (!user) return;
+    let active = true;
+    adoptResearches()
+      .then(() => fetchUserResearches())
+      .then((items) => {
+        if (active) setResearches(items);
+      })
+      .catch(() => {
+        if (active) setResearches([]);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [user]);
 
   const filtered = useMemo(() => {
     return researches.filter((item) => {

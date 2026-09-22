@@ -36,7 +36,20 @@ export function UserAuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    refreshUser();
+    let active = true;
+    fetchCurrentUser()
+      .then((u) => {
+        if (active) setUser(u);
+      })
+      .catch(() => {
+        if (active) setUser(null);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   const openAuthModal = (tab: "login" | "register" = "login") => {
