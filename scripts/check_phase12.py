@@ -311,6 +311,8 @@ def _stack_checks() -> None:
     compose = [
         "docker",
         "compose",
+        "--profile",
+        "test",
         "-p",
         project,
         "--env-file",
@@ -322,7 +324,7 @@ def _stack_checks() -> None:
     ]
     openrouter_key, youtube_key, admin_password = support.create_test_environment(environment)
     try:
-        support.run(compose + ["--profile", "test", "config", "--quiet"])
+        support.run(compose + ["config", "--quiet"])
         support.run(
             compose
             + [
@@ -340,8 +342,6 @@ def _stack_checks() -> None:
         support.run(
             compose
             + [
-                "--profile",
-                "test",
                 "up",
                 "-d",
                 "--wait",
@@ -363,8 +363,6 @@ def _stack_checks() -> None:
         support.run(
             compose
             + [
-                "--profile",
-                "test",
                 "up",
                 "-d",
                 "--wait",
@@ -384,7 +382,7 @@ def _stack_checks() -> None:
         _dependency_outage_drill(compose, "redis")
         _dependency_outage_drill(compose, "postgres")
         logs = support.run(
-            compose + ["--profile", "test", "logs", "--no-color"],
+            compose + ["logs", "--no-color"],
             capture_output=True,
         ).stdout
         if openrouter_key in logs or youtube_key in logs or admin_password in logs:
@@ -393,7 +391,7 @@ def _stack_checks() -> None:
             raise RuntimeError("isolated acceptance attempted a live provider endpoint")
     finally:
         support.run(
-            compose + ["--profile", "test", "down", "--volumes", "--remove-orphans"],
+            compose + ["down", "--volumes", "--remove-orphans"],
             check=False,
         )
         environment.unlink(missing_ok=True)
