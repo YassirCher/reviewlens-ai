@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowRight, ArrowUpRight, Check, Clock3, Download, ExternalLink, GitBranch, Info, Share2, ShieldCheck, Youtube } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Check, Clock3, Download, ExternalLink, GitBranch, Info, Play, Share2, ShieldCheck, Youtube } from "lucide-react";
 import type { Evidence, Finding, Report, Source } from "@/lib/v2";
 import { V2Graph } from "./v2-graph";
 import { ProductInformationCard, SampleUsedBlock } from "./v2-product-info";
@@ -27,12 +27,88 @@ function FindingCard({ finding, report, tone }: { finding: Finding; report: Repo
 
 function SourceCard({ source, index }: { source: Source; index: number }) {
   const url = videoLink(source);
-  return <article className="v2-source-card" id={`source-${source.id}`}><div className="v2-source-art"><Youtube size={28} aria-hidden="true" />{VIDEO_ID.test(source.video_id) && <img src={`https://i.ytimg.com/vi/${source.video_id}/hqdefault.jpg`} alt={`Thumbnail for ${source.title}`} loading="lazy" onError={event => { event.currentTarget.hidden = true; }} />}</div><div className="v2-source-content"><div className="v2-source-top"><span className="v2-eyebrow">SOURCE {String(index+1).padStart(2,"0")}</span><span className="v2-score-mini">{source.source_score}<small>/100 source score</small></span></div><h3>{source.title}</h3><p className="v2-muted">{source.channel} · {source.views == null ? "Views unavailable" : `${new Intl.NumberFormat("en", { notation: "compact" }).format(source.views)} views`} · {duration(source.duration_seconds)}</p><p className="v2-source-summary">{source.recommendation_summary}</p><div className="v2-tags"><span>{verdictLabel(source.review_type)}</span><span>{verdictLabel(source.ownership_context)}</span><span>Evidence quality {source.evidence_quality_score}/100</span></div><p className="v2-source-context"><Clock3 size={15} aria-hidden="true" /> Usage period: {source.usage_period || "Not established"} · Captions: {source.caption_kind}, {source.transcript_language}{source.translated ? " (translated)" : ""}</p>
-    {source.claims.length > 0 && <details className="v2-source-claims"><summary>Inspect {source.claims.length} claim{source.claims.length === 1 ? "" : "s"} and evidence</summary><div>{source.claims.map((claim, claimIndex) => <div key={`${claim.claim}-${claimIndex}`} className="v2-claim"><strong>{claim.claim}</strong>{claim.evidence.map(item => <div key={item.id} className="v2-excerpt" id={`evidence-${item.id}`}><p>“{item.text}”</p><div><span>{item.support_type === "contradicts" ? "Contradicts" : "Supports"} · Evidence confidence {item.confidence}/100</span>{url && <a href={videoLink(source,item)!} target="_blank" rel="noopener noreferrer">{time(item.timestamp_start_seconds)} <ExternalLink size={13} aria-hidden="true" /><span className="v2-sr-only"> in YouTube, new tab</span></a>}</div></div>)}</div>)}</div></details>}
-    <SampleUsedBlock sample={source.sample_used} />
-    {source.limitations.length > 0 && <p className="v2-source-context"><Info size={15} aria-hidden="true" /> {source.limitations.join(" · ")}</p>}
-    {url && <a className="v2-source-link" href={url} target="_blank" rel="noopener noreferrer">Watch original review <ArrowUpRight size={16} aria-hidden="true" /><span className="v2-sr-only"> in new tab</span></a>}
-  </div></article>;
+  return (
+    <article className="v2-source-card" id={`source-${source.id}`}>
+      <div className="v2-source-header">
+        <a
+          className="v2-source-art"
+          href={url || `https://www.youtube.com/watch?v=${source.video_id}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={`Watch "${source.title}" on YouTube (opens new tab)`}
+        >
+          <Youtube size={32} className="v2-source-yt-placeholder" aria-hidden="true" />
+          {VIDEO_ID.test(source.video_id) && (
+            <img
+              src={`https://i.ytimg.com/vi/${source.video_id}/hqdefault.jpg`}
+              alt={`Thumbnail for ${source.title}`}
+              loading="lazy"
+              onError={event => { event.currentTarget.hidden = true; }}
+            />
+          )}
+          <div className="v2-source-play-overlay" aria-hidden="true">
+            <span className="v2-source-play-btn">
+              <Play size={18} fill="currentColor" />
+            </span>
+          </div>
+          {source.duration_seconds != null && (
+            <span className="v2-source-duration">{duration(source.duration_seconds)}</span>
+          )}
+          <span className="v2-source-yt-pill" aria-hidden="true">
+            <Youtube size={12} fill="#FF0000" strokeWidth={0} />
+            YouTube
+          </span>
+        </a>
+        <div className="v2-source-header-info">
+          <div className="v2-source-top">
+            <span className="v2-eyebrow">SOURCE {String(index + 1).padStart(2, "0")}</span>
+            <span className="v2-score-mini">{source.source_score}<small>/100 source score</small></span>
+          </div>
+          <h3>{source.title}</h3>
+          <p className="v2-muted v2-source-byline">
+            <span className="v2-channel-name">{source.channel}</span> · {source.views == null ? "Views unavailable" : `${new Intl.NumberFormat("en", { notation: "compact" }).format(source.views)} views`} · {duration(source.duration_seconds)}
+          </p>
+          {url && (
+            <a className="v2-source-link" href={url} target="_blank" rel="noopener noreferrer">
+              Watch original review <ArrowUpRight size={15} aria-hidden="true" /><span className="v2-sr-only"> in new tab</span>
+            </a>
+          )}
+        </div>
+      </div>
+      <div className="v2-source-body">
+        <p className="v2-source-summary">{source.recommendation_summary}</p>
+        <div className="v2-tags">
+          <span>{verdictLabel(source.review_type)}</span>
+          <span>{verdictLabel(source.ownership_context)}</span>
+          <span>Evidence quality {source.evidence_quality_score}/100</span>
+        </div>
+        <p className="v2-source-context">
+          <Clock3 size={15} aria-hidden="true" /> Usage period: {source.usage_period || "Not established"} · Captions: {source.caption_kind}, {source.transcript_language}{source.translated ? " (translated)" : ""}
+        </p>
+        {source.claims.length > 0 && (
+          <details className="v2-source-claims">
+            <summary>Inspect {source.claims.length} claim{source.claims.length === 1 ? "" : "s"} and evidence</summary>
+            <div>{source.claims.map((claim, claimIndex) => (
+              <div key={`${claim.claim}-${claimIndex}`} className="v2-claim">
+                <strong>{claim.claim}</strong>
+                {claim.evidence.map(item => (
+                  <div key={item.id} className="v2-excerpt" id={`evidence-${item.id}`}>
+                    <p>“{item.text}”</p>
+                    <div>
+                      <span>{item.support_type === "contradicts" ? "Contradicts" : "Supports"} · Evidence confidence {item.confidence}/100</span>
+                      {url && <a href={videoLink(source,item)!} target="_blank" rel="noopener noreferrer">{time(item.timestamp_start_seconds)} <ExternalLink size={13} aria-hidden="true" /><span className="v2-sr-only"> in YouTube, new tab</span></a>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}</div>
+          </details>
+        )}
+        <SampleUsedBlock sample={source.sample_used} />
+        {source.limitations.length > 0 && <p className="v2-source-context"><Info size={15} aria-hidden="true" /> {source.limitations.join(" · ")}</p>}
+      </div>
+    </article>
+  );
 }
 
 export function V2Report({ report, token }: { report: Report; token: string }) {
