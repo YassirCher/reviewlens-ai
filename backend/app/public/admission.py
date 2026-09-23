@@ -327,6 +327,7 @@ def create_analysis(
     idempotency_key: str,
     ip_hash: str | None,
     entrypoint: str = "v2_public",
+    user_id: uuid.UUID | None = None,
     config: Settings = settings,
 ) -> AnalysisRun:
     keys: tuple[str, str, str] | None = None
@@ -344,6 +345,8 @@ def create_analysis(
                 raise V2Error(409, "idempotency_conflict", "The idempotency key was used for a different request.")
             run = db.get(AnalysisRun, existing.run_id)
             assert run is not None
+            if user_id is not None and run.user_id is None:
+                run.user_id = user_id
             db.commit()
             return run
         active, policy = _limits(db, config)
@@ -374,6 +377,7 @@ def create_analysis(
             product_name=product,
             initiator_type=actor_type,
             initiator_id=actor_id,
+            user_id=user_id,
             requested_options={**options, "entrypoint": entrypoint},
         )
         db.add(RunSubmission(id=uuid.uuid4(), actor_type=actor_type, actor_id=actor_id, idempotency_key=idempotency_key, request_hash=request_hash, ip_hash=ip_hash, run_id=run.id))

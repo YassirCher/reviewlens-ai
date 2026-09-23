@@ -1,10 +1,12 @@
 /* eslint-disable @next/next/no-img-element -- public YouTube thumbnails have a local fallback. */
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, ArrowUpRight, Check, Clock3, Download, ExternalLink, GitBranch, Info, Play, Share2, ShieldCheck, Youtube } from "lucide-react";
 import type { Evidence, Finding, Report, Source } from "@/lib/v2";
+import { useUserAuth } from "@/components/v2-auth-context";
+import { adoptResearches } from "@/lib/user-auth";
 import { V2Graph } from "./v2-graph";
 import { ProductInformationCard, SampleUsedBlock } from "./v2-product-info";
 
@@ -112,8 +114,15 @@ function SourceCard({ source, index }: { source: Source; index: number }) {
 }
 
 export function V2Report({ report, token }: { report: Report; token: string }) {
+  const { user } = useUserAuth();
   const [copied, setCopied] = useState(false);
   const sourceById = new Map(report.sources.map(source => [source.id, source]));
+
+  useEffect(() => {
+    if (user && token) {
+      adoptResearches({ public_token: token }).catch(() => {});
+    }
+  }, [user, token]);
 
   async function share() {
     try { await navigator.clipboard.writeText(window.location.href); setCopied(true); setTimeout(() => setCopied(false), 3000); }

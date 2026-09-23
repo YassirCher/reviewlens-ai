@@ -88,12 +88,16 @@ export async function fetchUserResearches(): Promise<UserResearchItem[]> {
   return data.researches || [];
 }
 
-export async function adoptResearches(): Promise<number> {
+export async function adoptResearches(target?: { run_id?: string; public_token?: string }): Promise<number> {
   try {
     const res = await fetch(`${API_BASE}/api/v2/user/researches/adopt`, {
       method: "POST",
       credentials: "include",
-      headers: { Accept: "application/json" },
+      headers: {
+        Accept: "application/json",
+        ...(target ? { "Content-Type": "application/json" } : {}),
+      },
+      ...(target ? { body: JSON.stringify(target) } : {}),
     });
     const data = await parseJsonOrError(res);
     return data?.adopted_count || 0;

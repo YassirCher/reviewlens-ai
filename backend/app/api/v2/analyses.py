@@ -17,7 +17,8 @@ from redis import Redis
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.v2.dependencies import get_v2_db, get_v2_redis, require_admin
+from app.api.v2.dependencies import get_optional_user, get_v2_db, get_v2_redis, require_admin
+from app.services.user_auth import AuthenticatedUser
 from app.config import settings
 from app.db.models import AnalysisRun, Report, ReportPublication, TaskAttempt, TaskRun
 from app.db.session import session_scope
@@ -102,6 +103,14 @@ def _authorized_run(db: Session, request: Request, run_id: uuid.UUID, *, mutatio
                 if mutation:
                     _check_origin(request)
                 return run
+            elif run.user_id is None:
+                session, _ = resolve_session(db, request.cookies.get(settings.anonymous_session_cookie))
+                if session is not None and run.initiator_type == "public" and run.initiator_id == session.id:
+                    run.user_id = user_auth.user.id
+                    db.commit()
+                    if mutation:
+                        _check_origin(request)
+                    return run
         except Exception:
             pass
     session, _ = resolve_session(db, request.cookies.get(settings.anonymous_session_cookie))
@@ -237,17 +246,17 @@ def create_public_analysis(
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     db: Session = Depends(get_v2_db),
     redis: Redis = Depends(get_v2_redis),
+    opt_user: AuthenticatedUser | None = Depends(get_optional_user),
 ) -> CreateResponse:
     _check_origin(request)
     key = _idempotency(idempotency_key)
     session, cookie = resolve_session(db, request.cookies.get(settings.anonymous_session_cookie), create=True)
     assert session is not None
-    from app.api.v2.dependencies import get_optional_user
-    opt_user = get_optional_user(request, db)
+    user_id = opt_user.user.id if opt_user is not None else None
     run = create_analysis(db, redis, payload=payload, actor_type="public", actor_id=session.id,
                           idempotency_key=key, ip_hash=client_ip_hash(_client_host(request)),
-                          entrypoint="v2_public")
-    if opt_user is not None:
+                          entrypoint="v2_public", user_id=user_id)
+    if opt_user is not None and run.user_id is None:
         run.user_id = opt_user.user.id
         db.commit()
     _set_anonymous_cookie(response, cookie)

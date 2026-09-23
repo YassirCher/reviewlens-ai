@@ -229,4 +229,38 @@ class UserAuthService:
             )
             .values(user_id=user_id)
         )
-        return int(result.rowcount or 0)
+        count = int(result.rowcount or 0)
+        if count > 0:
+            self.db.commit()
+        return count
+
+    def adopt_run(
+        self,
+        user_id: uuid.UUID,
+        *,
+        run_id: uuid.UUID | None = None,
+        token: str | None = None,
+    ) -> bool:
+        target_run_id = run_id
+        if target_run_id is None and token:
+            from app.db.models import ReportPublication
+            from app.public.reports import token_hash
+
+            t_hash = token_hash(token, self.config)
+            pub = self.db.scalar(
+                select(ReportPublication).where(
+                    ReportPublication.token_hash == t_hash,
+                    ReportPublication.revoked_at.is_(None),
+                )
+            )
+            if pub:
+                target_run_id = pub.run_id
+        if not target_run_id:
+            return False
+        run = self.db.get(AnalysisRun, target_run_id)
+        if run and run.user_id is None:
+            run.user_id = user_id
+            self.db.commit()
+            return True
+        return False
+

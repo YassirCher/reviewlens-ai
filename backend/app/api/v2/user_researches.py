@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.v2.dependencies import get_v2_db, require_user
-from app.config import settings
+from app.config import Settings, settings
 from app.db.models import AnalysisRun, ReportPublication
 from app.public.reports import report_token
 from app.services.user_auth import AuthenticatedUser, UserAuthService
@@ -41,11 +41,24 @@ class UserResearchesResponse(BaseModel):
     total: int
 
 
+class AdoptResearchesRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    run_id: uuid.UUID | None = None
+    public_token: str | None = None
+
+
 @router.get("/researches", response_model=UserResearchesResponse)
 def list_user_researches(
+    request: Request = None,
     db: Session = Depends(get_v2_db),
     authenticated: AuthenticatedUser = Depends(require_user),
+    config: Settings = settings,
 ) -> UserResearchesResponse:
+    if request is not None and hasattr(request, "cookies"):
+        anon_cookie = request.cookies.get(config.anonymous_session_cookie)
+        if anon_cookie:
+            UserAuthService(db, config=config).adopt_anonymous_runs(authenticated.user.id, anon_cookie)
+
     runs = list(
         db.scalars(
             select(AnalysisRun)
@@ -118,11 +131,19 @@ def list_user_researches(
 @router.post("/researches/adopt")
 def adopt_researches(
     request: Request,
+    payload: AdoptResearchesRequest | None = None,
     db: Session = Depends(get_v2_db),
     authenticated: AuthenticatedUser = Depends(require_user),
+    config: Settings = settings,
 ) -> dict[str, int]:
-    service = UserAuthService(db)
+    service = UserAuthService(db, config=config)
     count = service.adopt_anonymous_runs(
-        authenticated.user.id, request.cookies.get(settings.anonymous_session_cookie)
+        authenticated.user.id, request.cookies.get(config.anonymous_session_cookie)
     )
+    if payload and (payload.run_id or payload.public_token):
+        if service.adopt_run(authenticated.user.id, run_id=payload.run_id, token=payload.public_token):
+            count += 1
+    db.commit()
     return {"adopted_count": count}
+
+

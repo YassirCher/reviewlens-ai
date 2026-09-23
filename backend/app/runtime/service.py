@@ -272,6 +272,7 @@ def create_run(
     product_name: str,
     initiator_type: str,
     initiator_id: uuid.UUID | None = None,
+    user_id: uuid.UUID | None = None,
     requested_options: dict[str, Any] | None = None,
 ) -> AnalysisRun:
     display_product, canonical_product = normalize_product_name(product_name)
@@ -284,6 +285,7 @@ def create_run(
         canonical_product=canonical_product,
         initiator_type=initiator_type,
         initiator_id=initiator_id,
+        user_id=user_id,
         requested_options=options,
         status=RunStatus.QUEUED,
         configuration_snapshot_id=snapshot.id,

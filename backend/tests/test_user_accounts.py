@@ -283,3 +283,78 @@ def test_user_researches_response() -> None:
     assert item.pdf_url is not None
     assert item.duration_seconds is not None
     assert item.duration_seconds > 0
+
+
+def test_get_optional_user_with_cookie_in_request() -> None:
+    from unittest.mock import MagicMock
+    from app.api.v2.dependencies import get_optional_user
+
+    db = _in_memory_db()
+    config = _test_config()
+    service = UserAuthService(db, config=config)
+
+    tokens = service.register(email="optuser@example.com", password="password123")
+
+    # Mock request with cookie matching settings.user_session_cookie
+    request = MagicMock()
+    request.cookies = {config.user_session_cookie: tokens.session_token}
+
+    # When called directly with get_optional_user(request, db), session_token defaults to Cookie(...)
+    opt_user = get_optional_user(request, db, config=config)
+    assert opt_user is not None
+    assert opt_user.user.id == tokens.user.id
+
+
+def test_standalone_adopt_anonymous_runs_and_token() -> None:
+    from app.api.v2.user_researches import adopt_researches, AdoptResearchesRequest
+    from app.services.user_auth import AuthenticatedUser
+    from unittest.mock import MagicMock
+    import secrets
+
+    db = _in_memory_db()
+    config = _test_config()
+    service = UserAuthService(db, config=config)
+
+    tokens = service.register(email="adopt_tester@example.com", password="password123")
+    auth = AuthenticatedUser(session=tokens.session, user=tokens.user)
+
+    now = datetime.now(timezone.utc)
+    raw_anon_id = secrets.token_urlsafe(32)
+    digest = keyed_hash("anon:" + raw_anon_id, config.session_secret)
+    anon_session = AnonymousSession(
+        id=uuid.uuid4(),
+        identifier_hash=digest,
+        quota_counters={},
+        last_seen_at=now,
+        expires_at=now + timedelta(days=7),
+        absolute_expires_at=now + timedelta(days=7),
+    )
+    db.add(anon_session)
+    db.flush()
+
+    run = AnalysisRun(
+        id=uuid.uuid4(),
+        product_input="Gadget X",
+        canonical_product="Gadget X",
+        initiator_type="public",
+        initiator_id=anon_session.id,
+        configuration_snapshot_id=uuid.uuid4(),
+        deadline_at=now + timedelta(hours=1),
+        status="complete",
+        requested_options={"source_count": 5},
+    )
+    db.add(run)
+    db.commit()
+
+    # Adopt via cookie
+    signed_cookie = _signed_identifier(raw_anon_id, config)
+    request = MagicMock()
+    request.cookies = {config.anonymous_session_cookie: signed_cookie}
+
+    result = adopt_researches(request=request, payload=None, db=db, authenticated=auth, config=config)
+    assert result["adopted_count"] == 1
+
+    db.refresh(run)
+    assert run.user_id == tokens.user.id
+
+
