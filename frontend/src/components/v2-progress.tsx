@@ -119,10 +119,10 @@ export function V2Progress({ runId }: { runId: string }) {
   const token = reportTokenFromApiPath(run.report_url);
   const isActive = !TERMINAL.has(run.status);
   const headingLabel = isActive ? "RESEARCH IN PROGRESS" : run.status === "failed" ? "RESEARCH STOPPED" : "RESEARCH FINISHED";
-  const connectionLabel = connection === "live" ? "Live updates connected"
-    : connection === "closed" && run.status === "failed" ? "Run ended with an error"
-    : connection === "closed" && run.status === "cancelled" ? "Run was cancelled"
-    : connection === "closed" ? "Run finished"
+  const connectionLabel = !isActive && run.status === "failed" ? "Run ended with an error"
+    : !isActive && run.status === "cancelled" ? "Run was cancelled"
+    : !isActive ? "Run finished"
+    : connection === "live" ? "Live updates connected"
     : connection === "polling" ? "Polling for updates"
     : "Reconnecting — work continues in the background";
   const sourceTasks = run.tasks.filter(task => /^(fetch_transcript|fetch_comments|analyze_review|analyze_audience)\.source_\d+$/.test(task.task_key));

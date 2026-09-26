@@ -119,6 +119,16 @@ _SOURCE_INSTRUCTION = re.compile(
     r"|\b(?:reveal|print|expose)\b.{0,80}\b(?:secret|key|prompt)\b",
     re.IGNORECASE,
 )
+_DETAIL_CUE = re.compile(
+    r"\b(?:has|have|includes?|comes? with|features?|supports?|rated|weighs?|measures?|"
+    r"available|offered|options?|variants?|colors?|colours?|sizes?|materials?|capacities?)\b",
+    re.IGNORECASE,
+)
+_MEASUREMENT = re.compile(
+    r"\b\d+(?:[.,]\d+)?\s*(?:mm|cm|m|kg|g|lb|oz|ml|l|gb|tb|mah|wh|w|hz|khz|"
+    r"mp|fps|hours?|minutes?|watts?|inches?|%|°c|°f)\b",
+    re.IGNORECASE,
+)
 
 
 def source_metadata(body: str) -> dict:
@@ -138,6 +148,76 @@ def _normalized(value: str) -> str:
 
 def _compact(value: str) -> str:
     return "".join(char for char in value.casefold() if char.isalnum())
+
+
+def _detail_score(body: str) -> int:
+    """Rank stored chunks by product-like statements, excluding timestamp digits."""
+    score = 0
+    for line in body.splitlines():
+        segment = _SEGMENT.match(line)
+        if not segment:
+            continue
+        spoken = segment.group(3)
+        score += 2 * bool(_MEASUREMENT.search(spoken)) + bool(_DETAIL_CUE.search(spoken))
+    return min(score, 40)
+
+
+def select_product_chunk_indexes(bodies: list[str], costs: list[int], budget: int, max_extra: int) -> tuple[int, ...]:
+    """Keep the first chunk, then use the same context budget across useful, distant spans."""
+    if not bodies:
+        return ()
+    selected = [0]
+    remaining = budget - costs[0]
+    while len(selected) - 1 < max_extra:
+        choices = [index for index in range(1, len(bodies)) if index not in selected and costs[index] <= remaining]
+        if not choices:
+            break
+        best = max(
+            choices,
+            key=lambda index: (
+                _detail_score(bodies[index]) * 2
+                + 12 * min(abs(index - chosen) for chosen in selected) / len(bodies),
+                min(abs(index - chosen) for chosen in selected),
+                -index,
+            ),
+        )
+        selected.append(best)
+        remaining -= costs[best]
+    return tuple(selected)
+
+
+def _different_model(scope: str | None, excerpt: str, canonical_product: str | None) -> bool:
+    if not canonical_product:
+        return False
+    target = re.findall(r"[a-z0-9]+", canonical_product.casefold())
+    if len(target) < 2:
+        return False
+    variant_suffixes = {"pro", "max", "plus", "ultra", "mini", "lite", "se", "xl"}
+    anchor = list(target)
+    if any(any(char.isdigit() for char in word) for word in anchor):
+        while len(anchor) > 2 and not any(char.isdigit() for char in anchor[-1]) and anchor[-1] not in variant_suffixes:
+            anchor.pop()
+    if not scope:
+        family = "".join(anchor[:-1])
+        spoken = _compact(excerpt)
+        return len(family) >= 6 and family in spoken and "".join(anchor) not in spoken
+    scoped = re.findall(r"[a-z0-9]+", scope.casefold())
+    compact_target = _compact(canonical_product)
+    compact_scope = _compact(scope)
+    if compact_target in compact_scope:
+        return False
+    shared = set(target) & set(scoped)
+    if not shared:
+        return False  # A region or other non-model qualifier may have no shared words.
+    variant_suffix = target[-1] in variant_suffixes
+    if variant_suffix and target[-1] not in scoped and len(shared) >= 2:
+        return True
+    target_codes = {word for word in target if any(char.isdigit() for char in word)}
+    scoped_codes = {word for word in scoped if any(char.isdigit() for char in word)}
+    if len(shared) >= 2 and scoped_codes - target_codes:
+        return True
+    target_core = "".join(anchor)
+    return not (target_core in compact_scope or compact_scope in compact_target) and len(shared) >= 2
 
 
 def _supported_value(value: str, excerpt: str) -> bool:
@@ -199,6 +279,7 @@ def validate_extraction(
     description: str,
     transcript_body: str,
     video_id: str,
+    canonical_product: str | None = None,
 ) -> tuple[tuple[ProductFact, ...], tuple[ProductVariant, ...], SampleUsed]:
     def evidence(item: EvidenceDraft, value: str) -> ProductEvidence | None:
         return validate_evidence(
@@ -208,6 +289,8 @@ def validate_extraction(
 
     def scoped_evidence(item: EvidenceDraft, value: str, scope: str | None) -> ProductEvidence | None:
         if scope and _compact(scope) not in _compact(" ".join((item.excerpt, title, description))):
+            return None
+        if _different_model(scope, item.excerpt, canonical_product):
             return None
         return evidence(item, value)
 

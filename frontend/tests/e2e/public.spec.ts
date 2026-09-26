@@ -75,6 +75,7 @@ test("intake checks quota and creates an owner-session run without a provider pi
   await expect(page).toHaveURL(`/analysis/${RUN}`);
   await expect(page.getByRole("heading", { name: "Research timeline" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Product details from reviews" })).toBeVisible();
+  await expect(page.locator(".v2-product-card").getByRole("link", { name: /Video def456GHI78/ })).toBeVisible();
   await expect(page.getByRole("link", { name: /Open report/i })).toBeVisible();
   await page.getByRole("link", { name: /Open report/i }).click();
   await expect(page).toHaveURL(`/r/${TOKEN}`);
@@ -95,6 +96,7 @@ test("report shows evidence and unlisted sharing without private fields", async 
   const card = page.locator(".v2-product-card");
   await expect(card.getByText("Battery runtime")).toBeVisible();
   await expect(card.getByText("30 hours")).toBeVisible();
+  await expect(card.getByRole("link", { name: /Review source 2.*0:42/ })).toHaveAttribute("href", "https://www.youtube.com/watch?v=def456GHI78&t=42s");
   await expect(card.getByText("black")).toBeVisible();
   await expect(page.getByRole("region", { name: "Reviewer sample used" }).getByText("black")).toBeVisible();
   await expect(page.getByText("3 of 5 requested sources analyzed")).toBeVisible();
@@ -150,6 +152,7 @@ test("a failed run exposes an actionable safe category and never offers a report
   await page.getByRole("button", { name: /Analyze product/i }).click();
   await expect(page).toHaveURL(/\/analysis\/44444444/);
   await expect(page.getByText(/usable captions were unavailable/i)).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText("Run ended with an error")).toBeVisible();
   await expect(page.getByRole("link", { name: /Open report/i })).toHaveCount(0);
 });
 

@@ -27,7 +27,7 @@ function FindingCard({ finding, report, tone }: { finding: Finding; report: Repo
   return <details className={`v2-finding v2-finding-${tone}`}><summary><span className="v2-finding-mark" aria-hidden="true" /> <span>{finding.statement}<small>{finding.source_ids.length} independent source{finding.source_ids.length === 1 ? "" : "s"} · Inspect evidence</small></span><ArrowRight size={17} aria-hidden="true" /></summary><div className="v2-finding-body">{relevant.length ? relevant.map(({source,item}) => <div key={`${source.id}-${item.id}`} className="v2-excerpt"><p>“{item.text}”</p><div><span>{source.channel}</span>{videoLink(source,item) && <a href={videoLink(source,item)!} target="_blank" rel="noopener noreferrer">{time(item.timestamp_start_seconds)} <ExternalLink size={13} aria-hidden="true" /><span className="v2-sr-only"> in YouTube, new tab</span></a>}</div></div>) : <p className="v2-muted">Evidence unavailable in this projection.</p>}</div></details>;
 }
 
-function SourceCard({ source, index }: { source: Source; index: number }) {
+function SourceCard({ source, index, sources }: { source: Source; index: number; sources: Source[] }) {
   const url = videoLink(source);
   return (
     <article className="v2-source-card" id={`source-${source.id}`}>
@@ -106,7 +106,7 @@ function SourceCard({ source, index }: { source: Source; index: number }) {
             ))}</div>
           </details>
         )}
-        <SampleUsedBlock sample={source.sample_used} />
+        <SampleUsedBlock sample={source.sample_used} sources={sources} />
         {source.limitations.length > 0 && <p className="v2-source-context"><Info size={15} aria-hidden="true" /> {source.limitations.join(" · ")}</p>}
       </div>
     </article>
@@ -171,7 +171,7 @@ export function V2Report({ report, token }: { report: Report; token: string }) {
         </button>
       </div>
     </div>
-    <ProductInformationCard info={report.product_info} />
+    <ProductInformationCard info={report.product_info} sources={report.sources} />
     <section className="v2-report-hero" aria-labelledby="v2-verdict"><div className="v2-verdict-block"><span className="v2-eyebrow">BUYING SIGNAL</span><div className="v2-score">{report.overall_score}<span>/100</span></div><h2 id="v2-verdict">{verdictLabel(report.verdict)}</h2><p>Overall product score</p></div><div className="v2-report-intro"><span className="v2-eyebrow">THE BOTTOM LINE</span><p>{report.summary}</p><div className="v2-confidence"><ShieldCheck size={19} aria-hidden="true" /><div><strong>{report.confidence}% confidence · {verdictLabel(report.confidence_band)}</strong><span>Confidence reflects evidence quality and coverage—not product quality.</span></div></div></div></section>
     <section className="v2-footprint" aria-label="Analysis footprint"><div><strong>{report.source_count_analyzed}<span> / {report.source_count_requested}</span></strong><small>source reviews</small></div><div><strong>{report.total_tokens.toLocaleString()}</strong><small>tokens used{report.usage_pending ? " · accounting pending" : ""}</small></div><div><strong>{report.model_call_count}</strong><small>model calls</small></div></section>
     {report.status === "partial" && <div className="v2-alert v2-alert-warning" role="status"><strong>Partial evidence.</strong> Some requested sources were unavailable or could not be analyzed. Read the limitations before relying on the conclusion.</div>}
@@ -181,7 +181,7 @@ export function V2Report({ report, token }: { report: Report; token: string }) {
     {report.disagreements.length > 0 && <section className="v2-report-section v2-disagreements"><p className="v2-eyebrow">WHERE REVIEWERS DIFFER</p><h2>Disagreement matters.</h2>{report.disagreements.map((item,index) => <div key={`${item.topic}-${index}`} className="v2-disagreement"><h3>{item.topic}</h3><div><p><span>ONE VIEW</span>{item.side_a}<small>{item.side_a_source_ids.map(id => sourceById.get(id)?.channel).filter(Boolean).join(", ")}</small></p><p><span>ANOTHER VIEW</span>{item.side_b}<small>{item.side_b_source_ids.map(id => sourceById.get(id)?.channel).filter(Boolean).join(", ")}</small></p></div></div>)}</section>}
     <section className="v2-report-section v2-fit-grid"><div className="v2-panel"><p className="v2-eyebrow">BEST FOR</p><h2>Consider buying if…</h2><ul>{report.who_should_buy.length ? report.who_should_buy.map((item,index) => <li key={`${item}-${index}`}><Check size={16} aria-hidden="true" />{item}</li>) : <li>No specific buyer fit was established.</li>}</ul></div><div className="v2-panel"><p className="v2-eyebrow">THINK TWICE</p><h2>Look closer if…</h2><ul>{report.who_should_avoid.length ? report.who_should_avoid.map((item,index) => <li key={`${item}-${index}`}><Info size={16} aria-hidden="true" />{item}</li>) : <li>No specific avoidance guidance was established.</li>}</ul></div></section>
     <section className="v2-usage v2-panel"><Clock3 size={22} aria-hidden="true" /><div><p className="v2-eyebrow">LONG-TERM EVIDENCE</p><h2>{report.longest_usage_period || "No clear usage period established"}</h2><p>{report.longest_usage_source_id && sourceById.get(report.longest_usage_source_id) ? `Longest stated period from ${sourceById.get(report.longest_usage_source_id)!.channel}.` : "Do not assume these reviews establish long-term reliability."}</p></div></section>
-    <section className="v2-report-section" aria-labelledby="v2-sources"><div className="v2-section-top"><div><p className="v2-eyebrow">ORIGINAL REVIEWS</p><h2 id="v2-sources">Inspect every source</h2><p>Claims are paired with short excerpts and links to the matching video moment.</p></div><span className="v2-step">03 — SOURCES</span></div><div className="v2-source-list">{report.sources.map((source,index) => <SourceCard key={source.id} source={source} index={index} />)}</div></section>
+    <section className="v2-report-section" aria-labelledby="v2-sources"><div className="v2-section-top"><div><p className="v2-eyebrow">ORIGINAL REVIEWS</p><h2 id="v2-sources">Inspect every source</h2><p>Claims are paired with short excerpts and links to the matching video moment.</p></div><span className="v2-step">03 — SOURCES</span></div><div className="v2-source-list">{report.sources.map((source,index) => <SourceCard key={source.id} source={source} index={index} sources={report.sources} />)}</div></section>
     <section className="v2-report-section" aria-labelledby="v2-map"><div className="v2-section-top"><div><p className="v2-eyebrow">EVIDENCE STRUCTURE</p><h2 id="v2-map">Follow the connections</h2><p>A public-safe view of how sources, findings, and excerpts relate.</p></div><Link className="v2-text-link" href={`/r/${token}/evidence`}>Open full evidence map <ArrowRight size={17} aria-hidden="true" /></Link></div><V2Graph report={report} token={token} /></section>
     <div className="v2-report-bottom"><span><GitBranch size={17} aria-hidden="true" /> Every central claim must be traceable before a report is published.</span><Link href="/">Research another product <ArrowRight size={16} aria-hidden="true" /></Link></div>
 

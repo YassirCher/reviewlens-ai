@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 from app.api.v2.dependencies import get_optional_user, get_v2_db, get_v2_redis, require_admin
 from app.services.user_auth import AuthenticatedUser
 from app.config import settings
-from app.db.models import AnalysisRun, Report, ReportPublication, TaskAttempt, TaskRun
+from app.db.models import AnalysisRun, Report, ReportPublication, TaskAttempt, TaskRun, ToolInvocation
 from app.db.session import session_scope
 from app.errors import V2Error
 from app.public.admission import client_ip_hash, create_analysis, preflight, resolve_session
@@ -112,6 +112,7 @@ def _authorized_run(db: Session, request: Request, run_id: uuid.UUID, *, mutatio
                         _check_origin(request)
                     return run
         except Exception:
+            db.rollback()
             pass
     session, _ = resolve_session(db, request.cookies.get(settings.anonymous_session_cookie))
     if session is None or run.initiator_type != "public" or run.initiator_id != session.id:
@@ -123,10 +124,21 @@ def _authorized_run(db: Session, request: Request, run_id: uuid.UUID, *, mutatio
 
 def _status(db: Session, run: AnalysisRun) -> StatusResponse:
     tasks = list(db.scalars(select(TaskRun).where(TaskRun.run_id == run.id).order_by(TaskRun.created_at, TaskRun.workflow_task_key)))
+    successful_outputs = {task_id: output for task_id, output in db.execute(
+        select(TaskAttempt.task_run_id, TaskAttempt.output_payload)
+        .join(TaskRun, TaskRun.id == TaskAttempt.task_run_id)
+        .where(TaskRun.run_id == run.id, TaskAttempt.status == "succeeded")
+    )}
     publication = db.scalar(select(ReportPublication).where(ReportPublication.run_id == run.id, ReportPublication.revoked_at.is_(None)))
     report_url = None
     warnings = []
-    analyzed = sum(task.workflow_task_key.startswith("analyze_review.source_") and task.status == "succeeded" for task in tasks)
+    analyzed = sum(
+        task.workflow_task_key.startswith("analyze_review.source_")
+        and task.status == "succeeded"
+        and isinstance(successful_outputs.get(task.id), dict)
+        and isinstance(successful_outputs[task.id].get("analysis"), dict)
+        for task in tasks
+    )
     if publication and run.status in {"complete", "partial"}:
         report_url = f"/api/v2/reports/{report_token(publication.report_id)}"
         warnings = list(publication.payload.get("warnings", []))
@@ -153,7 +165,13 @@ def _status(db: Session, run: AnalysisRun) -> StatusResponse:
         tasks=tuple(
             {
                 "task_key": task.workflow_task_key,
-                "status": task.status,
+                "status": (
+                    "skipped" if task.status == "succeeded"
+                    and isinstance(successful_outputs.get(task.id), dict)
+                    and (successful_outputs[task.id].get("skipped") is True
+                         or successful_outputs[task.id].get("available") is False)
+                    else task.status
+                ),
                 "label": task.workflow_task_key.split(".", 1)[0].replace("_", " ").title(),
                 "started_at": task.started_at,
                 "completed_at": task.completed_at,
@@ -177,6 +195,16 @@ def _public_failure(db: Session, run: AnalysisRun, tasks: list[TaskRun]) -> dict
         .where(TaskRun.run_id == run.id)
     ))
     codes = {attempt.error_code for attempt in attempts if attempt.status == "failed"}
+    has_valid_review = any(
+        task.workflow_task_key.startswith("analyze_review.source_")
+        and attempt.task_run_id == task.id
+        and attempt.status == "succeeded"
+        and isinstance(attempt.output_payload, dict)
+        and isinstance(attempt.output_payload.get("analysis"), dict)
+        for task in tasks for attempt in attempts
+    )
+    if "transcript_access_blocked" in codes and not has_valid_review:
+        return {"code": "captions_rate_limited", "message": "YouTube is temporarily limiting caption requests from this server. Please try again later."}
     if "youtube_no_candidates" in codes:
         return {"code": "no_relevant_videos", "message": "No relevant review videos were found. Try a more specific product model."}
     discovery_task_ids = {
@@ -200,6 +228,16 @@ def _public_failure(db: Session, run: AnalysisRun, tasks: list[TaskRun]) -> dict
         # Keep older failed runs actionable after the deterministic short circuit
         # is deployed; only this allowlisted explanation reaches the public API.
         return {"code": "no_relevant_videos", "message": "No relevant review videos were found. Try a more specific product model."}
+    if not has_valid_review and db.scalar(
+        select(ToolInvocation.id).where(
+            ToolInvocation.run_id == run.id,
+            ToolInvocation.tool_key == "youtube.transcript",
+            ToolInvocation.error_category == "upstream",
+            ToolInvocation.error_code == "transcript_fetch_failed",
+        ).limit(1)
+    ) is not None:
+        # Older runs collapsed HTTP 429 and other upstream fetch errors into this code.
+        return {"code": "caption_retrieval_failed", "message": "YouTube captions could not be retrieved from this server. Please try again later."}
     transcript_tasks = [task for task in tasks if task.workflow_task_key.startswith("fetch_transcript.source_")]
     if transcript_tasks:
         by_task = {task.id: task for task in transcript_tasks}

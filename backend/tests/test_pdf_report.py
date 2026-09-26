@@ -3,7 +3,7 @@ import uuid
 from app.api.v2 import analyses as routes
 from app.db.models import Report, ReportPublication, AnalysisRun
 from app.public.reports import token_hash
-from app.services.pdf_generator import generate_report_pdf
+from app.services.pdf_generator import _evidence_links, generate_report_pdf
 
 def test_generate_report_pdf_direct():
     payload = {
@@ -66,6 +66,21 @@ def test_pdf_accepts_product_details_and_unconfirmed_sample():
     }
     data = generate_report_pdf(payload, "a" * 43)
     assert data.startswith(b"%PDF") and len(data) > 2000
+
+
+def test_pdf_product_links_use_report_source_numbers() -> None:
+    first = "abc123DEF45"
+    second = "def456GHI78"
+    refs = [
+        {"video_id": second, "source_url": f"https://www.youtube.com/watch?v={second}&t=42s",
+         "source_part": "transcript", "excerpt": "The battery lasts 30 hours.", "timestamp_seconds": 42},
+        {"video_id": first, "source_url": f"https://www.youtube.com/watch?v={first}",
+         "source_part": "description", "excerpt": "Available in black", "timestamp_seconds": None},
+    ]
+    links = _evidence_links(refs, {first: 1, second: 2})
+    assert "Review source 2" in links and "Review source 1" in links
+    assert links.index("Review source 2") < links.index("Review source 1")
+    assert f"watch?v={second}&amp;t=42s" in links
 
 def test_download_report_pdf_route():
     token = "b" * 43

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import random
 import re
 import uuid
 from dataclasses import replace
@@ -31,6 +32,7 @@ from app.analysis.product_info import (
     ProductExtractionDraft,
     SampleUsed,
     merge_product_info,
+    select_product_chunk_indexes,
     source_metadata,
     validate_extraction,
 )
@@ -212,6 +214,52 @@ def _product_source_material(run: AnalysisRun, source: dict[str, Any], config: S
     return metadata, transcript_body
 
 
+def _product_context_seeds(
+    run: AnalysisRun, task: TaskRun, *, config: Settings, token_budget: int, max_nodes_per_source: int,
+) -> tuple[uuid.UUID, ...]:
+    """Seed useful, separated spans of this video without increasing prompt size."""
+    source_index = int(task.input_payload.get("source_index", 0) or 0)
+    source = _task_output(run.id, f"fetch_transcript.source_{source_index}") or {}
+    chunk_ids = [uuid.UUID(item) for item in source.get("transcript_chunk_ids") or []]
+    source_id = uuid.UUID(source["source_id"])
+    if len(chunk_ids) < 2 or token_budget < 200:
+        return (source_id, *chunk_ids[:1])
+    expected_uri = f"https://www.youtube.com/watch?v={source['video_id']}"
+    with session_scope() as db:
+        workspace = db.scalar(select(Workspace).where(Workspace.run_id == run.id))
+        source_node = db.get(ContextNode, source_id)
+        if (
+            workspace is None or source_node is None or source_node.workspace_id != workspace.id
+            or source_node.node_type != NodeType.SOURCE or source_node.current_version_id is None
+        ):
+            raise RuntimeTaskError("product_source_lineage_invalid", category="validation")
+        source_version = db.get(ContextNodeVersion, source_node.current_version_id)
+        if source_version is None or source_version.source_uri != expected_uri:
+            raise RuntimeTaskError("product_source_lineage_invalid", category="validation")
+        source_cost = estimate_tokens(read_version_body(workspace, source_version, config=config)[1]) + 160
+        bodies: list[str] = []
+        costs: list[int] = []
+        for chunk_id in chunk_ids:
+            node = db.get(ContextNode, chunk_id)
+            version = db.get(ContextNodeVersion, node.current_version_id) if node and node.current_version_id else None
+            if (
+                node is None or node.workspace_id != workspace.id or node.node_type != NodeType.TRANSCRIPT_CHUNK
+                or version is None or version.source_uri != expected_uri
+                or version.provenance.get("video_id") != source["video_id"]
+            ):
+                bodies.append("")
+                costs.append(token_budget + 1)
+                continue
+            body = read_version_body(workspace, version, config=config)[1]
+            bodies.append(body)
+            costs.append(estimate_tokens(body) + 160)
+    indexes = select_product_chunk_indexes(
+        bodies, costs, max(0, int(token_budget * 0.8) - source_cost),
+        max_extra=max(0, min(4, max_nodes_per_source - 2)),
+    )
+    return (source_id, *(chunk_ids[index] for index in indexes))
+
+
 def _node_identity(version_id: uuid.UUID) -> tuple[uuid.UUID, uuid.UUID]:
     with session_scope() as db:
         version = db.get(ContextNodeVersion, version_id)
@@ -352,12 +400,27 @@ async def _fetch_transcript(
     *,
     config: Settings,
 ) -> dict[str, Any]:
+    startup_delay = 0.35 * (source_index - 1) + random.uniform(0.05, 0.25)
+    if startup_delay > 0:
+        await asyncio.sleep(startup_delay)
+
     discovery = _task_output(run.id, "discover_candidates") or {}
     curation = SourceCuration.model_validate(_task_output(run.id, "curate_sources") or {})
     candidates = {item["video_id"]: item for item in discovery.get("candidates", [])}
     source_count = int(run.requested_options.get("source_count", config.default_video_count))
     ordered = [item for item in curation.ordered_video_ids if item in candidates]
-    queue = ordered[source_index - 1 :: source_count]
+
+    primary = [ordered[source_index - 1]] if (source_index - 1) < len(ordered) else []
+    reserves = [
+        vid for vid in ordered[source_count:]
+        if vid not in primary
+    ] + [
+        item["video_id"] for item in discovery.get("candidates", [])
+        if item.get("video_id") and item["video_id"] not in ordered and item["video_id"] in candidates
+    ]
+    slot_reserves = reserves[source_index - 1 :: source_count]
+    queue = primary + slot_reserves
+
     for video_id in queue:
         candidate = candidates[video_id]
         try:
@@ -372,6 +435,8 @@ async def _fetch_transcript(
                 config=config,
             )
         except ToolExecutionError as exc:
+            if exc.code == "transcript_access_blocked":
+                raise RuntimeTaskError(exc.code, category=exc.category, retryable=False) from exc
             if exc.code.startswith("transcript_"):
                 continue
             raise RuntimeTaskError(exc.code, category=exc.category, retryable=exc.retryable) from exc
@@ -836,6 +901,11 @@ async def _call_agent(
     # Reserve tokens for system prompt (~600 tokens), task wrapper (~300 tokens), and safety margin (400 tokens)
     available_context = max(0, spec.max_input_tokens - task_input_tokens - 1300)
     budget_override = min(spec.retrieval_policy.input_token_budget, available_context) if available_context > 0 else 0
+    if spec.key == "product_information_analyst" and budget_override >= 200:
+        seeds = _product_context_seeds(
+            run, task, config=config, token_budget=budget_override,
+            max_nodes_per_source=spec.retrieval_policy.maximum_nodes_per_source,
+        )
 
     rendered, manifest_id, context_tokens = _context_packet(
         attempt_id,
@@ -1423,12 +1493,14 @@ async def _execute_agent(
         if not source.get("available"):
             return {"skipped": True, "reason": "source_unavailable", "source_index": source_index}
         metadata, transcript_body = _product_source_material(run, source, config)
+        draft = ProductExtractionDraft.model_validate(result)
         facts, variants, sample = validate_extraction(
-            ProductExtractionDraft.model_validate(result),
+            draft,
             title=str(metadata.get("title") or ""),
             description=str(metadata.get("description") or ""),
             transcript_body=transcript_body,
             video_id=source["video_id"],
+            canonical_product=run.canonical_product,
         )
         return {
             "source_id": source["source_id"],
@@ -1436,6 +1508,12 @@ async def _execute_agent(
             "facts": [item.model_dump(mode="json") for item in facts],
             "variants": [item.model_dump(mode="json") for item in variants],
             "sample_used": sample.model_dump(mode="json"),
+            "extraction_diagnostics": {
+                "proposed_facts": len(draft.facts), "accepted_facts": len(facts),
+                "proposed_variants": len(draft.variants), "accepted_variants": len(variants),
+                "proposed_sample_details": sum(len(unit.details) for unit in draft.sample_units),
+                "accepted_sample_details": sum(len(unit.details) for unit in sample.units),
+            },
         }
     if spec.key == "audience_analyst":
         return _postprocess_audience(attempt_id, run, AudienceAnalysisDraft.model_validate(result), config=config)
@@ -1472,6 +1550,8 @@ def _publish_report(
     config: Settings,
 ) -> dict[str, Any]:
     audit_payload = _task_output(run.id, "reaudit_report") or {}
+    if not audit_payload.get("audit"):
+        raise RuntimeTaskError("report_audit_missing", category="quality")
     audit = AuditResult.model_validate(audit_payload.get("audit", {}))
     if audit.verdict == "fail":
         raise RuntimeTaskError("report_audit_failed", category="quality")

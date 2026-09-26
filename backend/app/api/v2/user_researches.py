@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.api.v2.dependencies import get_v2_db, require_user
 from app.config import Settings, settings
-from app.db.models import AnalysisRun, ReportPublication
+from app.db.models import AnalysisRun, ReportPublication, TaskAttempt, TaskRun
 from app.public.reports import report_token
 from app.services.user_auth import AuthenticatedUser, UserAuthService
 
@@ -71,6 +71,7 @@ def list_user_researches(
     run_ids = [run.id for run in runs]
 
     publications: dict[uuid.UUID, ReportPublication] = {}
+    analyzed_by_run: dict[uuid.UUID, set[uuid.UUID]] = {}
     if run_ids:
         pub_list = list(
             db.scalars(
@@ -79,6 +80,20 @@ def list_user_researches(
             )
         )
         publications = {pub.run_id: pub for pub in pub_list}
+    unpublished_run_ids = [run_id for run_id in run_ids if run_id not in publications]
+    if unpublished_run_ids:
+        for run_id, task_id, output in db.execute(
+            select(TaskRun.run_id, TaskRun.id, TaskAttempt.output_payload)
+            .join(TaskAttempt, TaskAttempt.task_run_id == TaskRun.id)
+            .where(
+                TaskRun.run_id.in_(unpublished_run_ids),
+                TaskRun.workflow_task_key.like("analyze_review.source_%"),
+                TaskRun.status == "succeeded",
+                TaskAttempt.status == "succeeded",
+            )
+        ):
+            if isinstance(output, dict) and isinstance(output.get("analysis"), dict):
+                analyzed_by_run.setdefault(run_id, set()).add(task_id)
 
     for run in runs:
         duration: float | None = None
@@ -93,7 +108,7 @@ def list_user_researches(
         overall_score: int | None = None
         verdict: str | None = None
         summary: str | None = None
-        analyzed = int(run.requested_options.get("source_count", 5))
+        analyzed = len(analyzed_by_run.get(run.id, ()))
 
         if pub and isinstance(pub.payload, dict):
             token = report_token(pub.report_id)
@@ -145,5 +160,3 @@ def adopt_researches(
             count += 1
     db.commit()
     return {"adopted_count": count}
-
-

@@ -194,17 +194,34 @@ class UserAuthService:
         ):
             raise V2Error(401, "user_session_expired", "Your session has expired. Please sign in again.")
 
-        session.last_seen_at = now
-        session.expires_at = min(
-            now + timedelta(days=self.config.user_session_idle_days),
-            absolute_expires_at,
-        )
-        self.db.commit()
+        touch_threshold = timedelta(seconds=30)
+        if session.last_seen_at is None or (now - _ensure_utc(session.last_seen_at)) >= touch_threshold:
+            new_expires = min(
+                now + timedelta(days=self.config.user_session_idle_days),
+                absolute_expires_at,
+            )
+            self.db.execute(
+                update(UserSession)
+                .where(UserSession.id == session.id)
+                .values(last_seen_at=now, expires_at=new_expires)
+            )
+            try:
+                self.db.commit()
+                session.last_seen_at = now
+                session.expires_at = new_expires
+            except Exception as exc:
+                self.db.rollback()
+                logger.warning("Failed to update user session last_seen_at: %s", exc)
+
         return AuthenticatedUser(session=session, user=session.user)
 
     def logout(self, authenticated: AuthenticatedUser) -> None:
         authenticated.session.revoked_at = _utc_now()
-        self.db.commit()
+        try:
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            raise
 
     def adopt_anonymous_runs(self, user_id: uuid.UUID, anon_cookie: str | None) -> int:
         if not anon_cookie:
@@ -231,7 +248,11 @@ class UserAuthService:
         )
         count = int(result.rowcount or 0)
         if count > 0:
-            self.db.commit()
+            try:
+                self.db.commit()
+            except Exception:
+                self.db.rollback()
+                raise
         return count
 
     def adopt_run(
@@ -260,7 +281,11 @@ class UserAuthService:
         run = self.db.get(AnalysisRun, target_run_id)
         if run and run.user_id is None:
             run.user_id = user_id
-            self.db.commit()
+            try:
+                self.db.commit()
+            except Exception:
+                self.db.rollback()
+                raise
             return True
         return False
 

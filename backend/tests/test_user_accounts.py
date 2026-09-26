@@ -305,8 +305,30 @@ def test_get_optional_user_with_cookie_in_request() -> None:
     assert opt_user.user.id == tokens.user.id
 
 
+def test_unpublished_research_list_counts_only_completed_review_outputs() -> None:
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+    from app.api.v2.user_researches import list_user_researches
+
+    now = datetime.now(timezone.utc)
+    run = SimpleNamespace(
+        id=uuid.uuid4(), product_input="Black Shark T11", status="failed",
+        created_at=now, started_at=now, completed_at=now,
+        requested_options={"source_count": 5},
+    )
+    db = MagicMock()
+    db.scalars.side_effect = [[run], []]
+    db.execute.return_value = [
+        (run.id, uuid.uuid4(), {"skipped": True}),
+        (run.id, uuid.uuid4(), {"analysis": {"source_id": "verified"}}),
+    ]
+    auth = SimpleNamespace(user=SimpleNamespace(id=uuid.uuid4()))
+    result = list_user_researches(db=db, authenticated=auth)
+    assert result.researches[0].source_count_analyzed == 1
+
+
 def test_standalone_adopt_anonymous_runs_and_token() -> None:
-    from app.api.v2.user_researches import adopt_researches, AdoptResearchesRequest
+    from app.api.v2.user_researches import adopt_researches
     from app.services.user_auth import AuthenticatedUser
     from unittest.mock import MagicMock
     import secrets
@@ -357,4 +379,28 @@ def test_standalone_adopt_anonymous_runs_and_token() -> None:
     db.refresh(run)
     assert run.user_id == tokens.user.id
 
+
+def test_user_session_concurrency_and_touch_threshold() -> None:
+    db = _in_memory_db()
+    config = _test_config()
+    service = UserAuthService(db, config=config)
+
+    tokens = service.register(email="concurrency_test@example.com", password="password123")
+    initial_last_seen = tokens.session.last_seen_at
+
+    # Rapid second authentication within 30 seconds should not update last_seen_at
+    auth1 = service.authenticate(tokens.session_token)
+    assert auth1.user.email == "concurrency_test@example.com"
+    assert auth1.session.last_seen_at == initial_last_seen
+
+    # Authentication with invalid token fails cleanly without corrupting the session
+    try:
+        service.authenticate("invalid_token")
+        assert False, "Expected user_session_expired"
+    except V2Error as exc:
+        assert exc.code == "user_session_expired"
+
+    # Subsequent valid authentication still succeeds cleanly
+    auth2 = service.authenticate(tokens.session_token)
+    assert auth2.user.email == "concurrency_test@example.com"
 

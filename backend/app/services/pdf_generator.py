@@ -108,9 +108,11 @@ def _verdict_label(val: str) -> str:
     return val.replace("_", " ").title()
 
 
-def _evidence_links(raw: list[dict[str, Any]] | tuple[ProductEvidence, ...]) -> str:
+def _evidence_links(
+    raw: list[dict[str, Any]] | tuple[ProductEvidence, ...], source_numbers: dict[str, int],
+) -> str:
     links = []
-    for index, value in enumerate(raw):
+    for value in raw:
         try:
             ref = value if isinstance(value, ProductEvidence) else ProductEvidence.model_validate(value)
         except ValueError:
@@ -120,13 +122,19 @@ def _evidence_links(raw: list[dict[str, Any]] | tuple[ProductEvidence, ...]) -> 
         url = f"https://www.youtube.com/watch?v={ref.video_id}"
         if ref.timestamp_seconds is not None and math.isfinite(ref.timestamp_seconds) and ref.timestamp_seconds >= 0:
             url += f"&amp;t={int(ref.timestamp_seconds)}s"
-        links.append(f'<link href="{url}" color="#0284C7">Review source {index + 1}</link>')
+        label = f"Review source {source_numbers[ref.video_id]}" if ref.video_id in source_numbers else f"Video {ref.video_id}"
+        links.append(f'<link href="{url}" color="#0284C7">{label}</link>')
     return ", ".join(links)
 
 
 def generate_report_pdf(payload: dict[str, Any], token: str) -> bytes:
     """Generates an executive, publication-grade PDF dossier from a report payload."""
     buffer = io.BytesIO()
+    sources_list = payload.get("sources", [])
+    source_numbers = {
+        source["video_id"]: index for index, source in enumerate(sources_list, 1)
+        if isinstance(source, dict) and isinstance(source.get("video_id"), str) and _VIDEO_ID.fullmatch(source["video_id"])
+    }
 
     # Document geometry: Letter, 0.75 in (54 pt) margins
     doc = SimpleDocTemplate(
@@ -322,7 +330,7 @@ def generate_report_pdf(payload: dict[str, Any], token: str) -> bytes:
                 for fact in facts:
                     scope = f" ({_sanitize(fact.scope)})" if fact.scope else ""
                     conflict = " - conflicting review statements" if fact.conflicting else ""
-                    links = _evidence_links(fact.evidence)
+                    links = _evidence_links(fact.evidence, source_numbers)
                     story.append(Paragraph(
                         f"<b>{_sanitize(fact.label)}:</b> {_sanitize(fact.value)}{scope}{conflict}"
                         + (f" - {links}" if links else ""), style_body,
@@ -332,7 +340,7 @@ def generate_report_pdf(payload: dict[str, Any], token: str) -> bytes:
                 story.append(Paragraph("Listed options do not imply every combination or current availability.", style_meta))
                 for option in info.variants:
                     scope = f" ({_sanitize(option.scope)})" if option.scope else ""
-                    links = _evidence_links(option.evidence)
+                    links = _evidence_links(option.evidence, source_numbers)
                     story.append(Paragraph(
                         f"<b>{_sanitize(option.dimension)}:</b> {_sanitize(option.value)}{scope}"
                         + (f" - {links}" if links else ""), style_body,
@@ -369,7 +377,6 @@ def generate_report_pdf(payload: dict[str, Any], token: str) -> bytes:
         story.append(Spacer(1, 14))
 
     # Helper maps for sources
-    sources_list = payload.get("sources", [])
     source_map = {s.get("id") or s.get("source_id"): s for s in sources_list if s.get("id") or s.get("source_id")}
 
     # -------------------------------------------------------------
@@ -587,7 +594,7 @@ def generate_report_pdf(payload: dict[str, Any], token: str) -> bytes:
                     for unit in sample.units:
                         details = []
                         for detail in unit.details:
-                            links = _evidence_links((detail.evidence,))
+                            links = _evidence_links((detail.evidence,), source_numbers)
                             details.append(f"{_sanitize(detail.label)}: {_sanitize(detail.value)}" + (f" ({links})" if links else ""))
                         src_elements.append(Paragraph(
                             f"<b>Sample used - {_sanitize(unit.role)}:</b> " + "; ".join(details), style_meta,

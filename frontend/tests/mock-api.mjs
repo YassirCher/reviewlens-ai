@@ -23,7 +23,8 @@ function body(req) { return new Promise(resolve => { let data = ""; req.on("data
 function error(code, message) { return { error: { code, message, retryable: false, request_id: "test-request", details: {} } }; }
 function productInfo() {
   const evidence = { video_id: "7lCDEYXw3mM", source_url: "https://www.youtube.com/watch?v=7lCDEYXw3mM&t=92s", source_part: "transcript", excerpt: "Battery lasted 30 hours in testing.", timestamp_seconds: 92 };
-  return { facts: [{ group: "Power", label: "Battery runtime", value: "30 hours", scope: null, evidence: [evidence], conflicting: false }], variants: [{ dimension: "Color", value: "black", scope: null, evidence: [{ ...evidence, source_url: "https://www.youtube.com/watch?v=7lCDEYXw3mM", source_part: "description", excerpt: "Available in black", timestamp_seconds: null }] }], coverage_note: "Details stated in selected reviews; available configurations may differ by model and region." };
+  const second = { video_id: "def456GHI78", source_url: "https://www.youtube.com/watch?v=def456GHI78&t=42s", source_part: "transcript", excerpt: "The charging port is USB-C.", timestamp_seconds: 42 };
+  return { facts: [{ group: "Power", label: "Battery runtime", value: "30 hours", scope: null, evidence: [evidence], conflicting: false }, { group: "Connectivity", label: "Charging port", value: "USB-C", scope: null, evidence: [second], conflicting: false }], variants: [{ dimension: "Color", value: "black", scope: null, evidence: [{ ...evidence, source_url: "https://www.youtube.com/watch?v=7lCDEYXw3mM", source_part: "description", excerpt: "Available in black", timestamp_seconds: null }] }], coverage_note: "Details stated in selected reviews; available configurations may differ by model and region." };
 }
 function report(partial = false) {
   const value = {
@@ -40,6 +41,7 @@ function report(partial = false) {
   if (!partial) {
     value.product_info = productInfo();
     value.sources[0].sample_used = { units: [{ role: "Review unit", details: [{ label: "Color", value: "black", evidence: { video_id: "7lCDEYXw3mM", source_url: "https://www.youtube.com/watch?v=7lCDEYXw3mM", source_part: "description", excerpt: "Review unit is black", timestamp_seconds: null } }] }] };
+    value.sources.push({ ...value.sources[0], id: "source-public-2", video_id: "def456GHI78", url: "https://www.youtube.com/watch?v=def456GHI78", title: "Second independent review", channel: "Reviewer Two", claims: [], sample_used: { units: [] } });
   }
   return value;
 }

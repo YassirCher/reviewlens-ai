@@ -98,6 +98,8 @@ def _retrieval(
     relations: tuple[RelationType, ...] = tuple(RelationType),
     tokens: int,
     hops: int = 1,
+    vector_top_k: int = 12,
+    lexical_candidate_limit: int = 20,
 ) -> RetrievalPolicy:
     return RetrievalPolicy(
         allowed_node_types=frozenset(node_types),
@@ -112,8 +114,8 @@ def _retrieval(
         required_seed_node_types=frozenset(required),
         allowed_relation_types=frozenset(relations),
         maximum_graph_hops=hops,
-        vector_top_k=12,
-        lexical_candidate_limit=20,
+        vector_top_k=vector_top_k,
+        lexical_candidate_limit=lexical_candidate_limit,
         maximum_nodes_per_source=6,
         input_token_budget=tokens,
         reserved_output_tokens=2000,
@@ -192,18 +194,23 @@ AGENT_SPECS: tuple[AgentSpec, ...] = (
         output_model=ProductExtractionDraft,
         role_prompt=(
             "Use only this video's title, description, and timestamped transcript. Choose useful attribute groups "
-            "for the actual product category. Return concise product facts, only explicitly listed variant options, "
-            "and sample units with only explicitly stated details. A sample detail is not a product-wide option. "
+            "for the requested product category. Extract every distinct, useful product detail you can cite within "
+            "the output limits, including explicitly listed options and the reviewer's stated sample. Cover details "
+            "throughout the supplied transcript, not only its opening. Do not repeat the same attribute and value. "
+            "Facts about comparison products or sibling models do not belong to the requested product card. "
+            "Preserve the exact model and region scope of each claim. A sample detail is not a product-wide option. "
             "Never infer color, capacity, or combinations from model knowledge or unseen video frames. "
             "For every item quote a short exact excerpt and identify title, description, or transcript; transcript "
-            "timestamps must be segment starts. Preserve model and region scope when stated. Return empty lists when unknown."
+            "timestamps must be segment starts. Return empty lists when unknown."
         ),
         tool_keys=(),
         retrieval_policy=_retrieval(
             (NodeType.SOURCE, NodeType.TRANSCRIPT, NodeType.TRANSCRIPT_CHUNK),
             required=(NodeType.SOURCE, NodeType.TRANSCRIPT_CHUNK),
             tokens=11000,
-            hops=2,
+            hops=0,
+            vector_top_k=0,
+            lexical_candidate_limit=0,
         ),
         max_input_tokens=18000,
         max_output_tokens=5500,

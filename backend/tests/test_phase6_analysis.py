@@ -12,6 +12,7 @@ from pydantic import ValidationError
 from app.analysis.contracts import AudienceAnalysisDraft, AuditResult, QueryPlan, SourceAnalysisDraft
 from app.analysis.prompting import build_prompt_envelope
 from app.analysis.executor import _agent_task_input, _all_source_candidates_excluded, _bounded_agent_policy
+from app.analysis import executor
 from app.analysis.registry import AGENT_REGISTRY, AGENT_SPECS, evaluate_agent_spec
 from app.config import Settings
 from app.db.base import Base
@@ -22,6 +23,7 @@ from app.tools.errors import ToolExecutionError
 from app.tools.runner import _admit_invocation
 from app.tools.registry import TOOL_REGISTRY
 from app.tools.youtube import product_relevance
+from app.runtime.service import RuntimeTaskError
 from app.knowledge.retrieval import estimate_tokens
 from app.llmops.contracts import ModelPolicyDocument
 from app.worker import _safe_runtime_task_result
@@ -39,6 +41,47 @@ def test_phase6_mock_sources_match_the_fixture_product(scenario: str) -> None:
     product = f"Phase 6 {scenario.replace('_', ' ')} fixture"
     assert mock_youtube_scenario(product) == scenario
     assert product_relevance(product, mock_youtube_label(mock_youtube_ids(scenario)[0])) >= 0.5
+
+
+def test_caption_ip_block_stops_candidate_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    video_ids = ("fixture1", "fixture2")
+    decision = {
+        "classification": "review", "eligible": True, "product_relevance": 1,
+        "review_intent": 1, "independence": 1, "evidence_potential": 1,
+    }
+    outputs = {
+        "discover_candidates": {
+            "requested_language": "en",
+            "candidates": [{"video_id": video_id} for video_id in video_ids],
+        },
+        "curate_sources": {
+            "decisions": [{**decision, "video_id": video_id} for video_id in video_ids],
+            "ordered_video_ids": list(video_ids),
+        },
+    }
+    monkeypatch.setattr(executor, "_task_output", lambda _run_id, key: outputs[key])
+    called = []
+
+    async def blocked(_attempt_id, _tool_key, payload, **_kwargs):
+        called.append(payload["video_id"])
+        raise ToolExecutionError("transcript_access_blocked", category="upstream")
+
+    monkeypatch.setattr(executor, "invoke_tool", blocked)
+    run = SimpleNamespace(id=uuid.uuid4(), requested_options={"source_count": 1})
+    with pytest.raises(RuntimeTaskError) as raised:
+        asyncio.run(executor._fetch_transcript(uuid.uuid4(), run, 1, config=Settings(_env_file=None)))
+    assert raised.value.code == "transcript_access_blocked"
+    assert called == ["fixture1"]
+
+
+def test_publication_without_an_audit_fails_with_a_safe_code(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(executor, "_task_output", lambda *_args: None)
+    with pytest.raises(RuntimeTaskError) as raised:
+        executor._publish_report(
+            uuid.uuid4(), SimpleNamespace(id=uuid.uuid4()),
+            SimpleNamespace(), config=Settings(_env_file=None),
+        )
+    assert raised.value.code == "report_audit_missing"
 
 
 def test_youtube_mock_requires_the_header_key_without_a_query_key() -> None:
@@ -86,7 +129,7 @@ def test_registry_contains_target_roles_and_product_information_analyst() -> Non
         "research_coordinator": "29a6c7d8d25d2416ae95b1fe30f221ea72fb61e43696e19298ec73d83271144c",
         "source_curator": "6c8ff8293f71948640d3237faa69b8b8c522e56e8a1aa1acc5f205e1b447148d",
         "review_analyst": "09f461322b8c52b9ec753190cb8c8d7235c576c3674307be5c2723c3759d519c",
-        "product_information_analyst": "efbc1665568c312f2d42b658504a018ec6ff77b0535d0429b267b0be2ecf28a5",
+        "product_information_analyst": "0bc0475a76d3bdb14cc2686454b40e2e4e26de2d2e477d2d4effcb6d06059b60",
         "audience_analyst": "228b832c0b0a9ea0c2a6019580425f41ae5163868398e1405256eba2ea0e18d5",
         "knowledge_curator": "441fcf10754f4aad5063797b572543879e96407f489611e9ab4ef2152ade666d",
         "consensus_analyst": "eb6919365d1c597333857756da8672e92b9c89799dec212d3559bac4029514b1",

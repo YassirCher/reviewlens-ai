@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -33,6 +35,67 @@ def test_analysis_contract_normalizes_product_and_rejects_extras() -> None:
         AnalysisRequest(product_name="POCO F7", video_count=9)
     with pytest.raises(ValidationError):
         AnalysisRequest(product_name="POCO F7", locale="../../etc")
+
+
+def test_progress_counts_only_real_reviews_and_marks_unavailable_work(monkeypatch: pytest.MonkeyPatch) -> None:
+    now = datetime.now(timezone.utc)
+    tasks = [
+        SimpleNamespace(id=uuid.uuid4(), workflow_task_key="fetch_transcript.source_1", status="succeeded", created_at=now, started_at=now, completed_at=now),
+        SimpleNamespace(id=uuid.uuid4(), workflow_task_key="analyze_review.source_1", status="succeeded", created_at=now, started_at=now, completed_at=now),
+        SimpleNamespace(id=uuid.uuid4(), workflow_task_key="analyze_review.source_2", status="succeeded", created_at=now, started_at=now, completed_at=now),
+    ]
+    db = MagicMock()
+    db.scalars.return_value = tasks
+    db.scalar.return_value = None
+    rows = [
+        (tasks[0].id, {"available": False}),
+        (tasks[1].id, {"skipped": True, "reason": "source_unavailable"}),
+        (tasks[2].id, {"analysis": {"source_id": "verified"}}),
+    ]
+    class SqlAlchemyLikeResult:
+        def keys(self):
+            return ("task_run_id", "output_payload")
+
+        def __iter__(self):
+            return iter(rows)
+
+    db.execute.return_value = SqlAlchemyLikeResult()
+    monkeypatch.setattr(routes, "usage_summary", lambda *_args: {"total_tokens": 0, "usage_pending": False})
+    monkeypatch.setattr(routes, "product_info_from_tasks", lambda *_args: None)
+    run = SimpleNamespace(
+        id=uuid.uuid4(), status="running", product_input="Product", created_at=now,
+        started_at=now, completed_at=None, requested_options={"source_count": 3},
+        warning_summary={}, progress_sequence=1,
+    )
+    result = routes._status(db, run)
+    assert result.source_count_analyzed == 1
+    assert [task.status for task in result.tasks] == ["skipped", "skipped", "succeeded"]
+
+
+def test_caption_rate_limit_has_a_distinct_public_failure() -> None:
+    db = MagicMock()
+    db.scalars.return_value = [SimpleNamespace(status="failed", error_code="transcript_access_blocked")]
+    failure = routes._public_failure(db, SimpleNamespace(id=uuid.uuid4()), [])
+    assert failure["code"] == "captions_rate_limited"
+    assert "YouTube" in failure["message"]
+
+
+def test_older_upstream_caption_failures_do_not_claim_captions_are_missing() -> None:
+    db = MagicMock()
+    db.scalars.return_value = []
+    db.scalar.return_value = uuid.uuid4()
+    failure = routes._public_failure(db, SimpleNamespace(id=uuid.uuid4()), [])
+    assert failure["code"] == "caption_retrieval_failed"
+    assert "could not be retrieved" in failure["message"]
+
+
+def test_public_create_accepts_the_same_unwrapped_body_as_preflight() -> None:
+    from app.main import app
+
+    paths = app.openapi()["paths"]
+    preflight = paths["/api/v2/analyses/preflight"]["post"]["requestBody"]["content"]["application/json"]["schema"]
+    create = paths["/api/v2/analyses"]["post"]["requestBody"]["content"]["application/json"]["schema"]
+    assert create == preflight == {"$ref": "#/components/schemas/AnalysisRequest"}
 
 
 def test_signed_anonymous_cookie_has_tamper_detection_and_no_plain_identifier_in_db() -> None:

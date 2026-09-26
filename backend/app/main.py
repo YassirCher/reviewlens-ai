@@ -77,7 +77,7 @@ async def request_context_and_security_headers(request: Request, call_next):
         except Exception as exc:
             if not _is_guarded_contract(request.url.path):
                 raise
-            logger.error("Unhandled V2 request failure: %s", type(exc).__name__)
+            logger.error("Unhandled V2 request failure: %s", type(exc).__name__, exc_info=True)
             wrapped = V2Error(500, "internal_error", "The service encountered an unexpected error.")
             response = JSONResponse(status_code=500, content=_v2_error_payload(request, wrapped))
     finally:

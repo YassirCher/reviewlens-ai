@@ -4,9 +4,11 @@ import asyncio
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 
 import httpx
 import pytest
+from youtube_transcript_api import IpBlocked, RequestBlocked
 from pydantic import ValidationError
 
 from app.config import Settings
@@ -27,11 +29,20 @@ from app.tools.youtube import (
     TranscriptProvider,
     YouTubeDataClient,
     _comment_is_usable,
+    _is_route_blocked,
+    _reset_route_circuit_breaker,
     chunk_transcript,
     rank_candidates,
     title_similarity,
     youtube_quota_date,
 )
+
+
+@pytest.fixture(autouse=True)
+def _clear_circuit_breaker():
+    _reset_route_circuit_breaker()
+    yield
+    _reset_route_circuit_breaker()
 
 
 def _config(**updates) -> Settings:
@@ -239,6 +250,52 @@ def test_transcript_selection_prefers_requested_manual_then_preserves_fallback_p
     assert translated.caption_kind == "manual"
 
 
+@pytest.mark.parametrize("blocked", (IpBlocked, RequestBlocked))
+@pytest.mark.parametrize("stage", ("list", "fetch"))
+def test_transcript_ip_block_is_distinct_from_missing_captions(blocked, stage: str) -> None:
+    class BlockedClient:
+        def list(self, video_id):
+            if stage == "list":
+                raise blocked(video_id)
+            return [_TrackWithBlockedFetch(video_id, blocked)]
+
+    with pytest.raises(ToolExecutionError) as raised:
+        TranscriptProvider(BlockedClient()).fetch(YouTubeTranscriptInput(video_id="fixture1"))
+    assert raised.value.code == "transcript_access_blocked"
+    assert raised.value.category == "upstream"
+    assert raised.value.retryable is False
+
+
+class _TrackWithBlockedFetch(_Track):
+    def __init__(self, video_id, blocked):
+        super().__init__("en", True)
+        self.video_id = video_id
+        self.blocked = blocked
+
+    def fetch(self):
+        raise self.blocked(self.video_id)
+
+
+def test_transcript_proxy_is_only_used_when_configured(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured = []
+
+    def make_client(*, proxy_config, **kwargs):
+        captured.append(proxy_config)
+        return object()
+
+    monkeypatch.setattr("app.tools.youtube.YouTubeTranscriptApi", make_client)
+    config = _config(youtube_transcript_proxy_url="http://user:private@proxy.example:8080")
+    TranscriptProvider(config=config)
+    assert captured[0].to_requests_dict() == {
+        "http": "http://user:private@proxy.example:8080",
+        "https": "http://user:private@proxy.example:8080",
+    }
+    assert "private" not in repr(config)
+    assert "youtube_transcript_proxy_url" not in config.model_dump()
+    TranscriptProvider(config=_config())
+    assert captured[1] is None
+
+
 def test_chunking_preserves_segment_order_and_never_splits_segments() -> None:
     transcript = TranscriptProvider(_TranscriptClient([_Track("en", False)])).fetch(
         YouTubeTranscriptInput(video_id="fixture1")
@@ -322,3 +379,194 @@ def test_scoring_boundaries_audience_cap_and_confidence_caps() -> None:
         )
     )
     assert invalid.publishable is False and invalid.verdict == "unclear"
+
+
+def test_transcript_static_route_blocked_fails_promptly_without_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
+    sleep_calls = []
+    monkeypatch.setattr("time.sleep", lambda s: sleep_calls.append(s))
+    calls = {"list": 0}
+
+    class BlockedClient:
+        def list(self, video_id):
+            calls["list"] += 1
+            raise IpBlocked(video_id)
+
+    provider = TranscriptProvider(BlockedClient())
+    with pytest.raises(ToolExecutionError) as exc_info:
+        provider.fetch(YouTubeTranscriptInput(video_id="fixture1"))
+
+    assert exc_info.value.code == "transcript_access_blocked"
+    assert exc_info.value.category == "upstream"
+    assert exc_info.value.retryable is False
+    assert calls["list"] == 1
+    assert sleep_calls == []
+
+
+def test_transcript_rotating_route_bounded_alternate_attempt(monkeypatch: pytest.MonkeyPatch) -> None:
+    routes_called = []
+
+    class MockRouteClient:
+        def __init__(self, route: str):
+            self.route = route
+
+        def list(self, video_id):
+            routes_called.append(self.route)
+            if self.route == "http://p1.example:8080":
+                raise IpBlocked(video_id)
+            return [_Track("en", False)]
+
+    config = _config(youtube_transcript_proxy_url="http://p1.example:8080, http://p2.example:8080")
+    monkeypatch.setattr("random.shuffle", lambda lst: None)
+
+    provider = TranscriptProvider(config=config, client_factory=MockRouteClient)
+    result = provider.fetch(YouTubeTranscriptInput(video_id="fixture1"))
+
+    assert result.video_id == "fixture1"
+    assert routes_called == ["http://p1.example:8080", "http://p2.example:8080"]
+    assert _is_route_blocked("http://p1.example:8080") is True
+    assert _is_route_blocked("http://p2.example:8080") is False
+
+
+def test_transcript_rotating_route_all_blocked_bounded_attempts(monkeypatch: pytest.MonkeyPatch) -> None:
+    routes_called = []
+
+    class AllBlockedClient:
+        def __init__(self, route: str):
+            self.route = route
+
+        def list(self, video_id):
+            routes_called.append(self.route)
+            raise IpBlocked(video_id)
+
+    config = _config(youtube_transcript_proxy_url="http://p1.example:8080, http://p2.example:8080")
+    monkeypatch.setattr("random.shuffle", lambda lst: None)
+
+    provider = TranscriptProvider(config=config, client_factory=AllBlockedClient)
+    with pytest.raises(ToolExecutionError) as exc_info:
+        provider.fetch(YouTubeTranscriptInput(video_id="fixture1"))
+
+    assert exc_info.value.code == "transcript_access_blocked"
+    assert len(routes_called) == 2
+    assert _is_route_blocked("http://p1.example:8080") is True
+    assert _is_route_blocked("http://p2.example:8080") is True
+
+
+def test_transcript_circuit_breaker_prevents_subsequent_slot_attempts() -> None:
+    calls = 0
+
+    class StaticBlockedClient:
+        def list(self, video_id):
+            nonlocal calls
+            calls += 1
+            raise IpBlocked(video_id)
+
+    config = _config(youtube_transcript_proxy_url="")
+    client = StaticBlockedClient()
+
+    p1 = TranscriptProvider(client_factory=lambda _r: client, config=config)
+    with pytest.raises(ToolExecutionError) as exc1:
+        p1.fetch(YouTubeTranscriptInput(video_id="video_01"))
+    assert exc1.value.code == "transcript_access_blocked"
+    assert calls == 1
+
+    for slot in range(2, 9):
+        p_slot = TranscriptProvider(client_factory=lambda _r: client, config=config)
+        with pytest.raises(ToolExecutionError) as exc_slot:
+            p_slot.fetch(YouTubeTranscriptInput(video_id=f"video_{slot:02d}"))
+        assert exc_slot.value.code == "transcript_access_blocked"
+
+    assert calls == 1
+
+    config_alt = _config(youtube_transcript_proxy_url="http://healthy.proxy:8080")
+    p_healthy = TranscriptProvider(
+        client_factory=lambda _r: _TranscriptClient([_Track("en", False)]),
+        config=config_alt,
+    )
+    result = p_healthy.fetch(YouTubeTranscriptInput(video_id="video_09"))
+    assert result.video_id == "video_09"
+
+
+def test_transcript_blocked_creates_no_openrouter_usage_event(monkeypatch: pytest.MonkeyPatch) -> None:
+    llm_called = False
+
+    async def fake_llm(*args, **kwargs):
+        nonlocal llm_called
+        llm_called = True
+        return {}
+
+    monkeypatch.setattr("app.llmops.client.OpenRouterClient.chat_completion", fake_llm, raising=False)
+
+    class BlockedClient:
+        def list(self, video_id):
+            raise IpBlocked(video_id)
+
+    provider = TranscriptProvider(BlockedClient())
+    with pytest.raises(ToolExecutionError) as exc:
+        provider.fetch(YouTubeTranscriptInput(video_id="blocked_vid"))
+    assert exc.value.code == "transcript_access_blocked"
+    assert llm_called is False
+
+
+def test_transcript_cookies_loaded_when_configured(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    cookie_file = tmp_path / "cookies.txt"
+    cookie_file.write_text("# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t2147483647\tSID\tsecret\n")
+
+    captured_kwargs = {}
+
+    def make_client(**kwargs):
+        captured_kwargs.update(kwargs)
+        return object()
+
+    monkeypatch.setattr("app.tools.youtube.YouTubeTranscriptApi", make_client)
+    config = _config(youtube_cookies_path=str(cookie_file))
+    TranscriptProvider(config=config)
+    assert "http_client" in captured_kwargs
+    assert captured_kwargs["http_client"] is not None
+
+
+def test_transcript_proxy_list_rotates(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured = []
+
+    def make_client(**kwargs):
+        captured.append(kwargs.get("proxy_config"))
+        return object()
+
+    monkeypatch.setattr("app.tools.youtube.YouTubeTranscriptApi", make_client)
+    config = _config(youtube_transcript_proxy_url="http://p1.example:8080, http://p2.example:8080")
+    TranscriptProvider(config=config)
+    req_dict = captured[0].to_requests_dict()
+    assert req_dict["http"] in ("http://p1.example:8080", "http://p2.example:8080")
+
+
+def test_transcript_network_error_rotates_and_trips_circuit_breaker(monkeypatch: pytest.MonkeyPatch) -> None:
+    import requests
+
+    routes_called = []
+
+    class MockRouteClient:
+        def __init__(self, route: str):
+            self.route = route
+
+        def list(self, video_id):
+            routes_called.append(self.route)
+            if self.route == "http://p1.example:8080":
+                raise requests.exceptions.ConnectTimeout(f"Connection to {self.route} timed out.")
+            return [_Track("en", False)]
+
+    config = _config(youtube_transcript_proxy_url="http://p1.example:8080, http://p2.example:8080")
+    monkeypatch.setattr("random.shuffle", lambda lst: None)
+
+    provider = TranscriptProvider(config=config, client_factory=MockRouteClient)
+    result = provider.fetch(YouTubeTranscriptInput(video_id="fixture1"))
+
+    assert result.video_id == "fixture1"
+    assert routes_called == ["http://p1.example:8080", "http://p2.example:8080"]
+    assert _is_route_blocked("http://p1.example:8080") is True
+    assert _is_route_blocked("http://p2.example:8080") is False
+
+
+def test_transcript_timeout_session_bounds_requests() -> None:
+    from app.tools.youtube import TimeoutSession
+
+    session = TimeoutSession(connect_timeout=2.0, read_timeout=4.0)
+    assert session._default_timeout == (2.0, 4.0)

@@ -8,6 +8,7 @@ from app.api.v2.admin_observe import router as admin_observe_router
 from app.api.v2.admin_versions import router as admin_versions_router
 from app.api.v2.admin_analytics import router as admin_analytics_router
 from app.api.v2.admin_knowledge import router as admin_knowledge_router
+from app.api.v2.admin_agent_models import router as admin_agent_models_router
 from app.api.v2.admin_cutover import router as admin_cutover_router
 from app.api.v2.user_auth import router as user_auth_router
 from app.api.v2.user_researches import router as user_researches_router
@@ -20,6 +21,7 @@ router.include_router(analysis_admin_router)
 router.include_router(admin_catalog_router)
 router.include_router(admin_observe_router)
 router.include_router(admin_versions_router)
+router.include_router(admin_agent_models_router)
 router.include_router(admin_analytics_router)
 router.include_router(admin_knowledge_router)
 router.include_router(admin_cutover_router)

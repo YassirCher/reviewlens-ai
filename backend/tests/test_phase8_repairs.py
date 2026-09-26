@@ -21,6 +21,7 @@ def test_public_failure_categories_are_allowlisted() -> None:
         SimpleNamespace(task_run_id=uuid.uuid4(), status="failed", error_code="youtube_no_candidates", error_category="upstream", output_payload=None)
     ]
     assert routes._public_failure(db, run, [transcript])["code"] == "no_relevant_videos"
+    db.scalar.return_value = None
     db.scalars.return_value = [
         SimpleNamespace(task_run_id=transcript.id, status="succeeded", error_code=None, error_category=None, output_payload={"available": False})
     ]

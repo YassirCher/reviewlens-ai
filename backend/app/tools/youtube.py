@@ -3,17 +3,31 @@ from __future__ import annotations
 import asyncio
 import html
 import math
+import random
 import re
+import time
 import uuid
 from collections.abc import Iterable
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
+from pathlib import Path
+import logging
+import threading
+from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
 import httpx
+import requests
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
-from youtube_transcript_api import YouTubeTranscriptApi
+from youtube_transcript_api import (
+    IpBlocked,
+    NoTranscriptFound,
+    RequestBlocked,
+    TranscriptsDisabled,
+    YouTubeTranscriptApi,
+)
+from youtube_transcript_api.proxies import GenericProxyConfig
 
 from app.config import Settings, settings
 from app.db.models import YouTubeQuotaReservation, YouTubeQuotaState
@@ -536,15 +550,153 @@ def _comment_is_usable(text: str) -> bool:
     return visible >= max(3, int(len(text) * 0.15))
 
 
+logger = logging.getLogger(__name__)
+
+_CIRCUIT_BREAKER_LOCK = threading.Lock()
+_BLOCKED_ROUTES: dict[str, float] = {}
+CIRCUIT_BREAKER_TTL_SECONDS = 60.0
+
+
+def _is_route_blocked(route: str) -> bool:
+    with _CIRCUIT_BREAKER_LOCK:
+        expiry = _BLOCKED_ROUTES.get(route)
+        if expiry is None:
+            return False
+        if time.monotonic() >= expiry:
+            del _BLOCKED_ROUTES[route]
+            return False
+        return True
+
+
+def _mark_route_blocked(route: str, ttl: float = CIRCUIT_BREAKER_TTL_SECONDS) -> None:
+    with _CIRCUIT_BREAKER_LOCK:
+        _BLOCKED_ROUTES[route] = time.monotonic() + ttl
+
+
+def _reset_route_circuit_breaker() -> None:
+    with _CIRCUIT_BREAKER_LOCK:
+        _BLOCKED_ROUTES.clear()
+
+
+class TimeoutSession(requests.Session):
+    def __init__(
+        self,
+        connect_timeout: float = 3.5,
+        read_timeout: float = 7.0,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self._default_timeout = (connect_timeout, read_timeout)
+
+    def request(self, method: str, url: str | bytes, *args: Any, **kwargs: Any) -> requests.Response:
+        if kwargs.get("timeout") is None:
+            kwargs["timeout"] = self._default_timeout
+        return super().request(method, url, *args, **kwargs)
+
+    def send(self, request: requests.PreparedRequest, *args: Any, **kwargs: Any) -> requests.Response:
+        if kwargs.get("timeout") is None:
+            kwargs["timeout"] = self._default_timeout
+        return super().send(request, *args, **kwargs)
+
+
 class TranscriptProvider:
-    def __init__(self, client: YouTubeTranscriptApi | None = None) -> None:
-        self.client = client or YouTubeTranscriptApi()
+    def __init__(
+        self,
+        client: YouTubeTranscriptApi | None = None,
+        *,
+        config: Settings = settings,
+        client_factory: Callable[[str], Any] | None = None,
+    ) -> None:
+        self.config = config
+        self._client_override = client
+        self._client_factory = client_factory
+
+        proxy_url = config.youtube_transcript_proxy_url
+        if client is not None:
+            self._routes: list[str] = [f"client_{id(client)}"]
+        elif proxy_url:
+            self._routes = [p.strip() for p in proxy_url.split(",") if p.strip()]
+        else:
+            self._routes = ["direct"]
+
+        self.client = client or self._build_client(self._routes[0])
+
+    def _build_client(self, route: str) -> Any:
+        if self._client_override is not None:
+            return self._client_override
+        if self._client_factory is not None:
+            return self._client_factory(route)
+
+        proxy_config = None
+        if route != "direct":
+            proxy_config = GenericProxyConfig(http_url=route, https_url=route)
+
+        connect_timeout = min(3.5, max(1.0, self.config.youtube_transcript_timeout_seconds / 4))
+        read_timeout = min(7.0, max(2.0, self.config.youtube_transcript_timeout_seconds / 2))
+        session = TimeoutSession(connect_timeout=connect_timeout, read_timeout=read_timeout)
+
+        if self.config.youtube_cookies_path and Path(self.config.youtube_cookies_path).is_file():
+            import http.cookiejar
+
+            cj = http.cookiejar.MozillaCookieJar(self.config.youtube_cookies_path)
+            cj.load(ignore_discard=True, ignore_expires=True)
+            session.cookies = cj
+
+        kwargs: dict[str, Any] = {"proxy_config": proxy_config, "http_client": session}
+        return YouTubeTranscriptApi(**kwargs)
 
     def fetch(self, request: YouTubeTranscriptInput) -> YouTubeTranscriptOutput:
+        start_time = time.monotonic()
+        timeout = self.config.youtube_transcript_timeout_seconds
+
+        unblocked_routes = [r for r in self._routes if not _is_route_blocked(r)]
+        if not unblocked_routes:
+            raise ToolExecutionError("transcript_access_blocked", category="upstream", retryable=False)
+
+        candidate_routes = list(unblocked_routes)
+        if len(candidate_routes) > 1:
+            random.shuffle(candidate_routes)
+
+        last_block_exc: Exception | None = None
+        for route in candidate_routes:
+            if (time.monotonic() - start_time) >= timeout:
+                raise ToolExecutionError("transcript_timeout", category="timeout", retryable=True)
+
+            client = self._build_client(route)
+            try:
+                return self._fetch_with_client(client, request)
+            except (IpBlocked, RequestBlocked, requests.exceptions.RequestException) as exc:
+                last_block_exc = exc
+                _mark_route_blocked(route)
+                logger.warning(
+                    "YouTube caption route %s failed with %s; rotating to next route",
+                    route,
+                    type(exc).__name__,
+                )
+                continue
+            except ToolExecutionError:
+                raise
+            except Exception as exc:
+                raise ToolExecutionError("transcript_unavailable", category="upstream") from exc
+
+        raise ToolExecutionError(
+            "transcript_access_blocked", category="upstream", retryable=False
+        ) from last_block_exc
+
+    def _fetch_with_client(self, client: Any, request: YouTubeTranscriptInput) -> YouTubeTranscriptOutput:
         try:
-            tracks = list(self.client.list(request.video_id))
+            tracks = list(client.list(request.video_id))
+        except (NoTranscriptFound, TranscriptsDisabled):
+            raise ToolExecutionError("transcript_unavailable", category="not_found")
+        except (IpBlocked, RequestBlocked, requests.exceptions.RequestException):
+            raise
         except Exception as exc:
+            cause = getattr(exc, "cause", None)
+            if isinstance(cause, requests.exceptions.RequestException):
+                raise cause
             raise ToolExecutionError("transcript_unavailable", category="upstream") from exc
+
         if not tracks:
             raise ToolExecutionError("transcript_unavailable", category="not_found")
         exact_manual = [t for t in tracks if t.language_code == request.requested_language and not t.is_generated]
@@ -558,7 +710,10 @@ class TranscriptProvider:
             [t for t in tracks if t.language_code != request.requested_language and t.is_generated],
             key=lambda t: (language_order.get(t.language_code, 999), t.language_code),
         )
-        track = (exact_manual + exact_auto + other_manual + other_auto)[0]
+        candidates = exact_manual + exact_auto + other_manual + other_auto
+        if not candidates:
+            raise ToolExecutionError("transcript_unavailable", category="not_found")
+        track = candidates[0]
         source_language = track.language_code
         caption_kind = "automatic" if track.is_generated else "manual"
         delivered = track
@@ -571,8 +726,14 @@ class TranscriptProvider:
                 delivered = track
         try:
             fetched = delivered.fetch()
+        except (IpBlocked, RequestBlocked, requests.exceptions.RequestException):
+            raise
         except Exception as exc:
+            cause = getattr(exc, "cause", None)
+            if isinstance(cause, requests.exceptions.RequestException):
+                raise cause
             raise ToolExecutionError("transcript_fetch_failed", category="upstream") from exc
+
         segments = tuple(
             TranscriptSegment(
                 index=index,
@@ -631,7 +792,7 @@ async def fetch_transcript(
             ) from exc
     try:
         return await asyncio.wait_for(
-            asyncio.to_thread((provider or TranscriptProvider()).fetch, request),
+            asyncio.to_thread((provider or TranscriptProvider(config=config)).fetch, request),
             timeout=config.youtube_transcript_timeout_seconds,
         )
     except TimeoutError as exc:

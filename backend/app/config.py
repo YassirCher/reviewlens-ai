@@ -3,6 +3,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlsplit
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -106,6 +107,8 @@ class Settings(BaseSettings):
     youtube_base_url: str = "https://www.googleapis.com/youtube/v3"
     youtube_request_timeout_seconds: float = Field(default=20, gt=0, le=120)
     youtube_transcript_timeout_seconds: float = Field(default=45, gt=0, le=180)
+    youtube_transcript_proxy_url: str = Field(default="", exclude=True, repr=False)
+    youtube_cookies_path: str = Field(default="", exclude=True, repr=False)
     youtube_network_max_attempts: int = Field(default=3, ge=1, le=3)
     youtube_retry_base_seconds: float = Field(default=1, ge=0, le=30)
     youtube_retry_max_seconds: float = Field(default=8, ge=0, le=60)
@@ -210,6 +213,19 @@ class Settings(BaseSettings):
                 "YOUTUBE_RETRY_MAX_SECONDS must be greater than or equal to "
                 "YOUTUBE_RETRY_BASE_SECONDS"
             )
+        if self.youtube_transcript_proxy_url:
+            for item in self.youtube_transcript_proxy_url.split(","):
+                item = item.strip()
+                if not item:
+                    continue
+                proxy = urlsplit(item)
+                if proxy.scheme not in {"http", "https"} or not proxy.hostname:
+                    errors.append("YOUTUBE_TRANSCRIPT_PROXY_URL must be an HTTP(S) proxy URL")
+                    break
+        if self.youtube_cookies_path:
+            p = Path(self.youtube_cookies_path)
+            if not p.is_file():
+                errors.append(f"YOUTUBE_COOKIES_PATH file not found: {self.youtube_cookies_path}")
         if self.youtube_transcript_chunk_target_characters > self.youtube_transcript_chunk_max_characters:
             errors.append(
                 "YOUTUBE_TRANSCRIPT_CHUNK_TARGET_CHARACTERS must not exceed "

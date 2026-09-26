@@ -43,6 +43,10 @@ def get_v2_redis() -> Redis:
         ) from exc
 
 
+def get_v2_settings() -> Settings:
+    return settings
+
+
 def _extract_cookie(request: Request | None, value: Any, cookie_name: str) -> str | None:
     if isinstance(value, str) and value:
         return value
@@ -62,6 +66,7 @@ def require_admin(
     try:
         return AdminAuthService(db).authenticate(token, request.state.request_id)
     except SQLAlchemyError as exc:
+        db.rollback()
         logger.exception("require_admin failed due to database error: %s", exc)
         raise V2Error(503, "database_unavailable", "The service is temporarily unavailable.", retryable=True) from exc
 
@@ -74,7 +79,10 @@ def require_user(
     token = _extract_cookie(request, session_token, settings.user_session_cookie)
     try:
         return UserAuthService(db).authenticate(token)
+    except V2Error:
+        raise
     except SQLAlchemyError as exc:
+        db.rollback()
         logger.exception("require_user failed due to database error: %s", exc)
         raise V2Error(503, "database_unavailable", "The service is temporarily unavailable.", retryable=True) from exc
 
@@ -83,7 +91,7 @@ def get_optional_user(
     request: Request,
     db: Session = Depends(get_v2_db),
     session_token: str | None = Cookie(default=None, alias=settings.user_session_cookie),
-    config: Settings = settings,
+    config: Settings = Depends(get_v2_settings),
 ) -> AuthenticatedUser | None:
     token = _extract_cookie(request, session_token, config.user_session_cookie)
     if not token:
@@ -91,7 +99,7 @@ def get_optional_user(
     try:
         return UserAuthService(db, config=config).authenticate(token)
     except Exception:
+        db.rollback()
         return None
-
 
 

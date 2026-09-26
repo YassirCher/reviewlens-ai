@@ -214,6 +214,8 @@ Launch the full stack with Docker Compose:
 docker compose up --build --wait
 ```
 
+If YouTube rate-limits caption requests from the worker (HTTP 429), research cannot use those transcripts. The run now reports this as a caption access problem and counts only sources that were actually analyzed. An operator can set the optional server-only `YOUTUBE_TRANSCRIPT_PROXY_URL` in the private `.env` file to use an unblocked HTTP(S) proxy for captions, then recreate the worker. Keep proxy credentials out of Git and logs.
+
 ### 4. Refresh the Model Catalog
 The Compose migration service seeds the published workflow. With OpenRouter credentials configured, refresh the catalog before accepting submissions. The seed command is safe to rerun after a workflow update:
 
