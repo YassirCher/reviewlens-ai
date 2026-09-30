@@ -12,6 +12,10 @@ from app.analysis.contracts import AuditIssue, AuditResult, ConsensusItem, Final
 _NUMBER = re.compile(r"(?<![\w.])\d+(?:[.,]\d+)?")
 _MIXED_FRACTION = re.compile(r"(?<![\w.])(\d+)\s+(?:and\s+)?(\d+)\s*/\s*(\d+)(?![\w.])", re.I)
 _MODEL_CODE = re.compile(r"\b[a-z][a-z0-9-]*\d[a-z0-9-]*\b", re.I)
+_DURATION = re.compile(
+    r"(?<![\w.])(?P<amount>\d+\s+(?:and\s+)?\d+\s*/\s*\d+|\d+(?:[.,]\d+)?|(?P<verbal>half(?:\s+an?)?|an?|one))"
+    r"(?(verbal)[\s-]+|[\s-]*)(?P<unit>hours?|hrs?|h|minutes?|mins?|seconds?|secs?|s)\b", re.I,
+)
 _GROUNDING_CODES = {
     "unsupported_claim", "unsupported_finding", "unsupported_disagreement",
     "unsupported_narrative", "numeric_mismatch", "negation_mismatch",
@@ -40,8 +44,12 @@ def _quantities(text: str) -> set[Fraction]:
 
 
 def _statement_matches(statement: str, claim: str, excerpt: str, product_name: str) -> bool:
-    numbers = _quantities(statement) - _quantities(product_name)
-    if not numbers <= _quantities(excerpt):
+    statement_times, remaining_statement = _durations(statement)
+    excerpt_times, remaining_excerpt = _durations(excerpt)
+    if not statement_times <= excerpt_times:
+        return False
+    numbers = _quantities(remaining_statement) - _quantities(product_name)
+    if not numbers <= _quantities(remaining_excerpt):
         return False
     # Polarity is semantic: 'no lag' supports a positive latency observation.
     # The existing auditor checks negation, conditions, and meaning per clause.
@@ -50,6 +58,30 @@ def _statement_matches(statement: str, claim: str, excerpt: str, product_name: s
     if not scoped <= support_codes:
         return False
     return True
+
+
+def _durations(text: str) -> tuple[set[Fraction], str]:
+    """Normalize explicit time quantities to minutes, independently of percentages."""
+    values: set[Fraction] = set()
+
+    def replace(match: re.Match[str]) -> str:
+        raw = match["amount"].casefold()
+        mixed = _MIXED_FRACTION.fullmatch(raw)
+        if mixed:
+            whole, numerator, denominator = (int(value) for value in mixed.groups())
+            if not 0 < numerator < denominator:
+                return match[0]
+            amount = Fraction(whole) + Fraction(numerator, denominator)
+        else:
+            amount = Fraction(1, 2) if raw.startswith("half") else (
+                Fraction(1) if raw in {"a", "an", "one"} else Fraction(raw.replace(",", "")))
+        unit = match["unit"].casefold()
+        multiplier = Fraction(60) if unit.startswith(("h", "hr")) else (
+            Fraction(1, 60) if unit.startswith("s") else Fraction(1))
+        values.add(amount * multiplier)
+        return ""
+
+    return values, _DURATION.sub(replace, text)
 
 
 def _safe_summary(draft: FinalReportDraft, count: int) -> str:

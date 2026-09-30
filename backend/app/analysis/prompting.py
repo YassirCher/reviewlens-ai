@@ -5,9 +5,9 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.analysis.registry import UNIVERSAL_POLICY, AgentSpec
-from app.analysis.audit import CitedAuditorInput
+from app.analysis.audit import CitedAuditorInput, DecisionAuditorInput
 from app.analysis.review import VideoExtraction
-from app.analysis.synthesis import AtomicBuyingSynthesis, BuyingSynthesis, QuoteSynthesisInput, SourceBoundBuyingSynthesis
+from app.analysis.synthesis import AtomicBuyingSynthesis, BuyingSynthesis, CatalogRepairSynthesisInput, EvidenceBoundBuyingSynthesis, QuoteSynthesisInput, RepairSynthesisInput, SourceBoundBuyingSynthesis
 from app.runtime.contracts import canonical_json_hash
 
 
@@ -28,7 +28,7 @@ def build_prompt_envelope(
     correction: dict[str, Any] | None = None,
 ) -> PromptEnvelope:
     combined = spec.output_model is VideoExtraction
-    schema_in_response = combined or spec.output_model in {BuyingSynthesis, AtomicBuyingSynthesis, SourceBoundBuyingSynthesis} or "CITATION AUDIT:" in spec.role_prompt
+    schema_in_response = combined or spec.output_model in {BuyingSynthesis, AtomicBuyingSynthesis, SourceBoundBuyingSynthesis, EvidenceBoundBuyingSynthesis} or "CITATION AUDIT:" in spec.role_prompt
     output_contract = (
         "STRICT OUTPUT SCHEMA\nReturn one object according to the supplied strict response_format JSON schema."
         if schema_in_response else
@@ -50,7 +50,7 @@ def build_prompt_envelope(
     }
     if correction:
         trusted["correction"] = correction
-    if spec.input_model in {QuoteSynthesisInput, CitedAuditorInput} and rendered_context == "<no-authorized-context />":
+    if spec.input_model in {QuoteSynthesisInput, RepairSynthesisInput, CatalogRepairSynthesisInput, CitedAuditorInput, DecisionAuditorInput} and rendered_context == "<no-authorized-context />":
         # These successors carry their complete authorized evidence in task_input.
         # An absent extra retrieval packet must not imply that evidence is absent.
         rendered_context = ""

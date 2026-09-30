@@ -20,8 +20,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
-from app.analysis.audit import CitedAuditorInput, cited_audit_input
-from app.analysis.contracts import FinalReportDraft, QualityAuditorInput
+from app.analysis.audit import (
+    DecisionAuditorInput,
+    FindingAuditResult,
+    decision_audit_input,
+)
+from app.analysis.contracts import AuditResult, FinalReportDraft, QualityAuditorInput
 from app.analysis.grounding import ground_report
 from app.analysis.product_info import (
     ProductExtractionDraft,
@@ -35,8 +39,8 @@ from app.analysis.synthesis import (
     BuyingSynthesis,
     SourceBoundBuyingSynthesis,
     SynthesisInput,
-    quote_synthesis_input,
     evidence_catalog,
+    repair_synthesis_input,
 )
 from app.knowledge.retrieval import estimate_tokens
 from app.tools.evidence import transcript_excerpt_matches
@@ -48,6 +52,21 @@ SEGMENT = re.compile(r"^\[(\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)\] (.*)$")
 
 def load_fixture() -> dict:
     return json.loads((ROOT / "backend/tests/fixtures/report_correction_5_sources.json").read_text(encoding="utf-8-sig"))
+
+
+def fixture_audit_response(supplied: dict, audit: dict) -> dict:
+    """Explicitly scripted worker-branch decisions; never evidence of model accuracy."""
+    rejected = {issue["field_path"].removeprefix("report_draft.") for issue in audit.get("issues", [])}
+    checks = []
+    for field in ("consensus_pros", "consensus_cons"):
+        for index, finding in enumerate(supplied["report_draft"][field]):
+            fail = f"{field}[{index}]" in rejected
+            checks.append({"field_path": finding["field_path"], "supported": not fail,
+                "evidence_refs": [q["evidence_ref"] for q in finding["citations"]],
+                "category": "material" if fail else None,
+                "unsupported_clause": finding["statement"] if fail else None,
+                "explanation": "Fixture-only rejection exercising the bounded repair branch." if fail else None})
+    return {"finding_checks": checks, "other_issues": []}
 
 
 def atomic_fixture(fixture: dict) -> SourceBoundBuyingSynthesis:
@@ -115,7 +134,7 @@ def baseline_spec(fixture: dict, key: str):
     return replace(spec, role_prompt=old["system_prompt"].removeprefix(UNIVERSAL_POLICY + "\n\n"),
                    input_model=(SynthesisInput if key == "consensus_analyst" else
                                 QualityAuditorInput if key == "quality_auditor" else spec.input_model),
-                   output_model=BuyingSynthesis if key == "consensus_analyst" else spec.output_model)
+                   output_model=BuyingSynthesis if key == "consensus_analyst" else AuditResult if key == "quality_auditor" else spec.output_model)
 
 
 async def replay(fixture: dict, case: int, candidate: bool) -> dict:
@@ -131,17 +150,20 @@ async def replay(fixture: dict, case: int, candidate: bool) -> dict:
         await asyncio.sleep(.002)
 
     async def invoke(spec, payload, response):
-        if spec.input_model is CitedAuditorInput:
-            payload = cited_audit_input(payload)
+        if spec.input_model is DecisionAuditorInput:
+            payload = decision_audit_input(payload)
         validated = spec.input_model.model_validate(payload).model_dump(mode="json")
         envelope = build_prompt_envelope(spec, task_instruction=spec.purpose, task_input=validated,
                                          context_manifest_id=None, rendered_context="")
         cost = estimate_tokens(envelope.system) + estimate_tokens(envelope.user)
         assert cost <= spec.max_input_tokens
+        if spec.output_model is FindingAuditResult:
+            response = fixture_audit_response(validated, response)
         ledger["total_tokens"] += cost + estimate_tokens(json.dumps(spec.output_model.model_json_schema())) + estimate_tokens(json.dumps(response))
         ledger["model_call_count"] += 1
         await asyncio.sleep(.002)
-        return spec.output_model.model_validate(response)
+        result = spec.output_model.model_validate(response)
+        return result.as_audit(DecisionAuditorInput.model_validate(validated))[0] if isinstance(result, FindingAuditResult) else result
 
     await shared(COMMON_TOKENS[0])
     await shared(COMMON_TOKENS[1])
@@ -176,8 +198,8 @@ async def replay(fixture: dict, case: int, candidate: bool) -> dict:
     synthesis = atomic_fixture(fixture)
     gold = synthesis.as_report("blackshark t11", "Black Shark T11", ordered)
     spec = AGENT_REGISTRY["consensus_analyst"] if candidate else baseline_spec(fixture, "consensus_analyst")
-    drafted = await invoke(spec, quote_synthesis_input(payload) if candidate else payload,
-                           synthesis.model_dump(mode="json") if candidate else legacy_response(FinalReportDraft.model_validate(fixture["draft"])))
+    drafted = await invoke(spec, repair_synthesis_input(payload) if candidate else payload,
+                           {**synthesis.model_dump(mode="json"), "assertions": [{k:v for k,v in a.model_dump(mode="json").items() if k != "source_ref"} for a in synthesis.assertions]} if candidate else legacy_response(FinalReportDraft.model_validate(fixture["draft"])))
     report = drafted.as_report("blackshark t11", "Black Shark T11", ordered) if candidate else drafted.as_report("blackshark t11", "Black Shark T11")
     auditor = AGENT_REGISTRY["quality_auditor"] if candidate else baseline_spec(fixture, "quality_auditor")
     repair = case % 4 == 0
@@ -189,8 +211,8 @@ async def replay(fixture: dict, case: int, candidate: bool) -> dict:
     if repair:
         assert verdict.verdict == "fail" and not terminal
         repaired = {**payload, "correction_issues": issues, "report_under_repair": report.model_dump(mode="json")}
-        drafted = await invoke(spec, quote_synthesis_input(repaired) if candidate else repaired,
-                               synthesis.model_dump(mode="json") if candidate else legacy_response(gold))
+        drafted = await invoke(spec, repair_synthesis_input(repaired) if candidate else repaired,
+                               {**synthesis.model_dump(mode="json"), "assertions": [{k:v for k,v in a.model_dump(mode="json").items() if k != "source_ref"} for a in synthesis.assertions]} if candidate else legacy_response(gold))
         report = drafted.as_report("blackshark t11", "Black Shark T11", ordered) if candidate else drafted.as_report("blackshark t11", "Black Shark T11")
         audit = await invoke(auditor, {"report_draft": report.model_dump(mode="json"), "source_analyses": ordered}, {"verdict": "pass", "issues": []})
         safe, verdict, _ = ground_report(report, ordered, audit, strict_grounding=True)

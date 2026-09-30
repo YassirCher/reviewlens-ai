@@ -33,7 +33,7 @@ from app.public.contracts import (
     PublicReportResponse,
     StatusResponse,
 )
-from app.public.reports import product_info_from_tasks, report_token, token_hash, usage_summary
+from app.public.reports import product_info_from_tasks, public_display_payload, report_token, token_hash, usage_summary
 from app.runtime.outbox import read_progress
 from app.runtime.service import request_cancellation
 from app.services.admin_auth import AdminAuthService, AuthenticatedAdmin
@@ -415,7 +415,7 @@ def _publication(db: Session, token: str) -> ReportPublication:
 @router.get("/reports/{public_token}", response_model=PublicReportResponse)
 def read_report(public_token: str, response: Response, db: Session = Depends(get_v2_db)) -> PublicReportResponse:
     publication = _publication(db, public_token)
-    result = PublicReportResponse.model_validate({**publication.payload, **usage_summary(db, publication.run_id)})
+    result = PublicReportResponse.model_validate({**public_display_payload(db, publication), **usage_summary(db, publication.run_id)})
     response.headers.update(_NO_STORE)
     return result
 
@@ -425,7 +425,7 @@ def download_report_pdf(public_token: str, db: Session = Depends(get_v2_db)) -> 
     from app.services.pdf_generator import generate_report_pdf
 
     publication = _publication(db, public_token)
-    payload = {**publication.payload, **usage_summary(db, publication.run_id)}
+    payload = {**public_display_payload(db, publication), **usage_summary(db, publication.run_id)}
     pdf_bytes = generate_report_pdf(payload, public_token)
     raw_name = payload.get("product_name", "product")
     slug = re.sub(r"[^a-zA-Z0-9_-]+", "-", raw_name).strip("-") or "research"

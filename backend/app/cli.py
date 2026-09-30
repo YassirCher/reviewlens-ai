@@ -567,9 +567,10 @@ def _analysis_fixture(scenario: str, *, wait: bool, timeout_seconds: int) -> int
                     "audit_uppercase_correction": {RunStatus.COMPLETE, RunStatus.PARTIAL},
                     "audit_fail": {RunStatus.FAILED},
                     "audit_empty_correction": {RunStatus.FAILED},
+                    "audit_unchanged_correction": {RunStatus.FAILED},
                     "cancel": {RunStatus.CANCELLED},
                 }[scenario]
-                published_expected = scenario not in {"audit_fail", "audit_empty_correction", "cancel"}
+                published_expected = scenario not in {"audit_fail", "audit_empty_correction", "audit_unchanged_correction", "cancel"}
                 return 0 if RunStatus(current.status) in expected and bool(report) == published_expected else 1
         time.sleep(0.2)
     print(f"analysis fixture run {run_id} did not finish within {timeout_seconds} seconds", file=sys.stderr)
@@ -680,7 +681,7 @@ def main() -> int:
     )
     analysis_fixture.add_argument(
         "--scenario",
-        choices=("complete", "comments", "partial", "retry_once", "audit_correction", "audit_uppercase_correction", "audit_empty_correction", "audit_fail", "cancel"),
+        choices=("complete", "comments", "partial", "retry_once", "audit_correction", "audit_uppercase_correction", "audit_empty_correction", "audit_unchanged_correction", "audit_fail", "cancel"),
         required=True,
     )
     analysis_fixture.add_argument("--wait", action="store_true")

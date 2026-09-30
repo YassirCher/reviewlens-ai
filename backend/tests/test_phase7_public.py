@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+import copy
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -14,7 +15,10 @@ from app.config import Settings
 from app.errors import V2Error
 from app.public.admission import _parse_cookie, resolve_session
 from app.public.contracts import AnalysisRequest, PublicReportResponse
-from app.public.reports import PublicProjectionError, _require_nodes, report_token, token_hash
+from app.public.reports import (
+    PublicProjectionError, _require_nodes, display_report_limitations, public_id,
+    public_display_payload, report_token, token_hash,
+)
 
 
 def _settings() -> Settings:
@@ -195,3 +199,33 @@ def test_public_projection_rejects_cross_workspace_nodes() -> None:
     report = type("Report", (), {"workspace_id": workspace_id})()
     with pytest.raises(PublicProjectionError):
         _require_nodes(db, report, {node_id: "source"})
+
+
+def test_limitations_resolve_catalog_aliases_to_public_source_order_without_mutating_records() -> None:
+    report_id = uuid.uuid4()
+    source_ids = [str(uuid.UUID(int=index)) for index in (1, 2)]
+    payload = {
+        "limitations": ["s1 test lasted one day. s2 used a protector.", "S1 model and s10 code."],
+        "sources": [
+            {"id": public_id(report_id, "source", source_ids[1]), "channel": "Reviewer B", "limitations": ["s2 test."]},
+            {"id": public_id(report_id, "source", source_ids[0]), "channel": "Reviewer A", "limitations": []},
+        ],
+        "warnings": ["quality_audit_warning"],
+    }
+    stored = copy.deepcopy(payload)
+    db = MagicMock()
+    db.get.return_value = SimpleNamespace(payload={"source_analyses": [{"source_id": sid} for sid in reversed(source_ids)]})
+    publication = SimpleNamespace(report_id=report_id, payload=payload)
+    result = public_display_payload(db, publication)
+    assert result["limitations"] == [
+        "Source 2 (Reviewer A) test lasted one day. Source 1 (Reviewer B) used a protector.",
+        "S1 model and s10 code.",
+    ]
+    assert result["sources"][0]["limitations"] == ["Source 1 (Reviewer B) test."]
+    assert result["warnings"] == payload["warnings"]
+    assert publication.payload == stored
+
+
+def test_unresolved_limitation_alias_does_not_fabricate_a_source() -> None:
+    result = display_report_limitations({"limitations": ["s1 test."], "sources": []}, uuid.uuid4(), [])
+    assert result["limitations"] == ["an unidentified source test."]

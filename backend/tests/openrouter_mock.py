@@ -241,7 +241,7 @@ async def chat(
 
 def _scenario(product: str) -> str:
     lowered = product.casefold()
-    for value in ("retry_once", "audit_uppercase_correction", "audit_correction", "audit_empty_correction", "audit_fail"):
+    for value in ("retry_once", "audit_uppercase_correction", "audit_correction", "audit_empty_correction", "audit_unchanged_correction", "audit_fail"):
         if value.replace("_", " ") in lowered:
             return value
     if "partial" in lowered:
@@ -385,7 +385,7 @@ def _structured_content(schema_name: str, trace_id: str, task_input: dict) -> di
                 }
             ]
         }
-    if schema_name in {"AtomicBuyingSynthesis", "SourceBoundBuyingSynthesis"}:
+    if schema_name in {"AtomicBuyingSynthesis", "SourceBoundBuyingSynthesis", "EvidenceBoundBuyingSynthesis"}:
         if RUN_SCENARIOS.get(trace_id) == "audit_empty_correction" and task_input.get("correction_issues"):
             return {"summary": "Narrative without any cited buying findings.", "assertions": []}
         catalog = task_input["evidence_catalog"]
@@ -403,6 +403,13 @@ def _structured_content(schema_name: str, trace_id: str, task_input: dict) -> di
         if schema_name == "AtomicBuyingSynthesis":
             assertions = [{"kind": "strength", "attribute": "Battery endurance",
                            "observation": "Reviewers report tested battery endurance.", "evidence_refs": refs}]
+        if schema_name == "EvidenceBoundBuyingSynthesis":
+            for assertion in assertions:
+                assertion.pop("source_ref")
+                if RUN_SCENARIOS.get(trace_id) == "comments":
+                    assertion["evidence_refs"] *= 2
+                if task_input.get("correction_issues") and RUN_SCENARIOS.get(trace_id) != "audit_unchanged_correction":
+                    assertion["observation"] = "The reviewer reports battery endurance from their test."
         return {"summary": "The cited reviews describe tested battery endurance with value caveats.",
                 "assertions": assertions,
                 "longest_usage_period": "six months",
@@ -454,6 +461,25 @@ def _structured_content(schema_name: str, trace_id: str, task_input: dict) -> di
             "who_should_avoid": ["buyers focused only on lowest price"],
             "limitations": ["YouTube transcript evidence only"],
         }
+    if schema_name == "FindingAuditResult":
+        scenario = RUN_SCENARIOS.get(trace_id, "complete")
+        should_fail = (scenario in {"audit_fail", "audit_empty_correction", "audit_unchanged_correction"}
+                       or (scenario in {"audit_correction", "audit_uppercase_correction"}
+                           and ROLE_CALLS[(trace_id, schema_name)] == 1))
+        checks = []
+        for field in ("consensus_pros", "consensus_cons"):
+            for finding in task_input["report_draft"][field]:
+                checks.append({"field_path": finding["field_path"], "supported": not should_fail,
+                    "evidence_refs": [q["evidence_ref"] for q in finding["citations"]],
+                    "category": "material" if should_fail else None,
+                    "unsupported_clause": finding["statement"] if should_fail else None,
+                    "explanation": "Fixture-only rejection exercising the bounded correction branch." if should_fail else None})
+        other = []
+        if task_input.get("_evaluation_case_id"):
+            other = [{"code": "unsupported_narrative", "field_path": "report_draft.summary",
+                      "evidence_refs": [], "unsupported_clause": "one hundred hour battery life",
+                      "explanation": "The quotation supports thirty hours, not one hundred hours or guaranteed comfort."}]
+        return {"finding_checks": checks, "other_issues": other}
     if schema_name == "AuditResult":
         scenario = RUN_SCENARIOS.get(trace_id, "complete")
         audit_number = ROLE_CALLS[(trace_id, schema_name)]

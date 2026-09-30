@@ -38,8 +38,8 @@ from app.analysis.product_info import (
 )
 from app.analysis.registry import AGENT_REGISTRY, AgentSpec, UNIVERSAL_POLICY, snapshot_input_model, snapshot_output_model
 from app.analysis.review import VideoExtraction, bind_review, parse_video_extraction, video_extraction_schema
-from app.analysis.synthesis import AtomicBuyingSynthesis, AtomicSynthesisInput, BuyingSynthesis, QuoteSynthesisInput, SynthesisBindingError, compact_synthesis_input, quote_synthesis_input
-from app.analysis.audit import CatalogAuditorInput, CitedAuditorInput, cited_audit_input, compact_audit_input
+from app.analysis.synthesis import AtomicBuyingSynthesis, AtomicSynthesisInput, BuyingSynthesis, CatalogRepairSynthesisInput, EvidenceBoundBuyingSynthesis, QuoteSynthesisInput, RepairSynthesisInput, SynthesisBindingError, catalog_repair_synthesis_input, compact_synthesis_input, evidence_bound_synthesis_schema, quote_synthesis_input, repair_synthesis_input, unchanged_rejected_findings
+from app.analysis.audit import AuditDecisionError, CatalogAuditorInput, CitedAuditorInput, DecisionAuditorInput, FindingAuditResult, cited_audit_input, compact_audit_input, decision_audit_input, finding_audit_schema
 from app.config import Settings, settings
 from app.db.models import (
     AgentDefinition,
@@ -767,6 +767,7 @@ def _agent_task_input(spec: AgentSpec, task: TaskRun, run: AnalysisRun) -> tuple
             "audience_analyses": audiences,
             "correction_issues": issues,
             "report_under_repair": report_under_repair,
+            "audit_diagnostics": audit.get("audit_diagnostics", {}) if task.input_payload.get("correction_stage") else {},
         }, ()
     if spec.key == "quality_auditor":
         if task.input_payload.get("reaudit_stage"):
@@ -933,10 +934,17 @@ async def _call_agent(
             input_payload = compact_synthesis_input(input_payload)
         if spec.input_model is QuoteSynthesisInput:
             input_payload = quote_synthesis_input(input_payload)
+        if spec.input_model is RepairSynthesisInput:
+            input_payload = repair_synthesis_input(input_payload)
+        if spec.input_model is CatalogRepairSynthesisInput:
+            input_payload = catalog_repair_synthesis_input(input_payload)
         if spec.input_model is CatalogAuditorInput:
             input_payload = compact_audit_input(input_payload)
         if spec.input_model is CitedAuditorInput:
             input_payload = cited_audit_input(input_payload)
+        if spec.input_model is DecisionAuditorInput:
+            input_payload = decision_audit_input(input_payload)
+        input_payload.pop("audit_diagnostics", None)
         if spec.key == "consensus_analyst" and "report_under_repair" not in spec.input_model.model_fields:
             input_payload.pop("report_under_repair", None)
         validated_input = spec.input_model.model_validate(input_payload)
@@ -1039,7 +1047,11 @@ async def _call_agent(
             ChatMessage(role="system", content=envelope.system),
             ChatMessage(role="user", content=envelope.user),
         ),
-        response_schema=video_extraction_schema() if spec.output_model is VideoExtraction else spec.output_model.model_json_schema(),
+        response_schema=(video_extraction_schema() if spec.output_model is VideoExtraction else
+                         finding_audit_schema(DecisionAuditorInput.model_validate(task_input_data))
+                         if spec.output_model is FindingAuditResult else
+                         evidence_bound_synthesis_schema(spec.input_model.model_validate(task_input_data))
+                         if spec.output_model is EvidenceBoundBuyingSynthesis else spec.output_model.model_json_schema()),
         schema_name=spec.output_model.__name__,
         estimated_prompt_tokens=max(prompt_tokens, context_tokens),
         estimated_cost_microusd=estimated_cost,
@@ -1616,6 +1628,13 @@ async def _execute_agent(
                                    validator_results={"status": "failed", "issues": [
                                        exc.issue if isinstance(exc, SynthesisBindingError) else {"type": "reference_invalid"}
                                    ]}) from exc
+        if isinstance(result, EvidenceBoundBuyingSynthesis) and task.input_payload.get("correction_stage"):
+            unchanged = unchanged_rejected_findings(payload.get("report_under_repair") or {}, report_draft,
+                                                   payload.get("correction_issues", []))
+            if unchanged:
+                raise RuntimeTaskError("correction_unchanged_rejected_finding", category="quality", retryable=False,
+                    validator_results={"status": "failed", "issues": [
+                        {"path": path, "type": "unchanged_rejected_finding"} for path in unchanged]})
         scoring = _score(reviews, audiences, int(run.requested_options.get("source_count", 5)), report_draft)
         return {
             "draft": report_draft.model_dump(mode="json"),
@@ -1629,11 +1648,23 @@ async def _execute_agent(
         reviews = consensus.get("source_analyses", [])
         with session_scope() as db:
             auditor_version = db.get(AgentVersion, task.agent_version_id)
-            strict_grounding = bool(auditor_version and "unsupported_narrative" in auditor_version.system_prompt)
+            strict_grounding = isinstance(result, FindingAuditResult) or bool(
+                auditor_version and "unsupported_narrative" in auditor_version.system_prompt)
+        diagnostics: dict[str, Any] = {}
+        if isinstance(result, FindingAuditResult):
+            try:
+                model_audit, diagnostics = result.as_audit(DecisionAuditorInput.model_validate(decision_audit_input(payload)))
+            except ValueError as exc:
+                raise RuntimeTaskError("audit_decisions_invalid", category="validation", retryable=True,
+                    validator_results={"status": "failed", "issues": [
+                        {"path": "finding_checks", "type": str(exc)[:180]}],
+                        **(exc.diagnostics if isinstance(exc, AuditDecisionError) else {})}) from exc
+        else:
+            model_audit = AuditResult.model_validate(result)
         safe_draft, audit, grounding_terminal = ground_report(
             FinalReportDraft.model_validate(consensus.get("draft", {})),
             reviews,
-            AuditResult.model_validate(result),
+            model_audit,
             strict_grounding=strict_grounding,
         )
         scoring = _score(reviews, consensus.get("audience_analyses", []),
@@ -1644,6 +1675,7 @@ async def _execute_agent(
             "safe_draft": safe_draft.model_dump(mode="json"),
             "scoring": scoring,
             "grounding_terminal": grounding_terminal,
+            "audit_diagnostics": diagnostics,
         }
     return result.model_dump(mode="json")
 

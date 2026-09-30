@@ -68,15 +68,15 @@ def percentile(values: list[float], fraction: float) -> float:
 
 
 def compare(baseline: dict[str, dict], candidate: dict[str, dict], min_pairs: int = 20,
-            strict_coverage: bool = False, strict_correction: bool = False) -> dict:
-    if strict_coverage or strict_correction:
+            strict_coverage: bool = False, strict_correction: bool = False, strict_audit: bool = False) -> dict:
+    if strict_coverage or strict_correction or strict_audit:
         min_pairs = max(20, min_pairs)
     if baseline.keys() != candidate.keys() or len(baseline) < min_pairs:
         raise ValueError(f"identical case IDs and at least {min_pairs} paired runs are required")
     base = list(baseline.values())
     changed = [candidate[case_id] for case_id in baseline]
     repairs = {key: repair_calls(candidate[key]) for key in baseline}
-    normal_keys = list(baseline) if strict_coverage or strict_correction else [key for key, calls in repairs.items() if calls == 0]
+    normal_keys = list(baseline) if strict_coverage or strict_correction or strict_audit else [key for key, calls in repairs.items() if calls == 0]
     normal_base = [baseline[key] for key in normal_keys]
     normal_changed = [candidate[key] for key in normal_keys]
 
@@ -93,7 +93,7 @@ def compare(baseline: dict[str, dict], candidate: dict[str, dict], min_pairs: in
         "unsupported_claims": mean(changed, "unsupported_claim_rate") <= mean(base, "unsupported_claim_rate"),
         "buyer_coverage": mean(changed, "buyer_coverage_rate") >= mean(base, "buyer_coverage_rate"),
     }
-    if strict_coverage or strict_correction:
+    if strict_coverage or strict_correction or strict_audit:
         for row in [*base, *changed]:
             requested, analyzed = row.get("source_count_requested"), row.get("source_count_analyzed")
             if type(requested) is not int or type(analyzed) is not int or not 1 <= analyzed <= requested <= 8:
@@ -102,7 +102,10 @@ def compare(baseline: dict[str, dict], candidate: dict[str, dict], min_pairs: in
             candidate[key]["source_count_requested"] == baseline[key]["source_count_requested"]
             and candidate[key]["source_count_analyzed"] >= baseline[key]["source_count_analyzed"]
             for key in baseline
-        ) and (strict_correction or sum(row["source_count_analyzed"] for row in changed) > sum(row["source_count_analyzed"] for row in base))
+        ) and (strict_correction or strict_audit or sum(row["source_count_analyzed"] for row in changed) > sum(row["source_count_analyzed"] for row in base))
+    if strict_audit:
+        checks["normal_calls"] = all(candidate[key]["model_call_count"] - repairs[key]
+                                    <= candidate[key]["source_count_analyzed"] + 4 for key in baseline)
     if strict_correction:
         for row in [*base, *changed]:
             if type(row.get("product_fact_count")) is not int or row["product_fact_count"] < 0:
@@ -132,10 +135,12 @@ def main() -> int:
                         help="Include audit repairs in performance checks and require greater valid source coverage")
     parser.add_argument("--strict-correction", action="store_true",
                         help="Include all repairs, preserve coverage, improve fact retention and enforce nine normal calls for five sources")
+    parser.add_argument("--strict-audit", action="store_true",
+                        help="Include all repairs, preserve source coverage and enforce existing normal-call limits")
     args = parser.parse_args()
     try:
         result = compare(load_rows(args.baseline), load_rows(args.candidate), args.min_pairs,
-                         args.strict_coverage, args.strict_correction)
+                         args.strict_coverage, args.strict_correction, args.strict_audit)
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         parser.error(str(exc))
     print(json.dumps(result, indent=2, sort_keys=True))

@@ -6,7 +6,7 @@ from typing import Any
 from jsonschema import Draft202012Validator
 from pydantic import BaseModel
 
-from app.analysis.audit import CatalogAuditorInput, CitedAuditorInput
+from app.analysis.audit import CatalogAuditorInput, CitedAuditorInput, DecisionAuditorInput, FindingAuditResult
 from app.analysis.contracts import (
     AudienceAnalysisDraft,
     AudienceAnalystInput,
@@ -25,7 +25,7 @@ from app.analysis.contracts import (
 )
 from app.analysis.product_info import ProductAnalystInput, ProductExtractionDraft
 from app.analysis.review import VideoExtraction
-from app.analysis.synthesis import AtomicBuyingSynthesis, AtomicSynthesisInput, BuyingSynthesis, QuoteSynthesisInput, SourceBoundBuyingSynthesis, SynthesisInput
+from app.analysis.synthesis import AtomicBuyingSynthesis, AtomicSynthesisInput, BuyingSynthesis, CatalogRepairSynthesisInput, EvidenceBoundBuyingSynthesis, QuoteSynthesisInput, RepairSynthesisInput, SourceBoundBuyingSynthesis, SynthesisInput
 from app.knowledge.contracts import NodeType, RelationType, RetrievalPolicy, TrustLevel
 from app.runtime.contracts import canonical_json_hash
 
@@ -401,6 +401,49 @@ AGENT_SPECS = tuple(replace(item,
     ),
     retrieval_policy=_retrieval((), tokens=128, hops=0, vector_top_k=0, lexical_candidate_limit=0),
 ) if item.key == "quality_auditor" else item for item in AGENT_SPECS)
+AGENT_SPECS = tuple(replace(item,
+    input_model=CatalogRepairSynthesisInput,
+    output_model=EvidenceBoundBuyingSynthesis,
+    role_prompt=(
+        "Use the verified quotation catalog to write 1-12 atomic buying assertions. Each assertion has one "
+        "natural attribute, one short observation, optional cited conditions, and evidence_refs from ONE source. "
+        "Code derives assertion ownership. Use catalog labels only in reference fields, never UUIDs or prose. "
+        "Use strength for benefits and caveat for drawbacks. Retain material drawbacks, test conditions, buyer "
+        "fit and differing results. Attribute individual experiences to the reviewer. Every material clause, "
+        "quantity, cause and condition must be in the cited excerpts. Metadata duration does not support a "
+        "finding's uncited duration or no-screen-protector condition. Split different attributes. "
+        "Stated specs are not measurements. Do not infer drop causes, model variants or performance from silence. "
+        "Summary and buyer guidance synthesize retained findings. Comments are secondary signals, not quotation evidence. "
+        "Usage duration uses usage_period_raw; longest_usage_source_ref copies its s-reference or null. "
+        "Disagreement sides cite distinct catalog e-references and actual opposing observations, not different workloads. "
+        "For repair_targets, narrow, replace or remove every rejected finding using its precise reason. Changing "
+        "only duration, order, or summary does not repair it. An unchanged rejected finding fails validation. "
+        "Unknown optional fields use null/empty lists. Do not calculate score, verdict or confidence."
+    ),
+) if item.key == "consensus_analyst" else replace(item,
+    input_model=DecisionAuditorInput,
+    output_model=FindingAuditResult,
+    role_prompt=(
+        "CITATION AUDIT: Return finding_checks with exactly one decision for EVERY supplied finding.field_path. "
+        "Copy each field_path exactly, including report_draft. and its original index; never renumber. "
+        "Each finding includes its authorized, verbatim-validated citations and server-bound owners; no lookup "
+        "or additional context is needed. Judge semantic support, not external verification. "
+        "Check every material clause, quantity, condition, attribution, scope and polarity. Combine supporting "
+        "excerpts from the same source. Single-source reviewer observations are valid. "
+        "For example, 'battery life itself has been superb' supports 'The reviewer reports superb battery life'; "
+        "'about 6 hours of screen on time' supports a reviewer-reported six-hour screen-on observation. "
+        "Those quotes do not establish charging speed, universal endurance, or an uncited usage duration. "
+        "Stated specs are not measured results. Compare translations by meaning. Missing mention is not "
+        "contradiction. Low scores and stated limitations do not invalidate direct quotes. "
+        "For supported=true cite the supporting evidence_refs and set category, unsupported_clause and explanation "
+        "to JSON null, never empty strings or positive explanations. For supported=false "
+        "cite relevant evidence_refs, choose the defect category, copy the exact unsupported clause, and give "
+        "a brief concrete explanation. Never reject all findings merely for lacking UUIDs or context nodes. "
+        "Use other_issues only for specific unsupported summary, indexed buyer guidance or disagreement clauses; "
+        "these synthesize cited findings and need no separate UUIDs. Null duration and empty optional lists "
+        "assert nothing. Usage duration uses source metadata, never battery runtime. Return only the schema."
+    ),
+) if item.key == "quality_auditor" else item for item in AGENT_SPECS)
 AGENT_REGISTRY = {item.key: item for item in AGENT_SPECS}
 
 
@@ -417,6 +460,10 @@ def snapshot_output_model(role: str, schema: dict) -> type[BaseModel]:
         return BuyingSynthesis
     if role == "consensus_analyst" and schema == AtomicBuyingSynthesis.model_json_schema():
         return AtomicBuyingSynthesis
+    if role == "consensus_analyst" and schema == SourceBoundBuyingSynthesis.model_json_schema():
+        return SourceBoundBuyingSynthesis
+    if role == "quality_auditor" and schema == AuditResult.model_json_schema():
+        return AuditResult
     raise ValueError("unsupported snapshotted output contract")
 
 
@@ -434,6 +481,12 @@ def snapshot_input_model(role: str, schema: dict) -> type[BaseModel]:
         return QualityAuditorInput
     if role == "quality_auditor" and schema == CatalogAuditorInput.model_json_schema():
         return CatalogAuditorInput
+    if role == "quality_auditor" and schema == CitedAuditorInput.model_json_schema():
+        return CitedAuditorInput
+    if role == "consensus_analyst" and schema == QuoteSynthesisInput.model_json_schema():
+        return QuoteSynthesisInput
+    if role == "consensus_analyst" and schema == RepairSynthesisInput.model_json_schema():
+        return RepairSynthesisInput
     raise ValueError("unsupported snapshotted input contract")
 
 

@@ -20,7 +20,7 @@ from app.analysis.prompting import build_prompt_envelope
 from app.analysis.registry import AGENT_REGISTRY, snapshot_input_model, snapshot_output_model
 from app.analysis.synthesis import (
     AtomicBuyingSynthesis, AtomicSynthesisInput, BuyingSynthesis, SynthesisInput,
-    QuoteSynthesisInput, SourceBoundBuyingSynthesis, SynthesisBindingError, compact_synthesis_input, evidence_catalog, quote_synthesis_input,
+    EvidenceBoundBuyingSynthesis, QuoteSynthesisInput, SourceBoundBuyingSynthesis, SynthesisBindingError, compact_synthesis_input, evidence_catalog, quote_synthesis_input,
 )
 from app.runtime.service import RuntimeTaskError
 
@@ -128,7 +128,7 @@ def test_catalog_has_no_uuid_citations_and_rejects_unknown_references():
     assert snapshot_input_model("consensus_analyst", SynthesisInput.model_json_schema()) is SynthesisInput
     assert snapshot_output_model("consensus_analyst", BuyingSynthesis.model_json_schema()) is BuyingSynthesis
     assert snapshot_output_model("consensus_analyst", FinalReportDraft.model_json_schema()) is FinalReportDraft
-    assert AGENT_REGISTRY["consensus_analyst"].output_model is SourceBoundBuyingSynthesis
+    assert AGENT_REGISTRY["consensus_analyst"].output_model is EvidenceBoundBuyingSynthesis
     assert snapshot_output_model("consensus_analyst", AtomicBuyingSynthesis.model_json_schema()) is AtomicBuyingSynthesis
     with pytest.raises(ValidationError):
         AtomicBuyingSynthesis.model_validate({"summary": "Narrative only", "assertions": []})
@@ -167,6 +167,26 @@ def test_captured_hp_mixed_fraction_is_equal_without_rounding_or_foreign_support
     foreign["consensus_pros"][0]["source_ids"] = [reviews[1]["source_id"]]
     safe, audit, _ = ground_report(FinalReportDraft.model_validate(foreign), reviews, AuditResult(verdict="pass"))
     assert not safe.consensus_pros and any(issue.code == "finding_support_mismatch" for issue in audit.issues)
+
+
+def test_captured_charging_duration_accepts_equivalent_time_without_borrowing_other_quantities():
+    fixture = json.loads((Path(__file__).parent / "fixtures/charging_duration_rejection.json").read_text())
+    quote = fixture["evidence_text"]
+    product = fixture["product_name"]
+    assert _statement_matches(fixture["statement"], "", quote, product)
+    assert _statement_matches("Charged from 0 to 81% in 30 minutes", "", quote, product)
+    assert _statement_matches("Charged from 0 to 81% in 0.5 hours", "", quote, product)
+    assert _statement_matches("Charged from 0 to 81% in 30min", "", quote, product)
+    assert _statement_matches("Charged from 0 to 81% in 0.5h", "", quote, product)
+    assert _statement_matches("Charged from 0 to 81% in 1800s", "", quote, product)
+    assert _statement_matches("Half an hour", "", "Took 30 minutes", product)
+    for statement in ("Charged to 81% in 30 hours", "Charged to 81% in 30 seconds",
+                      "Charged to 80% in 30 minutes", "Charged to 30% in half an hour"):
+        assert not _statement_matches(statement, "", quote, product)
+    assert not _statement_matches("Charged to 81% in 30 minutes", "", "Battery reached 81% at 30 cycles", product)
+    assert not _statement_matches("Battery at 30%", "", "Battery lasted 30 minutes", product)
+    assert _statement_matches("Stated as 5.3", "", "Bluetooth version 5.3", product)
+    assert _statement_matches("Stated as 3.2 g", "", "Weight is 3.2 g", product)
 
 
 def test_source_bound_successor_rejects_mixed_citations_and_internal_labels():
@@ -306,7 +326,7 @@ def test_inline_disagreement_evidence_preserves_each_side_and_absent_extra_conte
     prompt = build_prompt_envelope(spec, task_instruction=spec.purpose, task_input=inline.model_dump(mode="json"),
                                   context_manifest_id=None, rendered_context="<no-authorized-context />")
     assert "<no-authorized-context />" not in prompt.user
-    assert "citations" in prompt.user and "source ownership" in prompt.system
+    assert "citations" in prompt.user and "server-bound owners" in prompt.system
 
 
 def test_hp_exact_supported_quotes_remain_available_in_inline_audit():

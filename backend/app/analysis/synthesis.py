@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 import re
+import copy
 import uuid
 from typing import Any
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from app.analysis.contracts import (
     AuditIssue, AudienceAnalysis, ConsensusAnalystInput, ConsensusItem, Disagreement, FinalReportDraft, StrictModel,
@@ -174,9 +175,14 @@ class SourceBoundAssertion(AtomicAssertion):
 
 
 class SynthesisBindingError(ValueError):
-    def __init__(self, code: str, index: int):
+    def __init__(self, code: str, index: int | None, field: str = "assertions", reference_field: str | None = None):
         super().__init__(code)
-        self.issue = {"type": code, "loc": ["assertions", index]}
+        path: list[str | int] = [field]
+        if index is not None:
+            path.append(index)
+        if reference_field:
+            path.append(reference_field)
+        self.issue = {"type": code, "loc": path}
 
 
 class SourceBoundBuyingSynthesis(AtomicBuyingSynthesis):
@@ -197,6 +203,188 @@ class SourceBoundBuyingSynthesis(AtomicBuyingSynthesis):
             if re.search(r"\b[se]\d+\b", assertion.statement(), re.I):
                 raise SynthesisBindingError("catalog_label_in_prose", index)
         return super().as_report(display_name, canonical_name, reviews)
+
+
+class EvidenceBoundBuyingSynthesis(AtomicBuyingSynthesis):
+    """Ownership is derived from citations, never selected a second time by a model."""
+
+    def as_report(self, display_name: str, canonical_name: str,
+                  reviews: list[dict[str, Any]]) -> FinalReportDraft:
+        _, bindings, sources = evidence_catalog(reviews)
+        for index, assertion in enumerate(self.assertions):
+            if any(ref not in bindings for ref in assertion.evidence_refs):
+                raise SynthesisBindingError("unknown_reference", index)
+            if len({bindings[ref][0] for ref in assertion.evidence_refs}) != 1:
+                raise SynthesisBindingError("assertion_source_mismatch", index)
+            if re.search(r"\b(?:s[1-8]|e\d+)\b", assertion.statement(), re.I):
+                raise SynthesisBindingError("catalog_label_in_prose", index)
+        disagreements = []
+        for index, item in enumerate(self.disagreements):
+            updates = {}
+            for field in ("side_a_evidence_refs", "side_b_evidence_refs"):
+                refs = getattr(item, field)
+                if any(ref not in bindings for ref in refs):
+                    raise SynthesisBindingError("unknown_reference", index, "disagreements", field)
+                updates[field] = tuple(dict.fromkeys(refs))
+            disagreements.append(item.model_copy(update=updates))
+        if self.longest_usage_source_ref is not None and self.longest_usage_source_ref not in sources:
+            raise SynthesisBindingError("unknown_reference", None, "longest_usage_source_ref")
+        # Repeating an identical authorized reference supplies no new evidence.
+        # Canonicalize it without another model call; unknown or foreign refs still fail.
+        normalized = self.model_copy(update={
+            "assertions": tuple(item.model_copy(update={"evidence_refs": tuple(dict.fromkeys(item.evidence_refs))})
+                                for item in self.assertions),
+            "disagreements": tuple(disagreements),
+        })
+        return AtomicBuyingSynthesis.as_report(normalized, display_name, canonical_name, reviews)
+
+
+class RepairTarget(StrictModel):
+    field_path: str
+    statement: str
+    evidence_refs: tuple[str, ...]
+    code: str
+    unsupported_clause: str | None
+    explanation: str = Field(max_length=180)
+
+
+class CompactEvidence(StrictModel):
+    evidence_ref: str
+    source_ref: str
+    excerpt: str
+    support_type: Literal["supports", "contradicts"]
+
+
+class RepairSynthesisInput(StrictModel):
+    product_display_name: str
+    product_canonical_name: str
+    requested_source_count: int = Field(ge=1, le=8)
+    sources: tuple[CatalogSource, ...] = Field(min_length=1, max_length=8)
+    evidence_catalog: tuple[CompactEvidence, ...] = Field(min_length=1, max_length=384)
+    audience_analyses: tuple[AudienceAnalysis, ...] = Field(default=(), max_length=8)
+    correction_issues: tuple[AuditIssue, ...] = Field(default=(), max_length=100)
+    report_under_repair: CatalogRepair | None = None
+    repair_targets: tuple[RepairTarget, ...] = Field(default=(), max_length=100)
+
+
+class CatalogAudienceSignal(StrictModel):
+    """Secondary comment summaries use the same source catalog as review excerpts."""
+
+    source_ref: str = Field(pattern=r"^s[1-8]$")
+    comments_sampled: int = Field(ge=0, le=30)
+    comments_retained: int = Field(ge=0, le=20)
+    sampling_limitations: tuple[str, ...] = Field(min_length=1, max_length=10)
+    positive_pct: int = Field(ge=0, le=100)
+    neutral_pct: int = Field(ge=0, le=100)
+    negative_pct: int = Field(ge=0, le=100)
+    recurring_pros: tuple[str, ...] = Field(default=(), max_length=15)
+    recurring_cons: tuple[str, ...] = Field(default=(), max_length=15)
+    repeated_issues: tuple[str, ...] = Field(default=(), max_length=15)
+    audience_agrees_with_reviewer: bool | None = None
+    confidence_score: int = Field(ge=0, le=100)
+
+    @model_validator(mode="after")
+    def validate_percentages(self) -> "CatalogAudienceSignal":
+        if self.positive_pct + self.neutral_pct + self.negative_pct != 100:
+            raise ValueError("audience percentages must sum to 100")
+        return self
+
+
+class CatalogRepairSynthesisInput(StrictModel):
+    product_display_name: str
+    product_canonical_name: str
+    requested_source_count: int = Field(ge=1, le=8)
+    sources: tuple[CatalogSource, ...] = Field(min_length=1, max_length=8)
+    evidence_catalog: tuple[CompactEvidence, ...] = Field(min_length=1, max_length=384)
+    audience_analyses: tuple[CatalogAudienceSignal, ...] = Field(default=(), max_length=8)
+    correction_issues: tuple[AuditIssue, ...] = Field(default=(), max_length=100)
+    report_under_repair: CatalogRepair | None = None
+    repair_targets: tuple[RepairTarget, ...] = Field(default=(), max_length=100)
+
+
+def evidence_bound_synthesis_schema(supplied: RepairSynthesisInput | CatalogRepairSynthesisInput) -> dict[str, Any]:
+    """Constrain every reference field; assertion citations belong to one source."""
+    schema = EvidenceBoundBuyingSynthesis.model_json_schema()
+    grouped: dict[str, list[str]] = {}
+    for quote in supplied.evidence_catalog:
+        grouped.setdefault(quote.source_ref, []).append(quote.evidence_ref)
+    citations = schema["$defs"]["AtomicAssertion"]["properties"]["evidence_refs"]
+    alternatives = []
+    for refs in grouped.values():
+        choice = copy.deepcopy(citations)
+        choice["items"]["enum"] = refs
+        alternatives.append(choice)
+    schema["$defs"]["AtomicAssertion"]["properties"]["evidence_refs"] = {"anyOf": alternatives}
+    for field in ("side_a_evidence_refs", "side_b_evidence_refs"):
+        prop = schema["$defs"]["AtomicDisagreement"]["properties"][field]
+        prop["items"]["enum"] = [quote.evidence_ref for quote in supplied.evidence_catalog]
+    schema["properties"]["longest_usage_source_ref"] = {"anyOf": [
+        {"type": "string", "enum": [source.source_ref for source in supplied.sources]}, {"type": "null"},
+    ]}
+    return schema
+
+
+def repair_synthesis_input(payload: dict[str, Any]) -> dict[str, Any]:
+    compact = quote_synthesis_input(payload)
+    compact["evidence_catalog"] = [{key: quote[key] for key in CompactEvidence.model_fields}
+                                   for quote in compact["evidence_catalog"]]
+    repair = payload.get("report_under_repair")
+    targets = []
+    if repair:
+        _, bindings, _ = evidence_catalog(payload["source_analyses"])
+        reverse = {eid: ref for ref, (_, eid) in bindings.items()}
+        details = {item["field_path"].removeprefix("report_draft."): item
+                   for item in payload.get("audit_diagnostics", {}).get("rejections", [])}
+        for issue in payload.get("correction_issues", []):
+            path = issue["field_path"].removeprefix("report_draft.")
+            match = re.fullmatch(r"(consensus_pros|consensus_cons)\[(\d+)\]", path)
+            if not match or int(match[2]) >= len(repair.get(match[1], [])):
+                continue
+            finding = repair[match[1]][int(match[2])]
+            detail = details.get(path, {})
+            targets.append({"field_path": "report_draft." + path, "statement": finding["statement"],
+                "evidence_refs": [reverse[str(eid)] for eid in finding["evidence_node_ids"]],
+                "code": issue["code"], "unsupported_clause": detail.get("unsupported_clause"),
+                "explanation": detail.get("explanation") or "The cited excerpts do not support every quantity, condition, or clause; narrow or remove this finding."})
+    return {**compact, "repair_targets": targets}
+
+
+def catalog_repair_synthesis_input(payload: dict[str, Any]) -> dict[str, Any]:
+    compact = repair_synthesis_input(payload)
+    _, _, sources = evidence_catalog(payload["source_analyses"])
+    source_refs = {source_id: ref for ref, source_id in sources.items()}
+    fields = set(CatalogAudienceSignal.model_fields) - {"source_ref"}
+    compact["audience_analyses"] = [
+        {"source_ref": source_refs[str(item["source_id"])], **{field: item[field] for field in fields}}
+        for raw in payload.get("audience_analyses", [])
+        if str(raw["source_id"]) in source_refs
+        for item in [AudienceAnalysis.model_validate(raw).model_dump(mode="json")]
+    ]
+    return compact
+
+
+def unchanged_rejected_findings(original: dict[str, Any], corrected: FinalReportDraft,
+                                issues: list[dict[str, Any]]) -> list[str]:
+    """Changing duration or moving a rejected finding does not repair that finding."""
+    def identity(item: dict[str, Any]) -> tuple:
+        return (" ".join(item["statement"].casefold().split()),
+                tuple(sorted(str(value) for value in item["source_ids"])),
+                tuple(sorted(str(value) for value in item["evidence_node_ids"])))
+
+    retained = {identity(item.model_dump(mode="json"))
+                for item in (*corrected.consensus_pros, *corrected.consensus_cons)}
+    unchanged = []
+    for issue in issues:
+        path = issue["field_path"].removeprefix("report_draft.")
+        match = re.fullmatch(r"(consensus_pros|consensus_cons)(?:\[(\d+)\])?", path)
+        if not match:
+            continue
+        items = original.get(match[1], [])
+        indexes = range(len(items)) if match[2] is None else [int(match[2])]
+        for index in indexes:
+            if index < len(items) and identity(items[index]) in retained:
+                unchanged.append(f"report_draft.{match[1]}[{index}]")
+    return list(dict.fromkeys(unchanged))
 
 
 def evidence_catalog(reviews: list[dict[str, Any]]) -> tuple[dict[str, Any], dict[str, tuple[str, str]], dict[str, str]]:

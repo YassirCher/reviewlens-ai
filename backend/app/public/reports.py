@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import re
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -28,6 +29,29 @@ from app.tools.contracts import VIDEO_ID_PATTERN
 
 class PublicProjectionError(RuntimeError):
     pass
+
+
+def display_report_limitations(payload: dict, report_id: uuid.UUID, internal_source_ids: list[str]) -> dict:
+    """Render catalog aliases as public source labels without changing stored records."""
+    sources = payload.get("sources", [])
+    labels = {source["id"]: f"Source {index} ({source.get('channel') or source.get('title') or 'review video'})"
+              for index, source in enumerate(sources, 1)}
+    aliases = {f"s{index}": labels.get(public_id(report_id, "source", source_id), "an unidentified source")
+               for index, source_id in enumerate(sorted(internal_source_ids), 1)}
+
+    def readable(text: str) -> str:
+        return re.sub(r"\bs[1-8]\b", lambda match: aliases.get(match[0], "an unidentified source"), text)
+
+    return {**payload, "limitations": [readable(text) for text in payload.get("limitations", [])],
+            "sources": [{**source, "limitations": [readable(text) for text in source.get("limitations", [])]}
+                        for source in sources]}
+
+
+def public_display_payload(db: Session, publication: ReportPublication) -> dict:
+    report = db.get(Report, publication.report_id)
+    stored = (report.payload or {}) if report else {}
+    source_ids = [str(source["source_id"]) for source in stored.get("source_analyses", [])]
+    return display_report_limitations(publication.payload, publication.report_id, source_ids)
 
 
 def report_token(report_id: uuid.UUID, config: Settings = settings) -> str:

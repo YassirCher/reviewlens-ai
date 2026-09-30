@@ -1,0 +1,9 @@
+{
+  "provenance": "Sanitized bounded excerpt from run 03ae1532-b883-4a8e-b5ac-ce62adee9675; no raw response or transcript body",
+  "product_name": "iPhone 18 Pro Max",
+  "channel": "GSMArena Official",
+  "statement": "Charging Speed: Charged from 0 to 81% in 30 minutes. (0 to 81% in half an hour)",
+  "evidence_text": "charge the 18 Pro Max from 0 to 81% in half an hour",
+  "model_supported": true,
+  "historical_rejection": "finding_support_mismatch"
+}

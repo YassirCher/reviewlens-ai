@@ -1,0 +1,1084 @@
+{
+  "provenance": "Captured bounded validated excerpts and aggregate comment signals; UUIDs anonymized. No raw provider response, full transcript or individual comment.",
+  "product_name": "samsung s25 ultra",
+  "source_analyses": [
+    {
+      "cons": [],
+      "pros": [],
+      "claims": [
+        {
+          "claim": "Battery life is excellent, easily lasting all day and among the best on any flagship phone this year.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 90,
+              "support_type": "supports",
+              "evidence_text": "Battery life is another big highlight with this phone. It easily lasts me all day and has been probably the best battery life I've experienced on any flagship phone this year.",
+              "source_node_id": "c6fa34e8-fa23-5e80-8929-31b9e6e069fd",
+              "evidence_node_id": "31b79a69-5333-59a6-adc3-b2d9f76cc14a",
+              "timestamp_end_seconds": 354.16,
+              "timestamp_start_seconds": 340.56
+            }
+          ]
+        },
+        {
+          "claim": "Camera system shows more noise than Apple and Google flagships in challenging light, but the 50 MP 5X telephoto is clearly better than iPhone's 12 MP sensor in low light.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 85,
+              "support_type": "supports",
+              "evidence_text": "Overall, I'd say the camera, especially in more challenging lighting scenarios, does seem to show a bit more noise than the other two smartphones I've compared it to from Apple and Google.",
+              "source_node_id": "c6fa34e8-fa23-5e80-8929-31b9e6e069fd",
+              "evidence_node_id": "fb1e8d8b-2331-52e0-a334-8ad0521df006",
+              "timestamp_end_seconds": 449.6,
+              "timestamp_start_seconds": 437.28
+            },
+            {
+              "confidence": 85,
+              "support_type": "supports",
+              "evidence_text": "S25 Ultra's 50 megapixel 5X is clearly better than the iPhone's 12 megapixel sensor in my testing, especially in low light.",
+              "source_node_id": "c6fa34e8-fa23-5e80-8929-31b9e6e069fd",
+              "evidence_node_id": "8d37e75c-75a9-57d1-ac15-011da213a82f",
+              "timestamp_end_seconds": 437.28,
+              "timestamp_start_seconds": 423.36
+            }
+          ]
+        },
+        {
+          "claim": "One UI 7 software feels like a fresh coat of paint with useful new features like Now Bar and lock screen widgets, though lock screen widget support lags behind iPhone.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 80,
+              "support_type": "supports",
+              "evidence_text": "Samsung launched One UI 7, which feels like a fresh coat of paint on the software without completely changing everything",
+              "source_node_id": "c6fa34e8-fa23-5e80-8929-31b9e6e069fd",
+              "evidence_node_id": "cef9b077-0131-574c-9f2c-20d34ec197b1",
+              "timestamp_end_seconds": 49.6,
+              "timestamp_start_seconds": 38.0
+            },
+            {
+              "confidence": 80,
+              "support_type": "supports",
+              "evidence_text": "the only downside to the lock screen widgets so far compared to on the iPhone is that Apple just has way more apps available that support them compared to Samsung even 6 months later.",
+              "source_node_id": "c6fa34e8-fa23-5e80-8929-31b9e6e069fd",
+              "evidence_node_id": "161c8bdc-c2bf-5642-8f44-e1652dac66f4",
+              "timestamp_end_seconds": 167.44,
+              "timestamp_start_seconds": 153.84
+            }
+          ]
+        },
+        {
+          "claim": "S Pen has limited utility; Bluetooth removal and phone wobble make it less useful, and the reviewer questions whether it should be kept.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 75,
+              "support_type": "supports",
+              "evidence_text": "the company removed Bluetooth from it, which means it can't do features like air actions or remote camera shutter like in the past.",
+              "source_node_id": "c6fa34e8-fa23-5e80-8929-31b9e6e069fd",
+              "evidence_node_id": "fc4620e9-d8f6-577c-8a82-64705829c06f",
+              "timestamp_end_seconds": 780.32,
+              "timestamp_start_seconds": 767.36
+            },
+            {
+              "confidence": 75,
+              "support_type": "supports",
+              "evidence_text": "I still at the same time question how many users of this phone consistently use the S Pen and whether it would just be better to remove it altogether",
+              "source_node_id": "c6fa34e8-fa23-5e80-8929-31b9e6e069fd",
+              "evidence_node_id": "2d8eb6a4-1afd-5d26-94b2-3f750afc7dc5",
+              "timestamp_end_seconds": 797.68,
+              "timestamp_start_seconds": 785.6
+            }
+          ]
+        },
+        {
+          "claim": "Gemini Assistant is a highlight with more capabilities than Google Assistant, though it is slower for some tasks and cannot play Apple Music.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 80,
+              "support_type": "supports",
+              "evidence_text": "Gemini has not only gotten better than the Google Assistant in most cases. Although, except maybe for speed when doing something like playing music, it's probably still a bit slower",
+              "source_node_id": "c6fa34e8-fa23-5e80-8929-31b9e6e069fd",
+              "evidence_node_id": "83156578-3303-5fd5-88a3-ad40c863b46f",
+              "timestamp_end_seconds": 701.44,
+              "timestamp_start_seconds": 687.2
+            }
+          ]
+        },
+        {
+          "claim": "Display is excellent with anti-glare coating and 2600 nits brightness, but 480 Hz PWM is lower than some competitors.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 85,
+              "support_type": "supports",
+              "evidence_text": "The display is excellent with that anti-glare coating and 2,600 nits of max brightness, which is impressive.",
+              "source_node_id": "c6fa34e8-fa23-5e80-8929-31b9e6e069fd",
+              "evidence_node_id": "19833ecc-c656-5e43-9deb-1d2507752a9d",
+              "timestamp_end_seconds": 321.6,
+              "timestamp_start_seconds": 306.24
+            },
+            {
+              "confidence": 85,
+              "support_type": "supports",
+              "evidence_text": "the only downside is that the PWM is 480 hertz, which is considerably lower than other smartphones like those from Chinese manufacturers",
+              "source_node_id": "c6fa34e8-fa23-5e80-8929-31b9e6e069fd",
+              "evidence_node_id": "62c6280b-d491-52ee-b7aa-a6168cf00387",
+              "timestamp_end_seconds": 327.04,
+              "timestamp_start_seconds": 314.16
+            }
+          ]
+        }
+      ],
+      "source_id": "c6fa34e8-fa23-5e80-8929-31b9e6e069fd",
+      "channel_id": "UCJOl2JvledP26K2OQ_HLgnQ",
+      "translated": false,
+      "limitations": [
+        "Reviewer's usage is light to moderate; battery results may differ for heavy users",
+        "Camera comparisons limited to Apple and Google flagships; other competitors not tested"
+      ],
+      "review_type": "long_term",
+      "caption_kind": "manual",
+      "major_issues": [],
+      "source_score": 78,
+      "recommended_for": [],
+      "purchase_verdict": "buy",
+      "usage_period_raw": "6 months",
+      "ownership_context": "purchased",
+      "not_recommended_for": [],
+      "transcript_language": "en",
+      "evidence_quality_score": 85,
+      "recommendation_summary": "Some source details could not be verified; inspect the cited claims.",
+      "usage_period_mentioned": true,
+      "source_analysis_node_id": "c5e7092b-d623-56c0-bbcf-c1abd1adb553",
+      "reviewer_sentiment_score": 75,
+      "usage_period_days_estimate": 180,
+      "purchase_recommendation_score": 80
+    },
+    {
+      "cons": [
+        "Lacks IP69, Qi2 magnets, 10x zoom, and high-frequency PWM dimming",
+        "S Pen Bluetooth removal removes remote shutter and media controls",
+        "Only a spec bump with minimal hardware changes"
+      ],
+      "pros": [
+        "Excellent performance with Snapdragon 8 Elite chip",
+        "50MP ultra-wide camera is a genuine upgrade",
+        "Very good battery life with 30-40% remaining at end of day"
+      ],
+      "claims": [
+        {
+          "claim": "The S25 Ultra plays it safe with only a spec bump and lacks several expected flagship features.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 95,
+              "support_type": "supports",
+              "evidence_text": "They have just played it incredibly safe with this phone. They just took last year's award-winning flagship phone and did the bare minimum, a spec bump.",
+              "source_node_id": "11a92c85-d037-57b3-8c27-004f75873c94",
+              "evidence_node_id": "d80127c8-5aa0-5a8c-be4d-bc37b7a72e7a",
+              "timestamp_end_seconds": 125.64,
+              "timestamp_start_seconds": 115.74
+            },
+            {
+              "confidence": 95,
+              "support_type": "supports",
+              "evidence_text": "It also doesn't have IP69, it doesn't add Qi2 magnets, it doesn't bring back the 10x zoom, or even add high frequency PWM dimming.",
+              "source_node_id": "11a92c85-d037-57b3-8c27-004f75873c94",
+              "evidence_node_id": "9d653521-46d5-57c5-9377-d899e720763d",
+              "timestamp_end_seconds": 111.9,
+              "timestamp_start_seconds": 102.63
+            }
+          ]
+        },
+        {
+          "claim": "Performance with the Snapdragon 8 Elite chip is excellent, smooth, and efficient.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 95,
+              "support_type": "supports",
+              "evidence_text": "The phone is fast as hell. It benchmarks crazy high, rivaling Apple's A18 Pro chip.",
+              "source_node_id": "11a92c85-d037-57b3-8c27-004f75873c94",
+              "evidence_node_id": "9e37059b-4219-578b-a015-ccc7b3b8e563",
+              "timestamp_end_seconds": 244.62,
+              "timestamp_start_seconds": 240.69
+            },
+            {
+              "confidence": 95,
+              "support_type": "supports",
+              "evidence_text": "using this phone, it's just so smooth, it's smoother and more efficient than ever before.",
+              "source_node_id": "11a92c85-d037-57b3-8c27-004f75873c94",
+              "evidence_node_id": "025f6bab-e81a-5beb-b630-f979d0f2543e",
+              "timestamp_end_seconds": 252.75,
+              "timestamp_start_seconds": 247.8
+            }
+          ]
+        },
+        {
+          "claim": "The S Pen lost Bluetooth functionality, removing remote control features, which is a downgrade for an 'Ultra' device.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 95,
+              "support_type": "supports",
+              "evidence_text": "Samsung removed the Bluetooth functionality from the S Pen, which means it can no longer be used as a remote control shutter for the camera or for any of the media playback controls.",
+              "source_node_id": "11a92c85-d037-57b3-8c27-004f75873c94",
+              "evidence_node_id": "d6392d46-4a1c-535d-a9f0-83fb69ccdbc3",
+              "timestamp_end_seconds": 551.64,
+              "timestamp_start_seconds": 541.95
+            },
+            {
+              "confidence": 95,
+              "support_type": "supports",
+              "evidence_text": "they took a feature away and the justification was, 'Well the data shows that people didn't really use it.'",
+              "source_node_id": "11a92c85-d037-57b3-8c27-004f75873c94",
+              "evidence_node_id": "e6e2b562-34d7-5435-afc2-3b8f3bb5b578",
+              "timestamp_end_seconds": 564.75,
+              "timestamp_start_seconds": 556.26
+            }
+          ]
+        },
+        {
+          "claim": "The 50MP ultra-wide camera is a genuine upgrade, producing sharper and more usable images.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 90,
+              "support_type": "supports",
+              "evidence_text": "the new 50 megapixel ultra wide camera? That's also, it's been a genuinely nice upgrade.",
+              "source_node_id": "11a92c85-d037-57b3-8c27-004f75873c94",
+              "evidence_node_id": "eef60398-b7c5-5347-a084-e83e2f44f4f6",
+              "timestamp_end_seconds": 623.73,
+              "timestamp_start_seconds": 618.42
+            },
+            {
+              "confidence": 90,
+              "support_type": "supports",
+              "evidence_text": "all of my ultra wide shots now are much sharper corner to corner. And in darker light, the better sensor gathers more light and gives more usable images consistently.",
+              "source_node_id": "11a92c85-d037-57b3-8c27-004f75873c94",
+              "evidence_node_id": "5cb41eed-fa75-533c-adc5-de1d2c07c782",
+              "timestamp_end_seconds": 634.14,
+              "timestamp_start_seconds": 625.32
+            }
+          ]
+        },
+        {
+          "claim": "Battery life is very good, often ending days with 30-40% remaining, but charging is only slightly faster.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 90,
+              "support_type": "supports",
+              "evidence_text": "battery life has been awesome on this phone. I've ended days with 30, 40% left, but it's not the best.",
+              "source_node_id": "11a92c85-d037-57b3-8c27-004f75873c94",
+              "evidence_node_id": "e77ff9f2-877f-570d-9e49-edfcf534b15c",
+              "timestamp_end_seconds": 721.92,
+              "timestamp_start_seconds": 715.2
+            },
+            {
+              "confidence": 85,
+              "support_type": "supports",
+              "evidence_text": "the battery does seem to charge a little bit faster, not a lot faster, but a little bit faster.",
+              "source_node_id": "11a92c85-d037-57b3-8c27-004f75873c94",
+              "evidence_node_id": "c6e4e0c1-c1ea-5b15-8cd4-0e39699157bd",
+              "timestamp_end_seconds": 777.0,
+              "timestamp_start_seconds": 772.05
+            }
+          ]
+        },
+        {
+          "claim": "The phone is good but misses the opportunity to be the best, especially given its $1,299 price.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 95,
+              "support_type": "supports",
+              "evidence_text": "this S25 Ultra, is awesome, but it's missed out on an opportunity to be the best. And I think for 1,299 bucks it's fair to expect the best.",
+              "source_node_id": "11a92c85-d037-57b3-8c27-004f75873c94",
+              "evidence_node_id": "9a5140bb-85fa-5d08-9436-d73def46321e",
+              "timestamp_end_seconds": 750.3,
+              "timestamp_start_seconds": 738.78
+            },
+            {
+              "confidence": 95,
+              "support_type": "supports",
+              "evidence_text": "To this year saying, 'You could buy anything else.'",
+              "source_node_id": "11a92c85-d037-57b3-8c27-004f75873c94",
+              "evidence_node_id": "f003e8d6-f3b0-521f-b397-7ff02e3bef22",
+              "timestamp_end_seconds": 767.22,
+              "timestamp_start_seconds": 763.11
+            }
+          ]
+        }
+      ],
+      "source_id": "11a92c85-d037-57b3-8c27-004f75873c94",
+      "channel_id": "UCBJycsmduvYEL83R_U4JriQ",
+      "translated": false,
+      "limitations": [
+        "Reviewer notes the phone was provided by Samsung for review",
+        "Reviewer acknowledges personal carrier limitations (AT&T) affecting alternative phone usage"
+      ],
+      "review_type": "short_term",
+      "caption_kind": "manual",
+      "major_issues": [
+        "Samsung removed Bluetooth from S Pen, downgrading a signature feature",
+        "Phone lacks several expected flagship upgrades (battery tech, IP69, Qi2)"
+      ],
+      "source_score": 42,
+      "recommended_for": [
+        "Samsung loyalists who want the latest Galaxy",
+        "Users who specifically need the S Pen for note-taking or drawing"
+      ],
+      "purchase_verdict": "mixed",
+      "usage_period_raw": null,
+      "ownership_context": "review_unit",
+      "not_recommended_for": [
+        "Users wanting the absolute best camera or display in 2025",
+        "Enthusiasts seeking innovative hardware upgrades"
+      ],
+      "transcript_language": "en",
+      "evidence_quality_score": 90,
+      "recommendation_summary": "The S25 Ultra is a good, safe phone but fails to justify its premium price with meaningful upgrades. It's recommended only for those deeply invested in Samsung's ecosystem or needing the S Pen, while most buyers should consider competitors or the cheaper S25/S25 Plus.",
+      "usage_period_mentioned": false,
+      "source_analysis_node_id": "b859a134-10d0-592e-bc94-319a16085666",
+      "reviewer_sentiment_score": 45,
+      "usage_period_days_estimate": 14,
+      "purchase_recommendation_score": 40
+    },
+    {
+      "cons": [
+        "Battery life falls behind competitors with silicon carbon technology",
+        "S Pen lacks Bluetooth remote functionality",
+        "No built-in magnets for Qi2 wireless charging"
+      ],
+      "pros": [
+        "Excellent all-round camera package, especially video",
+        "Great performance with Snapdragon 8 Elite",
+        "Seven years of OS updates (six remaining)"
+      ],
+      "claims": [
+        {
+          "claim": "The S25 Ultra has a great all-round camera package, especially for video, with some of the best video on Android.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 90,
+              "support_type": "supports",
+              "evidence_text": "I think it has a great allround camera package",
+              "source_node_id": "b0196468-9019-5bce-96e5-cf8d5bbbe827",
+              "evidence_node_id": "d03aca38-f81d-5f3f-a5a4-7bf4b13dcf00",
+              "timestamp_end_seconds": 325.44,
+              "timestamp_start_seconds": 320.639
+            },
+            {
+              "confidence": 90,
+              "support_type": "supports",
+              "evidence_text": "This has some of the best video on Android",
+              "source_node_id": "b0196468-9019-5bce-96e5-cf8d5bbbe827",
+              "evidence_node_id": "1a8ab773-fc92-5a7d-ad69-beb55a88c6c0",
+              "timestamp_end_seconds": 451.68,
+              "timestamp_start_seconds": 446.0
+            }
+          ]
+        },
+        {
+          "claim": "Battery life is good but falls behind competitors; heavy users should look elsewhere.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 85,
+              "support_type": "supports",
+              "evidence_text": "the S25 Ultra has been giving me good battery life",
+              "source_node_id": "b0196468-9019-5bce-96e5-cf8d5bbbe827",
+              "evidence_node_id": "b7663394-df36-5553-978f-7109cbcdd0a7",
+              "timestamp_end_seconds": 725.68,
+              "timestamp_start_seconds": 720.32
+            },
+            {
+              "confidence": 85,
+              "support_type": "supports",
+              "evidence_text": "it really does fall behind",
+              "source_node_id": "b0196468-9019-5bce-96e5-cf8d5bbbe827",
+              "evidence_node_id": "8f5cd947-e059-5130-ab9b-6a9e23bf3d0e",
+              "timestamp_end_seconds": 742.32,
+              "timestamp_start_seconds": 736.48
+            }
+          ]
+        },
+        {
+          "claim": "Performance is excellent; Snapdragon 8 Elite handles everything without issues and software support lasts six more years.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 95,
+              "support_type": "supports",
+              "evidence_text": "nothing that I've thrown at it that has given me any issues",
+              "source_node_id": "b0196468-9019-5bce-96e5-cf8d5bbbe827",
+              "evidence_node_id": "26d5f468-234b-567e-b658-555c4308b198",
+              "timestamp_end_seconds": 469.44,
+              "timestamp_start_seconds": 465.36
+            },
+            {
+              "confidence": 95,
+              "support_type": "supports",
+              "evidence_text": "seven generations of Android OS updates",
+              "source_node_id": "b0196468-9019-5bce-96e5-cf8d5bbbe827",
+              "evidence_node_id": "4dc318ea-edfa-54b4-8d59-ff6a0d54a68b",
+              "timestamp_end_seconds": 510.16,
+              "timestamp_start_seconds": 503.919
+            }
+          ]
+        },
+        {
+          "claim": "The S Pen lacks Bluetooth remote functionality, which was missed only once in a year, but may be a dealbreaker for some.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 80,
+              "support_type": "supports",
+              "evidence_text": "the S Pen no longer supported Bluetooth",
+              "source_node_id": "b0196468-9019-5bce-96e5-cf8d5bbbe827",
+              "evidence_node_id": "eca52705-b290-5729-bd5b-1588948fc76f",
+              "timestamp_end_seconds": 257.12,
+              "timestamp_start_seconds": 249.84
+            },
+            {
+              "confidence": 80,
+              "support_type": "supports",
+              "evidence_text": "there has literally just been one occasion in the past year when I was missing the remote trigger",
+              "source_node_id": "b0196468-9019-5bce-96e5-cf8d5bbbe827",
+              "evidence_node_id": "d5ec2ff4-8778-53da-8727-1a98e494a6e5",
+              "timestamp_end_seconds": 278.479,
+              "timestamp_start_seconds": 271.44
+            }
+          ]
+        },
+        {
+          "claim": "The display is excellent with Gorilla Armor 2 anti-reflectiveness; using a screen protector negates that benefit.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 90,
+              "support_type": "supports",
+              "evidence_text": "Gorilla Armor 2, which makes this anti-reflective",
+              "source_node_id": "b0196468-9019-5bce-96e5-cf8d5bbbe827",
+              "evidence_node_id": "14588187-d199-534d-8725-88e85bf48880",
+              "timestamp_end_seconds": 74.96,
+              "timestamp_start_seconds": 70.56
+            },
+            {
+              "confidence": 90,
+              "support_type": "supports",
+              "evidence_text": "you're going to lose that anti-reflectiveness",
+              "source_node_id": "b0196468-9019-5bce-96e5-cf8d5bbbe827",
+              "evidence_node_id": "8610118c-8a94-5e89-9f44-1ce430c5e2bf",
+              "timestamp_end_seconds": 88.4,
+              "timestamp_start_seconds": 83.52
+            }
+          ]
+        },
+        {
+          "claim": "The S25 Ultra is still worth buying at a reduced price, but waiting for the S26 Ultra release may yield better deals.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 85,
+              "support_type": "supports",
+              "evidence_text": "I can still recommend this device at this point in time",
+              "source_node_id": "b0196468-9019-5bce-96e5-cf8d5bbbe827",
+              "evidence_node_id": "9e3f42f0-2ce4-5c71-9dd4-3e85e58c5d28",
+              "timestamp_end_seconds": 831.76,
+              "timestamp_start_seconds": 824.959
+            },
+            {
+              "confidence": 85,
+              "support_type": "supports",
+              "evidence_text": "I would personally wait until the S26 Ultra is out",
+              "source_node_id": "b0196468-9019-5bce-96e5-cf8d5bbbe827",
+              "evidence_node_id": "a1dd296a-172d-537c-a50b-fa52972888e3",
+              "timestamp_end_seconds": 848.72,
+              "timestamp_start_seconds": 842.72
+            }
+          ]
+        }
+      ],
+      "source_id": "b0196468-9019-5bce-96e5-cf8d5bbbe827",
+      "channel_id": "UCIrrRLyFMVmmL9NDAU2obJA",
+      "translated": false,
+      "limitations": [
+        "Review based on one user's experience over one year",
+        "Battery comparison based on subjective daily usage",
+        "Camera comparison based on reviewer's opinion"
+      ],
+      "review_type": "long_term",
+      "caption_kind": "automatic",
+      "major_issues": [
+        "Battery life is only about a day, while competitors offer 1.5-2 days",
+        "S Pen Bluetooth removal may disappoint users who relied on remote trigger"
+      ],
+      "source_score": 77,
+      "recommended_for": [
+        "Users who want a great all-round camera and video performance",
+        "Users who value long software support",
+        "Users who can accept average battery life"
+      ],
+      "purchase_verdict": "mixed",
+      "usage_period_raw": "over a year",
+      "ownership_context": "owned",
+      "not_recommended_for": [
+        "Heavy users who prioritize excellent battery life",
+        "Users who need Bluetooth remote functionality from S Pen"
+      ],
+      "transcript_language": "en",
+      "evidence_quality_score": 88,
+      "recommendation_summary": "Still a good buy at a reduced price, but waiting for S26 Ultra release may yield better deals; battery life is a notable drawback.",
+      "usage_period_mentioned": true,
+      "source_analysis_node_id": "28187e97-7a9a-500f-a3bd-7e41c7468410",
+      "reviewer_sentiment_score": 80,
+      "usage_period_days_estimate": 365,
+      "purchase_recommendation_score": 75
+    },
+    {
+      "cons": [
+        "S Pen Bluetooth functionality removed",
+        "AI features may require future subscription with unknown cost",
+        "Some apps still lag despite powerful chip"
+      ],
+      "pros": [
+        "Excellent build quality and durability",
+        "Improved battery life with 9 hours screen-on time",
+        "Vibrant, reflection-resistant display with good low-light dimming"
+      ],
+      "claims": [
+        {
+          "claim": "The S25 Ultra has excellent build quality and durability, surviving drops and scratches with only minor dust collection.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 90,
+              "support_type": "supports",
+              "evidence_text": "zero in the way of damage only thing that has unfortunately marked it is a pretty nasty meter and a half drop straight onto concrete but when I saw that happen I was bracing myself for a lot worse than this",
+              "source_node_id": "c9949c60-1dea-5f65-a9dc-d5e678b94567",
+              "evidence_node_id": "79278af3-7548-5cf1-8110-1921a94a347b",
+              "timestamp_end_seconds": 55.199,
+              "timestamp_start_seconds": 42.92
+            },
+            {
+              "confidence": 85,
+              "support_type": "supports",
+              "evidence_text": "there is a little more dust collection than I would like but zero in the way of damage",
+              "source_node_id": "c9949c60-1dea-5f65-a9dc-d5e678b94567",
+              "evidence_node_id": "dc2e1f09-0d60-5cf2-8712-48a9c52b86f3",
+              "timestamp_end_seconds": 47.039,
+              "timestamp_start_seconds": 41.52
+            }
+          ]
+        },
+        {
+          "claim": "Battery life is improved, delivering nearly 9 hours of screen-on time at default resolution, often leaving 30-40% at day's end.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 90,
+              "support_type": "supports",
+              "evidence_text": "battery life is even better than last year it's just under 9 hours of Total screen on time per charge when the screen is set to the default 10 P which means I'm reaching the end of my days with 30 to 40% left in the tank consistently",
+              "source_node_id": "c9949c60-1dea-5f65-a9dc-d5e678b94567",
+              "evidence_node_id": "bc0594e5-8da3-5427-8481-f4f75ced5f7f",
+              "timestamp_end_seconds": 70.159,
+              "timestamp_start_seconds": 53.719
+            }
+          ]
+        },
+        {
+          "claim": "The display is vibrant, crisp, nearly reflection-free, and has excellent minimum brightness for low-light use.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 85,
+              "support_type": "supports",
+              "evidence_text": "almost borderless display that's so vibrant so crisp and almost immune to Reflections to the point where you don't even need to turn the brightness High to see it clearly",
+              "source_node_id": "c9949c60-1dea-5f65-a9dc-d5e678b94567",
+              "evidence_node_id": "f53b048c-909b-5f50-885e-e09fde729850",
+              "timestamp_end_seconds": 82.439,
+              "timestamp_start_seconds": 73.24
+            },
+            {
+              "confidence": 80,
+              "support_type": "supports",
+              "evidence_text": "how dim the minimum brightness on this gets it's less strenuous on your eyes just before bed",
+              "source_node_id": "c9949c60-1dea-5f65-a9dc-d5e678b94567",
+              "evidence_node_id": "80f91871-eb0c-5537-beaa-4a6e4b543696",
+              "timestamp_end_seconds": 173.519,
+              "timestamp_start_seconds": 165.68
+            }
+          ]
+        },
+        {
+          "claim": "One UI 7 software feels fast and smooth, often quicker than iPhone, but the raw chip power is underutilized in daily use and many apps still lag.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 85,
+              "support_type": "supports",
+              "evidence_text": "this Samsung feels blazing fast thanks to each animation being both very smooth like the iPhone while also being tuned to be quicker than Apples it gives the phone this feeling of instantaneousness that actually makes the Iphone feel slow by comparison",
+              "source_node_id": "c9949c60-1dea-5f65-a9dc-d5e678b94567",
+              "evidence_node_id": "d23ba555-720c-52d0-95b0-6b91ee7d34f0",
+              "timestamp_end_seconds": 195.36,
+              "timestamp_start_seconds": 179.959
+            },
+            {
+              "confidence": 80,
+              "support_type": "supports",
+              "evidence_text": "I can't find a way to actually use that power in my day-to-day life like I said the phone does just feel faster than last year but that's just the software that's not because of the Chip",
+              "source_node_id": "c9949c60-1dea-5f65-a9dc-d5e678b94567",
+              "evidence_node_id": "933abe63-ca70-56eb-990b-950312246943",
+              "timestamp_end_seconds": 265.4,
+              "timestamp_start_seconds": 258.0
+            }
+          ]
+        },
+        {
+          "claim": "AI features are mixed: some are useful (AI Select, object eraser, wallpaper generation) but many are incomplete, buggy, or have uncertain future pricing.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 85,
+              "support_type": "supports",
+              "evidence_text": "AI select Game Changer you know when someone sends you a whole paragraph and you just want to copy one sentence from that paragraph This solves it",
+              "source_node_id": "c9949c60-1dea-5f65-a9dc-d5e678b94567",
+              "evidence_node_id": "eb2890e7-92e3-5deb-9f95-70c56621c83b",
+              "timestamp_end_seconds": 359.639,
+              "timestamp_start_seconds": 349.84
+            },
+            {
+              "confidence": 80,
+              "support_type": "supports",
+              "evidence_text": "object eraser for photos is like wow this is actually better in my experience than even the one on the Google pixel",
+              "source_node_id": "c9949c60-1dea-5f65-a9dc-d5e678b94567",
+              "evidence_node_id": "00b19749-386b-5c27-a560-8daec98fa306",
+              "timestamp_end_seconds": 503.8,
+              "timestamp_start_seconds": 495.24
+            }
+          ]
+        },
+        {
+          "claim": "Camera improvements are noticeable (better zoom, ultrawide, skin tones, shutter lag fixed) but mostly software-based; not the best camera phone overall.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 85,
+              "support_type": "supports",
+              "evidence_text": "s25 ultra does take better Zoom photos than last year it takes better Ultra wide shots it's got better skin tones pretty much every single image taken on every single lens is sharper and the videos look cleaner with less noise too",
+              "source_node_id": "c9949c60-1dea-5f65-a9dc-d5e678b94567",
+              "evidence_node_id": "752921ca-af58-58b8-ba40-64dedd59eb4a",
+              "timestamp_end_seconds": 821.48,
+              "timestamp_start_seconds": 806.36
+            },
+            {
+              "confidence": 80,
+              "support_type": "supports",
+              "evidence_text": "I wouldn't say this is the best phone camera ever I'd say the iPhone is a little ahead the Vivo X200 Pro is quite away ahead but it's still top five",
+              "source_node_id": "c9949c60-1dea-5f65-a9dc-d5e678b94567",
+              "evidence_node_id": "e3830d8b-2d0e-58a1-b70d-cc695a495957",
+              "timestamp_end_seconds": 837.639,
+              "timestamp_start_seconds": 827.8
+            }
+          ]
+        }
+      ],
+      "source_id": "c9949c60-1dea-5f65-a9dc-d5e678b94567",
+      "channel_id": "UCMiJRAwDNSNzuYeN2uWa0pA",
+      "translated": false,
+      "limitations": [
+        "Review based on pre-release or early unit; long-term durability not assessed",
+        "AI pricing and full feature set not finalized at time of review"
+      ],
+      "review_type": "comparison",
+      "caption_kind": "automatic",
+      "major_issues": [
+        "Uncertainty about AI subscription cost and feature availability after 2025",
+        "Removal of S Pen Bluetooth features without clear benefit"
+      ],
+      "source_score": 52,
+      "recommended_for": [
+        "Enthusiasts wanting the latest Samsung software and design",
+        "Users who value fast animations and smooth UI"
+      ],
+      "purchase_verdict": "mixed",
+      "usage_period_raw": "I've been specifically using it without a case to test it and so far at least it's been in a camera bag it's been in a\u2026",
+      "ownership_context": "review_unit",
+      "not_recommended_for": [
+        "Users who want the absolute best camera available",
+        "Buyers on a budget who can get S24 Ultra with similar software experience"
+      ],
+      "transcript_language": "en",
+      "evidence_quality_score": 85,
+      "recommendation_summary": "The S25 Ultra is enticing but not a must-buy; most users should wait for price drops or consider the S24 Ultra due to similar software and uncertain AI costs.",
+      "usage_period_mentioned": true,
+      "source_analysis_node_id": "0354a537-996c-5e11-b5c9-a805a61cac4c",
+      "reviewer_sentiment_score": 70,
+      "usage_period_days_estimate": 14,
+      "purchase_recommendation_score": 40
+    },
+    {
+      "cons": [],
+      "pros": [],
+      "claims": [
+        {
+          "claim": "Battery life is merely fine, not ultra, with around 6 to 7 hours screen-on time and only about 3.5 hours of gaming.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 95,
+              "support_type": "supports",
+              "evidence_text": "battery life here is merely fine. It certainly isn't ultra",
+              "source_node_id": "0d39018a-de73-558c-b81b-8b27771633ca",
+              "evidence_node_id": "6e95ea04-5f14-5922-a08e-8824391f13b9",
+              "timestamp_end_seconds": 641.84,
+              "timestamp_start_seconds": 637.84
+            },
+            {
+              "confidence": 95,
+              "support_type": "supports",
+              "evidence_text": "around 6 to 7 hours of screen on time",
+              "source_node_id": "0d39018a-de73-558c-b81b-8b27771633ca",
+              "evidence_node_id": "f26b117b-09e1-52dd-8363-23389857d102",
+              "timestamp_end_seconds": 646.32,
+              "timestamp_start_seconds": 641.84
+            }
+          ]
+        },
+        {
+          "claim": "Camera performance is disappointing; low-light photos are flat and grainy, motion blur ruins shots, and rivals like Oppo and Pixel are superior.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 95,
+              "support_type": "supports",
+              "evidence_text": "S25 Ultra still suffers from the same deficiencies that plagued it at birth",
+              "source_node_id": "0d39018a-de73-558c-b81b-8b27771633ca",
+              "evidence_node_id": "18e5df25-df49-5648-804e-7e8043b47db5",
+              "timestamp_end_seconds": 747.92,
+              "timestamp_start_seconds": 741.52
+            },
+            {
+              "confidence": 95,
+              "support_type": "supports",
+              "evidence_text": "spunks out flat and grainy snaps",
+              "source_node_id": "0d39018a-de73-558c-b81b-8b27771633ca",
+              "evidence_node_id": "092b55d6-3028-5f51-a9a8-504dba8908b2",
+              "timestamp_end_seconds": 775.92,
+              "timestamp_start_seconds": 771.12
+            }
+          ]
+        },
+        {
+          "claim": "Display is excellent, with anti-glare Gorilla Glass Armor 2 finish making it ideal for outdoor use.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 95,
+              "support_type": "supports",
+              "evidence_text": "Gorilla Glass Armor 2 finish. Now, this kicks reflections and glares right in the floppy bits",
+              "source_node_id": "0d39018a-de73-558c-b81b-8b27771633ca",
+              "evidence_node_id": "98ed3eb5-d74f-55a8-93fe-9bb9c148328f",
+              "timestamp_end_seconds": 451.2,
+              "timestamp_start_seconds": 444.16
+            },
+            {
+              "confidence": 95,
+              "support_type": "supports",
+              "evidence_text": "ideal for watching videos or playing games outdoors in the sunshine",
+              "source_node_id": "0d39018a-de73-558c-b81b-8b27771633ca",
+              "evidence_node_id": "52f12a78-aff1-55da-ad6d-a652b14fa8a9",
+              "timestamp_end_seconds": 458.16,
+              "timestamp_start_seconds": 451.2
+            }
+          ]
+        },
+        {
+          "claim": "Performance is still top-tier; Snapdragon 8 Elite handles gaming at 60 fps even after over an hour.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 95,
+              "support_type": "supports",
+              "evidence_text": "still more than beefy enough to power through anything you fancy",
+              "source_node_id": "0d39018a-de73-558c-b81b-8b27771633ca",
+              "evidence_node_id": "56bbd8bd-8000-58ff-82ac-c7d9159fe557",
+              "timestamp_end_seconds": 545.52,
+              "timestamp_start_seconds": 540.96
+            },
+            {
+              "confidence": 95,
+              "support_type": "supports",
+              "evidence_text": "buttery smooth 60 fps experience, even after well over an hour of gaming",
+              "source_node_id": "0d39018a-de73-558c-b81b-8b27771633ca",
+              "evidence_node_id": "c75fe9f6-898a-54bc-95d5-a3b1c9dd9686",
+              "timestamp_end_seconds": 558.32,
+              "timestamp_start_seconds": 549.92
+            }
+          ]
+        },
+        {
+          "claim": "Overall verdict: not worthy of the 'Ultra' moniker; surpassed by rivals in battery, charging, and camera.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 95,
+              "support_type": "supports",
+              "evidence_text": "Galaxy S25 Ultra not really worthy of that ultra moniker",
+              "source_node_id": "0d39018a-de73-558c-b81b-8b27771633ca",
+              "evidence_node_id": "41893054-7cee-5f00-b9db-f2a32d47ef95",
+              "timestamp_end_seconds": 974.32,
+              "timestamp_start_seconds": 969.52
+            },
+            {
+              "confidence": 95,
+              "support_type": "supports",
+              "evidence_text": "further surpassed by more flagships, especially when it comes to the battery life, the battery charging, and that camera experience",
+              "source_node_id": "0d39018a-de73-558c-b81b-8b27771633ca",
+              "evidence_node_id": "6d3afc7a-d100-5320-9070-332425d0f57e",
+              "timestamp_end_seconds": 984.72,
+              "timestamp_start_seconds": 977.6
+            }
+          ]
+        }
+      ],
+      "source_id": "0d39018a-de73-558c-b81b-8b27771633ca",
+      "channel_id": "UCVLN0tY51ewH44wUtx3YZTA",
+      "translated": false,
+      "limitations": [
+        "Review is based on one reviewer's experience after one year of use; individual results may vary.",
+        "Camera comparison is subjective and based on reviewer's testing conditions."
+      ],
+      "review_type": "long_term",
+      "caption_kind": "automatic",
+      "major_issues": [],
+      "source_score": 30,
+      "recommended_for": [],
+      "purchase_verdict": "mixed",
+      "usage_period_raw": "one year later",
+      "ownership_context": "review_unit",
+      "not_recommended_for": [],
+      "transcript_language": "en",
+      "evidence_quality_score": 83,
+      "recommendation_summary": "Some source details could not be verified; inspect the cited claims.",
+      "usage_period_mentioned": true,
+      "source_analysis_node_id": "07701bfe-f014-5841-8694-a2620d9b9430",
+      "reviewer_sentiment_score": 30,
+      "usage_period_days_estimate": 365,
+      "purchase_recommendation_score": 30
+    }
+  ],
+  "audience_analyses": [
+    {
+      "source_id": "c6fa34e8-fa23-5e80-8929-31b9e6e069fd",
+      "neutral_pct": 30,
+      "negative_pct": 5,
+      "positive_pct": 65,
+      "recurring_cons": [
+        "oleophobic coating issues",
+        "missing car crash detection",
+        "difficulty removing S Pen with case"
+      ],
+      "recurring_pros": [
+        "S Pen is essential for productivity and note-taking",
+        "S Pen is a defining feature of the Ultra",
+        "S Pen should be retained in future models",
+        "good display, performance, battery life, speakers",
+        "One UI and Android OS experience"
+      ],
+      "repeated_issues": [
+        "S Pen retention is a major concern",
+        "comparison with Pixel and iPhone models",
+        "missing car crash detection"
+      ],
+      "comments_sampled": 30,
+      "confidence_score": 70,
+      "comments_retained": 20,
+      "sampling_limitations": [
+        "Comments are from a single YouTube video source",
+        "Comments may be biased toward viewers interested in the S Pen",
+        "Sample size is small (30 sampled, 20 retained)",
+        "Comments are self-selected and may not represent general population",
+        "Temporal bias: comments span Sep 2025 to Apr 2026, not evenly distributed",
+        "Language bias: all comments are in English",
+        "No demographic or geographic data available"
+      ],
+      "audience_signal_node_id": "09fcc39d-5ebe-5885-ac77-aaccb017b18c",
+      "audience_agrees_with_reviewer": null
+    },
+    {
+      "source_id": "11a92c85-d037-57b3-8c27-004f75873c94",
+      "neutral_pct": 25,
+      "negative_pct": 55,
+      "positive_pct": 20,
+      "recurring_cons": [
+        "Bluetooth S Pen removal is a huge disappointment",
+        "Samsung removing features from the Ultra line",
+        "Overemphasis on AI at the expense of phone fundamentals",
+        "Lack of innovation compared to previous years"
+      ],
+      "recurring_pros": [
+        "High production value and cinematography of the review",
+        "Entertaining and engaging intro"
+      ],
+      "repeated_issues": [
+        "Bluetooth S Pen removal",
+        "Feature removal from the Ultra series",
+        "AI focus overshadowing hardware improvements"
+      ],
+      "comments_sampled": 30,
+      "confidence_score": 75,
+      "comments_retained": 20,
+      "sampling_limitations": [
+        "Comments are from a single YouTube video (Marques Brownlee review)",
+        "Sample may overrepresent fans of the reviewer",
+        "Comments are self-selected and may not represent general audience",
+        "Only 20 comments retained out of 30 sampled, limiting breadth",
+        "Temporal bias: most comments from early February 2025, near launch",
+        "Language bias: all comments are in English",
+        "Platform bias: YouTube comments may differ from other social media sentiment"
+      ],
+      "audience_signal_node_id": "9169984d-7adf-513a-b0e4-f4577627e9f2",
+      "audience_agrees_with_reviewer": true
+    },
+    {
+      "source_id": "b0196468-9019-5bce-96e5-cf8d5bbbe827",
+      "neutral_pct": 10,
+      "negative_pct": 0,
+      "positive_pct": 90,
+      "recurring_cons": [],
+      "recurring_pros": [
+        "long-term satisfaction",
+        "performance",
+        "display quality",
+        "camera quality",
+        "build quality"
+      ],
+      "repeated_issues": [],
+      "comments_sampled": 30,
+      "confidence_score": 85,
+      "comments_retained": 20,
+      "sampling_limitations": [
+        "Comments are from a single YouTube video (SuperSaf channel) and may not represent broader audience sentiment.",
+        "Only 20 comments were retained out of 30 sampled, which is a small sample size.",
+        "Comments are self-selected and likely biased toward positive sentiment (e.g., users who are satisfied are more likely to comment).",
+        "No negative or critical comments were present in the retained set, which may indicate selection bias in the sampling or moderation.",
+        "Comments are from a single language (English) and may not reflect global audience views.",
+        "The video title and channel may attract a specific audience (e.g., fans of the reviewer or Samsung enthusiasts), skewing sentiment."
+      ],
+      "audience_signal_node_id": "3bc59b05-e377-5b65-8203-6dc4ac5784df",
+      "audience_agrees_with_reviewer": true
+    },
+    {
+      "source_id": "c9949c60-1dea-5f65-a9dc-d5e678b94567",
+      "neutral_pct": 25,
+      "negative_pct": 55,
+      "positive_pct": 20,
+      "recurring_cons": [
+        "Removal of Bluetooth from S-Pen",
+        "Lack of hardware innovation (e.g., no 10x optical zoom, no larger battery, no under-display camera)",
+        "Removal of features (microSD, headphone jack) without meaningful additions"
+      ],
+      "recurring_pros": [
+        "Appreciation for reviewer's content quality",
+        "Positive long-term experience with the phone (design, smoothness, One UI)"
+      ],
+      "repeated_issues": [
+        "Bluetooth S-Pen removal is a deal-breaker for many",
+        "Samsung removing features and suggesting alternative wearables as replacements",
+        "Yearly release cycle questioned"
+      ],
+      "comments_sampled": 30,
+      "confidence_score": 70,
+      "comments_retained": 20,
+      "sampling_limitations": [
+        "Comments are from a single YouTube video (Mrwhosetheboss review)",
+        "Sample size is small (30 sampled, 20 retained)",
+        "Comments may be biased toward viewers of that specific channel",
+        "High-likes comments may overrepresent strong opinions",
+        "Temporal bias: most comments are from early release period (Jan\u2013Feb 2025)",
+        "Language and cultural bias: comments are primarily in English",
+        "No demographic data available for commenters"
+      ],
+      "audience_signal_node_id": "e10e0204-bfa8-5887-8e39-34d85faee296",
+      "audience_agrees_with_reviewer": null
+    },
+    {
+      "source_id": "0d39018a-de73-558c-b81b-8b27771633ca",
+      "neutral_pct": 30,
+      "negative_pct": 10,
+      "positive_pct": 60,
+      "recurring_cons": [
+        "battery life falls short of rivals",
+        "camera hit-and-miss with kids/pets",
+        "pricing not competitive enough",
+        "charging speed too slow (wants 65W)"
+      ],
+      "recurring_pros": [
+        "software and reliability unmatched",
+        "display is best in class with anti-glare",
+        "balanced and complete Android smartphone",
+        "good value when bought on sale"
+      ],
+      "repeated_issues": [
+        "battery life insufficient compared to competitors",
+        "camera performance inconsistent in real life",
+        "charging speed lags behind rivals"
+      ],
+      "comments_sampled": 30,
+      "confidence_score": 65,
+      "comments_retained": 20,
+      "sampling_limitations": [
+        "comments are from a single YouTube video (Tech Spurt channel)",
+        "sample size is small (20 retained from 30 sampled)",
+        "comments may be biased toward viewers who chose to engage with a 'one year later' review",
+        "no demographic or geographic diversity data available",
+        "comments are self-selected and may not represent general S25 Ultra owners",
+        "sentiment may be skewed by the reviewer's own critical tone"
+      ],
+      "audience_signal_node_id": "7bbfe596-cb6d-579c-a79e-a66605994bf2",
+      "audience_agrees_with_reviewer": null
+    }
+  ],
+  "historical_failures": [
+    {
+      "attempt": 1,
+      "code": "synthesis_reference_invalid",
+      "validation": {
+        "issues": [
+          {
+            "type": "reference_invalid"
+          }
+        ],
+        "status": "failed"
+      }
+    },
+    {
+      "attempt": 2,
+      "code": "synthesis_reference_invalid",
+      "validation": {
+        "issues": [
+          {
+            "type": "reference_invalid"
+          }
+        ],
+        "status": "failed"
+      }
+    }
+  ],
+  "baseline": {
+    "calls": 14,
+    "tokens": 115503,
+    "models": [
+      "deepseek/deepseek-v4-flash"
+    ],
+    "status": "failed"
+  }
+}
