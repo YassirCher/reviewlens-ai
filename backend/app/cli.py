@@ -564,6 +564,7 @@ def _analysis_fixture(scenario: str, *, wait: bool, timeout_seconds: int) -> int
                     "partial": {RunStatus.PARTIAL},
                     "retry_once": {RunStatus.COMPLETE, RunStatus.PARTIAL},
                     "audit_correction": {RunStatus.COMPLETE, RunStatus.PARTIAL},
+                    "audit_uppercase_correction": {RunStatus.COMPLETE, RunStatus.PARTIAL},
                     "audit_fail": {RunStatus.FAILED},
                     "audit_empty_correction": {RunStatus.FAILED},
                     "cancel": {RunStatus.CANCELLED},
@@ -679,7 +680,7 @@ def main() -> int:
     )
     analysis_fixture.add_argument(
         "--scenario",
-        choices=("complete", "comments", "partial", "retry_once", "audit_correction", "audit_empty_correction", "audit_fail", "cancel"),
+        choices=("complete", "comments", "partial", "retry_once", "audit_correction", "audit_uppercase_correction", "audit_empty_correction", "audit_fail", "cancel"),
         required=True,
     )
     analysis_fixture.add_argument("--wait", action="store_true")

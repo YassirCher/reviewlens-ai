@@ -241,7 +241,7 @@ async def chat(
 
 def _scenario(product: str) -> str:
     lowered = product.casefold()
-    for value in ("retry_once", "audit_correction", "audit_empty_correction", "audit_fail"):
+    for value in ("retry_once", "audit_uppercase_correction", "audit_correction", "audit_empty_correction", "audit_fail"):
         if value.replace("_", " ") in lowered:
             return value
     if "partial" in lowered:
@@ -458,17 +458,23 @@ def _structured_content(schema_name: str, trace_id: str, task_input: dict) -> di
         scenario = RUN_SCENARIOS.get(trace_id, "complete")
         audit_number = ROLE_CALLS[(trace_id, schema_name)]
         should_fail = (bool(task_input.get("_evaluation_case_id")) or scenario in {"audit_fail", "audit_empty_correction"}
-                       or (scenario == "audit_correction" and audit_number == 1))
+                       or (scenario in {"audit_correction", "audit_uppercase_correction"} and audit_number == 1))
         if should_fail:
+            paths = [f"report_draft.{field}[{index}]"
+                     for field in ("consensus_pros", "consensus_cons")
+                     for index, _ in enumerate(task_input.get("report_draft", {}).get(field, []))]
+            if task_input.get("_evaluation_case_id"):
+                paths = paths[:1]
             return {
                 "verdict": "fail",
                 "issues": [
                     {
-                        "code": "unsupported_finding",
-                        "field_path": "report_draft.consensus_pros[0]",
+                        "code": "UNSUPPORTED_FINDING" if scenario == "audit_uppercase_correction" else "unsupported_finding",
+                        "field_path": path,
                         "evidence_node_ids": [],
                         "retryable": True,
                     }
+                    for path in paths or ["report_draft.consensus_pros[0]"]
                 ],
             }
         return {"verdict": "pass", "issues": []}

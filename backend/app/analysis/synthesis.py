@@ -86,6 +86,29 @@ class AtomicSynthesisInput(StrictModel):
     report_under_repair: CatalogRepair | None = None
 
 
+class QuotedEvidence(StrictModel):
+    evidence_ref: str
+    source_ref: str
+    excerpt: str
+    support_type: Literal["supports", "contradicts"]
+    confidence: int
+    timestamp_start_seconds: float | None
+    timestamp_end_seconds: float | None
+
+
+class QuoteSynthesisInput(StrictModel):
+    """Only verified quotations can supply an assertion's material details."""
+
+    product_display_name: str
+    product_canonical_name: str
+    requested_source_count: int = Field(ge=1, le=8)
+    sources: tuple[CatalogSource, ...] = Field(min_length=1, max_length=8)
+    evidence_catalog: tuple[QuotedEvidence, ...] = Field(min_length=1, max_length=384)
+    audience_analyses: tuple[AudienceAnalysis, ...] = Field(default=(), max_length=8)
+    correction_issues: tuple[AuditIssue, ...] = Field(default=(), max_length=100)
+    report_under_repair: CatalogRepair | None = None
+
+
 class AtomicAssertion(StrictModel):
     kind: Literal["strength", "caveat"]
     attribute: str = Field(min_length=1, max_length=80)
@@ -188,7 +211,8 @@ def evidence_catalog(reviews: list[dict[str, Any]]) -> tuple[dict[str, Any], dic
         sources[source_ref] = str(review["source_id"])
         notes.append({"source_ref": source_ref, "channel_id": review["channel_id"],
                       "review_type": review["review_type"], "ownership_context": review.get("ownership_context", "unknown"),
-                      "usage_period_raw": review.get("usage_period_raw"), "limitations": review.get("limitations", [])})
+                      "usage_period_raw": review.get("usage_period_raw") if review.get("usage_period_mentioned") else None,
+                      "limitations": review.get("limitations", [])})
         for claim in review["claims"]:
             for quote in claim["evidence"]:
                 if str(quote["source_node_id"]) != str(review["source_id"]):
@@ -225,3 +249,10 @@ def compact_synthesis_input(payload: dict[str, Any]) -> dict[str, Any]:
             "audience_analyses": payload.get("audience_analyses", []),
             "correction_issues": [{**issue, "evidence_node_ids": []} for issue in payload.get("correction_issues", [])],
             "report_under_repair": repair}
+
+
+def quote_synthesis_input(payload: dict[str, Any]) -> dict[str, Any]:
+    compact = compact_synthesis_input(payload)
+    compact["evidence_catalog"] = [{key: value for key, value in quote.items() if key != "claim"}
+                                   for quote in compact["evidence_catalog"]]
+    return compact

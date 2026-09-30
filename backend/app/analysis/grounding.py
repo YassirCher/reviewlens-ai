@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import re
+from fractions import Fraction
 from typing import Any
 
 from app.analysis.contracts import AuditIssue, AuditResult, ConsensusItem, FinalReportDraft
 
 
 _NUMBER = re.compile(r"(?<![\w.])\d+(?:[.,]\d+)?")
+_MIXED_FRACTION = re.compile(r"(?<![\w.])(\d+)\s+(?:and\s+)?(\d+)\s*/\s*(\d+)(?![\w.])", re.I)
 _MODEL_CODE = re.compile(r"\b[a-z][a-z0-9-]*\d[a-z0-9-]*\b", re.I)
 _GROUNDING_CODES = {
     "unsupported_claim", "unsupported_finding", "unsupported_disagreement",
@@ -22,10 +24,24 @@ def _field_index(path: str, field: str) -> int | None:
     return int(match[1]) if match else None
 
 
+def _quantities(text: str) -> set[Fraction]:
+    values: set[Fraction] = set()
+
+    def mixed(match: re.Match[str]) -> str:
+        whole, numerator, denominator = (int(value) for value in match.groups())
+        if 0 < numerator < denominator:
+            values.add(Fraction(whole) + Fraction(numerator, denominator))
+            return ""
+        return match[0]
+
+    remaining = _MIXED_FRACTION.sub(mixed, text)
+    values.update(Fraction(item.replace(",", "")) for item in _NUMBER.findall(remaining))
+    return values
+
+
 def _statement_matches(statement: str, claim: str, excerpt: str, product_name: str) -> bool:
-    numbers = {item.replace(",", "") for item in _NUMBER.findall(statement)}
-    numbers -= {item.replace(",", "") for item in _NUMBER.findall(product_name)}
-    if not numbers <= {item.replace(",", "") for item in _NUMBER.findall(excerpt)}:
+    numbers = _quantities(statement) - _quantities(product_name)
+    if not numbers <= _quantities(excerpt):
         return False
     # Polarity is semantic: 'no lag' supports a positive latency observation.
     # The existing auditor checks negation, conditions, and meaning per clause.
@@ -122,6 +138,11 @@ def ground_report(
     clear_avoid = False
     unhandled: list[AuditIssue] = []
     for issue in model_audit.issues:
+        # Providers can vary casing even under the strict string contract.
+        # Canonicalize only known codes; unknown failures still block publication.
+        canonical_code = issue.code.casefold()
+        if canonical_code in _GROUNDING_CODES:
+            issue = issue.model_copy(update={"code": canonical_code})
         if issue.code not in _GROUNDING_CODES:
             unhandled.append(issue)
             continue

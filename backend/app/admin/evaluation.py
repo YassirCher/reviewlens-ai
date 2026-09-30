@@ -14,7 +14,8 @@ from sqlalchemy import select
 from app.admin.configuration import validate_payload, version_payload
 from app.analysis.registry import AGENT_REGISTRY, snapshot_input_model, snapshot_output_model
 from app.analysis.review import VideoExtraction, bind_review, parse_video_extraction
-from app.analysis.synthesis import AtomicBuyingSynthesis, AtomicSynthesisInput, BuyingSynthesis, compact_synthesis_input
+from app.analysis.synthesis import AtomicBuyingSynthesis, AtomicSynthesisInput, BuyingSynthesis, QuoteSynthesisInput, compact_synthesis_input, quote_synthesis_input
+from app.analysis.audit import CatalogAuditorInput, CitedAuditorInput, cited_audit_input, compact_audit_input
 from app.db.models import (
     ActiveConfiguration, AgentDefinition, AgentEvaluationResult, AgentVersion, AnalysisRun,
     BudgetPolicyVersion, ConfigurationSnapshot, ModelPolicyVersion, RunBudgetState,
@@ -454,6 +455,12 @@ def evaluate_agent_version(version_id: uuid.UUID, job_id: uuid.UUID) -> dict:
     for case in golden_cases(role):
         original_fixture = case_fixture(role, case)
         fixture_input = compact_synthesis_input(original_fixture) if spec.input_model is AtomicSynthesisInput else original_fixture
+        if spec.input_model is QuoteSynthesisInput:
+            fixture_input = quote_synthesis_input(original_fixture)
+        if spec.input_model is CatalogAuditorInput:
+            fixture_input = compact_audit_input(original_fixture)
+        if spec.input_model is CitedAuditorInput:
+            fixture_input = cited_audit_input(original_fixture)
         fixture = spec.input_model.model_validate(fixture_input).model_dump(mode="json")
         trusted_task = json.dumps({
             "evaluation_case": case.key,

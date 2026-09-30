@@ -11,14 +11,16 @@ import pytest
 from pydantic import ValidationError
 
 from app.analysis import executor
-from app.analysis.contracts import AuditResult, FinalReportDraft
+from app.analysis.audit import CatalogAuditorInput, CitedAuditorInput, cited_audit_input, compact_audit_input
+from app.analysis.contracts import AuditResult, FinalReportDraft, QualityAuditorInput
 from app.analysis.grounding import _statement_matches, ground_report
 from app.analysis.product_info import ProductExtractionDraft, validate_extraction
 from app.analysis.projection import project_claims
+from app.analysis.prompting import build_prompt_envelope
 from app.analysis.registry import AGENT_REGISTRY, snapshot_input_model, snapshot_output_model
 from app.analysis.synthesis import (
     AtomicBuyingSynthesis, AtomicSynthesisInput, BuyingSynthesis, SynthesisInput,
-    SourceBoundBuyingSynthesis, SynthesisBindingError, compact_synthesis_input, evidence_catalog,
+    QuoteSynthesisInput, SourceBoundBuyingSynthesis, SynthesisBindingError, compact_synthesis_input, evidence_catalog, quote_synthesis_input,
 )
 from app.runtime.service import RuntimeTaskError
 
@@ -145,6 +147,28 @@ def test_measurements_are_not_model_codes_and_semantic_negation_stays_audited():
     assert len(safe.consensus_pros) == 4 and audit.verdict == "pass_with_warnings"
 
 
+def test_captured_hp_mixed_fraction_is_equal_without_rounding_or_foreign_support():
+    quote = "Omen especially lasts a pretty reasonable 7 and 1/2 hours here"
+    assert _statement_matches("Lasts 7.5 hours", "", quote, "HP Omen Max 16")
+    assert _statement_matches("Lasts 7 and 1/2 hours", "", "Lasts 7.5 hours", "HP Omen Max 16")
+    assert not _statement_matches("Lasts 7 hours", "", quote, "HP Omen Max 16")
+    assert not _statement_matches("Lasts 7.4 hours", "", quote, "HP Omen Max 16")
+    assert not _statement_matches("Lasts 7.5 hours", "", "Lasts 7 and 1/0 hours", "HP Omen Max 16")
+    fixture = captured()
+    reviews = fixture["source_analyses"]
+    ref = reviews[0]["claims"][0]["evidence"][0]
+    ref["evidence_text"] = quote
+    draft = split_synthesis(captured()).as_report("HP Omen Max 16", "HP Omen Max 16", reviews).model_dump(mode="json")
+    draft["consensus_pros"] = [{"statement": "Lasts 7.5 hours", "source_ids": [reviews[0]["source_id"]],
+                                "evidence_node_ids": [ref["evidence_node_id"]]}]
+    safe, audit, _ = ground_report(FinalReportDraft.model_validate(draft), reviews, AuditResult(verdict="pass"))
+    assert safe.consensus_pros and not any(issue.field_path == "report_draft.consensus_pros[0]" for issue in audit.issues)
+    foreign = copy.deepcopy(draft)
+    foreign["consensus_pros"][0]["source_ids"] = [reviews[1]["source_id"]]
+    safe, audit, _ = ground_report(FinalReportDraft.model_validate(foreign), reviews, AuditResult(verdict="pass"))
+    assert not safe.consensus_pros and any(issue.code == "finding_support_mismatch" for issue in audit.issues)
+
+
 def test_source_bound_successor_rejects_mixed_citations_and_internal_labels():
     fixture = captured()
     reviews = fixture["source_analyses"]
@@ -190,6 +214,144 @@ def test_comparison_identity_is_not_a_product_detail_with_missing_scope():
         video_id="E_nBOaQA_qQ", canonical_product="Black Shark T11", diagnostics=diagnostics)
     assert [fact.value for fact in facts] == ["Black Shark T11"]
     assert diagnostics == [{"path": "facts[1]", "code": "sibling_model"}]
+
+
+def test_compact_audit_preserves_original_indices_and_citation_ownership():
+    fixture = captured()
+    reviews = fixture["source_analyses"]
+    draft = split_synthesis(fixture).as_report("T11", "Black Shark T11", reviews)
+    original = {"report_draft": draft.model_dump(mode="json"), "source_analyses": reviews}
+    compact = CatalogAuditorInput.model_validate(compact_audit_input(original))
+    _, bindings, sources = evidence_catalog(reviews)
+    catalog = {item.evidence_ref: item for item in compact.evidence_catalog}
+    for field in ("consensus_pros", "consensus_cons"):
+        for original_item, compact_item in zip(getattr(draft, field), getattr(compact.report_draft, field), strict=True):
+            assert compact_item.statement == original_item.statement
+            assert [sources[ref] for ref in compact_item.source_refs] == [str(sid) for sid in original_item.source_ids]
+            assert [bindings[ref][1] for ref in compact_item.evidence_refs] == [str(eid) for eid in original_item.evidence_node_ids]
+            assert all(catalog[ref].source_ref in compact_item.source_refs for ref in compact_item.evidence_refs)
+    rendered = compact.model_dump_json()
+    assert all(review["source_id"] not in rendered for review in reviews)
+    assert len(rendered) < len(json.dumps(original))
+    assert snapshot_input_model("quality_auditor", QualityAuditorInput.model_json_schema()) is QualityAuditorInput
+    assert snapshot_input_model("quality_auditor", CatalogAuditorInput.model_json_schema()) is CatalogAuditorInput
+    broken = copy.deepcopy(original)
+    broken["report_draft"]["consensus_pros"][0]["evidence_node_ids"] = [str(uuid.uuid4())]
+    with pytest.raises(KeyError):
+        compact_audit_input(broken)
+
+
+def test_unverified_duration_is_not_offered_to_synthesis_or_auditor():
+    reviews = copy.deepcopy(captured()["source_analyses"])
+    reviews[0].update(usage_period_mentioned=False, usage_period_raw="not specified")
+    reviews[1].update(usage_period_mentioned=False, usage_period_raw="about a month")
+    reviews[2].update(usage_period_mentioned=True, usage_period_raw="a few days")
+    catalog, _, sources = evidence_catalog(reviews)
+    by_owner = {sources[item["source_ref"]]: item for item in catalog["sources"]}
+    assert by_owner[reviews[0]["source_id"]]["usage_period_raw"] is None
+    assert by_owner[reviews[1]["source_id"]]["usage_period_raw"] is None
+    assert by_owner[reviews[2]["source_id"]]["usage_period_raw"] == "a few days"
+
+
+def test_quote_only_synthesis_excludes_broader_derived_claims_and_preserves_legacy():
+    reviews = captured()["source_analyses"]
+    reviews[0]["claims"][0]["claim"] = "Unsupported OLED resolution 2560x1600 and refresh rate 240 Hz"
+    original = {"product_display_name": "T11", "product_canonical_name": "Black Shark T11",
+                "requested_source_count": 5, "source_analyses": reviews}
+    successor = QuoteSynthesisInput.model_validate(quote_synthesis_input(original))
+    assert "Unsupported OLED" not in successor.model_dump_json()
+    assert all("claim" not in item for item in successor.model_dump(mode="json")["evidence_catalog"])
+    legacy = AtomicSynthesisInput.model_validate(compact_synthesis_input(original))
+    assert "Unsupported OLED" in legacy.model_dump_json()
+    assert snapshot_input_model("consensus_analyst", legacy.model_json_schema()) is AtomicSynthesisInput
+    assert snapshot_input_model("consensus_analyst", successor.model_json_schema()) is QuoteSynthesisInput
+
+
+def test_cited_auditor_receives_exact_quotes_beside_each_original_finding():
+    reviews = captured()["source_analyses"]
+    draft = split_synthesis(captured()).as_report("T11", "Black Shark T11", reviews)
+    original = {"report_draft": draft.model_dump(mode="json"), "source_analyses": reviews}
+    catalog = CatalogAuditorInput.model_validate(compact_audit_input(original))
+    successor = CitedAuditorInput.model_validate(cited_audit_input(original))
+    by_ref = {item.evidence_ref: item for item in catalog.evidence_catalog}
+    for field in ("consensus_pros", "consensus_cons"):
+        for before, after in zip(getattr(catalog.report_draft, field), getattr(successor.report_draft, field), strict=True):
+            assert (after.statement, after.source_refs) == (before.statement, before.source_refs)
+            assert [ref.evidence_ref for ref in after.citations] == list(before.evidence_refs)
+            assert all(ref.excerpt == by_ref[ref.evidence_ref].excerpt for ref in after.citations)
+            assert all(ref.source_ref in after.source_refs for ref in after.citations)
+    assert len(successor.model_dump_json()) < len(catalog.model_dump_json())
+    assert snapshot_input_model("quality_auditor", successor.model_json_schema()) is CitedAuditorInput
+    assert snapshot_input_model("quality_auditor", catalog.model_json_schema()) is CatalogAuditorInput
+    broken = copy.deepcopy(original)
+    broken["report_draft"]["consensus_cons"][0]["evidence_node_ids"] = [str(uuid.uuid4())]
+    with pytest.raises(KeyError):
+        cited_audit_input(broken)
+
+
+def test_inline_disagreement_evidence_preserves_each_side_and_absent_extra_context():
+    fixture = captured()
+    draft = split_synthesis(fixture).as_report("T11", "Black Shark T11", fixture["source_analyses"])
+    payload = draft.model_dump(mode="json")
+    payload["disagreements"] = [{"topic": "Fit", "side_a": "Comfortable fit", "side_b": "Uncomfortable fit",
+        "side_a_source_ids": [fixture["source_analyses"][0]["source_id"]],
+        "side_b_source_ids": [fixture["source_analyses"][1]["source_id"]]}]
+    inline = CitedAuditorInput.model_validate(cited_audit_input({"report_draft": payload,
+                                                               "source_analyses": fixture["source_analyses"]}))
+    disagreement = inline.report_draft.disagreements[0]
+    assert disagreement.side_a_citations and disagreement.side_b_citations
+    assert all(item.source_ref in disagreement.side_a_source_refs for item in disagreement.side_a_citations)
+    assert all(item.source_ref in disagreement.side_b_source_refs for item in disagreement.side_b_citations)
+    spec = AGENT_REGISTRY["quality_auditor"]
+    prompt = build_prompt_envelope(spec, task_instruction=spec.purpose, task_input=inline.model_dump(mode="json"),
+                                  context_manifest_id=None, rendered_context="<no-authorized-context />")
+    assert "<no-authorized-context />" not in prompt.user
+    assert "citations" in prompt.user and "source ownership" in prompt.system
+
+
+def test_hp_exact_supported_quotes_remain_available_in_inline_audit():
+    # Bounded regression excerpts from the failed HP run; no transcript or raw response export.
+    reviews = copy.deepcopy(captured()["source_analyses"][:1])
+    review = reviews[0]
+    quotes = ("the RAM is fully upgradable, which is really cool",
+              "It lasted less than 3 hours in the UL Procyon Office productivity battery drain benchmark")
+    for index, quote in enumerate(quotes):
+        claim = copy.deepcopy(review["claims"][0])
+        claim["evidence"] = [{**claim["evidence"][0], "evidence_text": quote,
+                              "evidence_node_id": str(uuid.uuid4())}]
+        review["claims"][index] = claim
+    payload = split_synthesis(captured()).as_report("T11", "Black Shark T11", captured()["source_analyses"]).model_dump(mode="json")
+    payload.update(product_display_name="HP Omen 16 Max", product_canonical_name="HP Omen 16 Max",
+                   consensus_pros=[{"statement": "RAM is fully upgradable", "source_ids": [review["source_id"]],
+                                    "evidence_node_ids": [review["claims"][0]["evidence"][0]["evidence_node_id"]]}],
+                   consensus_cons=[{"statement": "Lasted less than 3 hours in the UL Procyon Office benchmark",
+                                    "source_ids": [review["source_id"]],
+                                    "evidence_node_ids": [review["claims"][1]["evidence"][0]["evidence_node_id"]]}],
+                   longest_usage_period=None, longest_usage_source_id=None)
+    inline = CitedAuditorInput.model_validate(cited_audit_input({"report_draft": payload, "source_analyses": reviews}))
+    assert inline.report_draft.consensus_pros[0].citations[0].excerpt == quotes[0]
+    assert inline.report_draft.consensus_cons[0].citations[0].excerpt == quotes[1]
+    # Deterministic grounding still rejects unsupported quantities and trusts no model approval to add evidence.
+    payload["consensus_pros"][0]["statement"] = "RAM is fully upgradable to 128 GB"
+    _, audit, _ = ground_report(FinalReportDraft.model_validate(payload), reviews, AuditResult(verdict="pass"))
+    assert any(issue.code == "finding_support_mismatch" for issue in audit.issues)
+
+
+def test_uppercase_audit_issues_prune_unsupported_material_without_approving_failure():
+    fixture = captured()
+    draft = split_synthesis(fixture).as_report("T11", "Black Shark T11", fixture["source_analyses"])
+    rejected = AuditResult.model_validate({"verdict": "fail", "issues": [
+        {"code": "UNSUPPORTED_FINDING", "field_path": f"report_draft.{field}[{index}]"}
+        for field in ("consensus_pros", "consensus_cons")
+        for index, _ in enumerate(getattr(draft, field))]})
+    safe, audit, terminal = ground_report(draft, fixture["source_analyses"], rejected, strict_grounding=True)
+    assert not safe.consensus_pros and not safe.consensus_cons
+    assert audit.verdict == "fail" and not terminal
+    assert {issue.code for issue in audit.issues} == {"unsupported_finding", "grounded_conclusion_missing"}
+    unknown = AuditResult.model_validate({"verdict": "fail", "issues": [
+        {"code": "UNKNOWN_SAFETY_FAILURE", "field_path": "report_draft"}]})
+    _, audit, terminal = ground_report(draft, fixture["source_analyses"], unknown, strict_grounding=True)
+    assert audit.verdict == "fail" and terminal
 
 
 def test_projection_merges_exact_duplicates_and_preserves_opposing_evidence():

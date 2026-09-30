@@ -6,6 +6,7 @@ from typing import Any
 from jsonschema import Draft202012Validator
 from pydantic import BaseModel
 
+from app.analysis.audit import CatalogAuditorInput, CitedAuditorInput
 from app.analysis.contracts import (
     AudienceAnalysisDraft,
     AudienceAnalystInput,
@@ -24,7 +25,7 @@ from app.analysis.contracts import (
 )
 from app.analysis.product_info import ProductAnalystInput, ProductExtractionDraft
 from app.analysis.review import VideoExtraction
-from app.analysis.synthesis import AtomicBuyingSynthesis, AtomicSynthesisInput, BuyingSynthesis, SourceBoundBuyingSynthesis, SynthesisInput
+from app.analysis.synthesis import AtomicBuyingSynthesis, AtomicSynthesisInput, BuyingSynthesis, QuoteSynthesisInput, SourceBoundBuyingSynthesis, SynthesisInput
 from app.knowledge.contracts import NodeType, RelationType, RetrievalPolicy, TrustLevel
 from app.runtime.contracts import canonical_json_hash
 
@@ -348,9 +349,11 @@ AGENT_SPECS = tuple(replace(item,
         vector_top_k=0, lexical_candidate_limit=0),
     max_output_tokens=4000, max_reasoning_tokens=0, max_total_tokens=26000,
 ) if item.key == "review_analyst" else replace(item,
-    input_model=AtomicSynthesisInput, output_model=SourceBoundBuyingSynthesis,
+    input_model=QuoteSynthesisInput, output_model=SourceBoundBuyingSynthesis,
     role_prompt=(
-        "Return 1-12 atomic assertions from evidence_catalog. Each assertion binds ONE source_ref and only that "
+        "Return 1-12 atomic assertions using only the verified excerpt text in evidence_catalog. "
+        "Rejected report prose identifies errors; rebuild from quotes. "
+        "Each assertion binds ONE source_ref and only that "
         "source's evidence_refs. Write one short, complete observation per assertion, not a paragraph listing "
         "different reviewers. Use kind strength for a supported benefit or stated useful feature; caveat for "
         "a drawback or limitation. Keep a balanced selection of buying-relevant benefits and drawbacks. "
@@ -361,10 +364,15 @@ AGENT_SPECS = tuple(replace(item,
         "sound quality versus driver size, comfort versus weight, gaming latency versus directional sound, "
         "and battery runtime versus case capacity. Do not combine reviewers' different details in one assertion. "
         "The assigned source must support the whole assertion; cite multiple excerpts from that source if needed. "
+        "Omit details absent from the excerpts. "
+        "Do not add GPU configurations, regions, prices or measurements to conditions unless cited. "
         "Quote meaning, quantities, polarity, conditions and product scope must agree. "
         "Use short evidence/source references from the catalog, never UUIDs. Label claimed specs as stated rather "
         "than tested. Retain material drawbacks, opposing observations, and buyer fit. Summary and buyer guidance "
         "must synthesize these assertions. Duration uses a source's usage_period_raw, never battery runtime. "
+        "Null usage_period_raw means unknown duration. Disagreement sides must describe actual opposing "
+        "observations, never just source labels. Do not call different configurations or test workloads a conflict. "
+        "No catalog labels in any report prose. "
         "When report_under_repair exists, replace rejected compound findings with short source-bound assertions "
         "from the catalog; never repeat an unchanged rejected finding. Even when all old findings were removed, "
         "use the catalog to rebuild. Use null/empty lists for unknown optional details. "
@@ -372,9 +380,26 @@ AGENT_SPECS = tuple(replace(item,
     ),
     retrieval_policy=_retrieval((), tokens=128, hops=0, vector_top_k=0, lexical_candidate_limit=0),
 ) if item.key == "consensus_analyst" else replace(item,
-    role_prompt=item.role_prompt + " Examine every assertion clause against actual excerpts, not merely the "
-        "derived claim prose. Unsupported material need not be contradicted to fail. Check each condition "
-        "and attribute separately, including compound build, fit, and performance claims.",
+    input_model=CitedAuditorInput,
+    role_prompt=(
+        "CITATION AUDIT: task_input.report_draft findings include authorized server-bound citations: "
+        "excerpt text and source ownership. No lookup needed. "
+        "Each named source must own its cited excerpts and support the entire finding. Single-source findings "
+        "are allowed. Quotes passed verbatim, timestamp and lineage validation. "
+        "combine cited supporting excerpts per source; compare translations by meaning. Check every material "
+        "clause, quantity, condition, attribution, scope and polarity against the provided excerpts. "
+        "Stated specifications must not become measured results. Unsupported material need not be "
+        "contradicted to fail. A source's missing mention is not contradictory evidence. Different hardware "
+        "configurations or workloads may explain different results. Disagreement sides must describe actual "
+        "opposing observations supported by side_a_citations and side_b_citations. Empty optional lists and null "
+        "duration make no claim. Duration uses usage_period_raw, never battery runtime. Summary and buyer fit "
+        "synthesize findings and have no separate inline citations. Low scores do not invalidate quotes. "
+        "Check each finding independently; reject only the specific unsupported assertion at its ORIGINAL "
+        "report_draft indexed path. Use lowercase codes unsupported_finding, unsupported_disagreement or "
+        "unsupported_narrative. Return empty evidence_node_ids; references are server-bound. Pass supported "
+        "reports, warn about limitations, fail unsupported material. Return issues only."
+    ),
+    retrieval_policy=_retrieval((), tokens=128, hops=0, vector_top_k=0, lexical_candidate_limit=0),
 ) if item.key == "quality_auditor" else item for item in AGENT_SPECS)
 AGENT_REGISTRY = {item.key: item for item in AGENT_SPECS}
 
@@ -403,6 +428,12 @@ def snapshot_input_model(role: str, schema: dict) -> type[BaseModel]:
         return ConsensusAnalystInput
     if role == "consensus_analyst" and schema == SynthesisInput.model_json_schema():
         return SynthesisInput
+    if role == "consensus_analyst" and schema == AtomicSynthesisInput.model_json_schema():
+        return AtomicSynthesisInput
+    if role == "quality_auditor" and schema == QualityAuditorInput.model_json_schema():
+        return QualityAuditorInput
+    if role == "quality_auditor" and schema == CatalogAuditorInput.model_json_schema():
+        return CatalogAuditorInput
     raise ValueError("unsupported snapshotted input contract")
 
 

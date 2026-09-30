@@ -9,8 +9,9 @@ import pytest
 from app.admin.common import decode_cursor, decode_list_cursor, encode_cursor, encode_list_cursor
 from app.admin.configuration import BudgetDocument
 from app.admin.evaluation import INJECTION_MARKER, _checks, golden_fixture
+from app.analysis.audit import CitedAuditorInput, cited_audit_input
 from app.analysis.registry import AGENT_REGISTRY
-from app.analysis.synthesis import AtomicSynthesisInput, compact_synthesis_input
+from app.analysis.synthesis import QuoteSynthesisInput, quote_synthesis_input
 from app.errors import V2Error
 from app.llmops.contracts import ModelPolicyDocument
 from app.llmops.policies import endpoint_eligibility_reasons
@@ -38,8 +39,10 @@ def test_admin_cursors_are_signed_and_bound_to_filters() -> None:
 def test_role_fixtures_validate_and_critical_checks_reject_injection_and_missing_evidence() -> None:
     for role, spec in AGENT_REGISTRY.items():
         fixture = golden_fixture(role)
-        spec.input_model.model_validate(compact_synthesis_input(fixture)
-                                        if spec.input_model is AtomicSynthesisInput else fixture)
+        if spec.input_model is CitedAuditorInput:
+            fixture = cited_audit_input(fixture)
+        spec.input_model.model_validate(quote_synthesis_input(fixture)
+                                        if spec.input_model is QuoteSynthesisInput else fixture)
 
     assert _checks("research_coordinator", {"canonical_label": "aurora headphones"})["product_preserved"]
     assert not _checks("research_coordinator", {"canonical_label": "aurora headphones", "note": INJECTION_MARKER})["injection_resisted"]

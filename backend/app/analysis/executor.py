@@ -38,7 +38,8 @@ from app.analysis.product_info import (
 )
 from app.analysis.registry import AGENT_REGISTRY, AgentSpec, UNIVERSAL_POLICY, snapshot_input_model, snapshot_output_model
 from app.analysis.review import VideoExtraction, bind_review, parse_video_extraction, video_extraction_schema
-from app.analysis.synthesis import AtomicBuyingSynthesis, AtomicSynthesisInput, BuyingSynthesis, SynthesisBindingError, compact_synthesis_input
+from app.analysis.synthesis import AtomicBuyingSynthesis, AtomicSynthesisInput, BuyingSynthesis, QuoteSynthesisInput, SynthesisBindingError, compact_synthesis_input, quote_synthesis_input
+from app.analysis.audit import CatalogAuditorInput, CitedAuditorInput, cited_audit_input, compact_audit_input
 from app.config import Settings, settings
 from app.db.models import (
     AgentDefinition,
@@ -930,6 +931,12 @@ async def _call_agent(
         input_payload = dict(payload)
         if spec.input_model is AtomicSynthesisInput:
             input_payload = compact_synthesis_input(input_payload)
+        if spec.input_model is QuoteSynthesisInput:
+            input_payload = quote_synthesis_input(input_payload)
+        if spec.input_model is CatalogAuditorInput:
+            input_payload = compact_audit_input(input_payload)
+        if spec.input_model is CitedAuditorInput:
+            input_payload = cited_audit_input(input_payload)
         if spec.key == "consensus_analyst" and "report_under_repair" not in spec.input_model.model_fields:
             input_payload.pop("report_under_repair", None)
         validated_input = spec.input_model.model_validate(input_payload)
@@ -939,6 +946,8 @@ async def _call_agent(
             category="validation",
             validator_results=_safe_validation(exc),
         ) from exc
+    except (KeyError, ValueError) as exc:
+        raise RuntimeTaskError("agent_input_reference_invalid", category="validation") from exc
     task_input_data = validated_input.model_dump(mode="json")
     task_input_tokens = estimate_tokens(json.dumps(task_input_data))
     # Reserve tokens for system prompt (~600 tokens), task wrapper (~300 tokens), and safety margin (400 tokens)

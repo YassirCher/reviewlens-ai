@@ -166,11 +166,12 @@ def test_quantity_must_appear_in_original_excerpt() -> None:
     assert not safe.consensus_pros and audit.verdict == "fail" and not terminal
 
 
-def test_rejected_findings_use_the_existing_correction_and_reaudit(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("code", ["unsupported_finding", "UNSUPPORTED_FINDING", "Unsupported_Finding"])
+def test_rejected_findings_use_the_existing_correction_and_reaudit(monkeypatch: pytest.MonkeyPatch, code: str) -> None:
     draft, reviews = _fixture()
     rejected = AuditResult.model_validate({
         "verdict": "fail",
-        "issues": [{"code": "unsupported_finding", "field_path": "consensus_pros[0].statement"}],
+        "issues": [{"code": code, "field_path": "consensus_pros[0].statement"}],
     })
     safe, audit, terminal = ground_report(draft, reviews, rejected, strict_grounding=True)
     assert audit.verdict == "fail" and not safe.consensus_pros and not terminal

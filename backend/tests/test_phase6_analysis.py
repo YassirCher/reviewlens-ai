@@ -133,8 +133,8 @@ def test_registry_contains_target_roles_and_product_information_analyst() -> Non
         "product_information_analyst": "7adccc849d5cf36b4aad7faefafb616ecc12564830be5c4d7ab2100625cc5935",
         "audience_analyst": "228b832c0b0a9ea0c2a6019580425f41ae5163868398e1405256eba2ea0e18d5",
         "knowledge_curator": "441fcf10754f4aad5063797b572543879e96407f489611e9ab4ef2152ade666d",
-        "consensus_analyst": "9cb5b98265276d6c5dddbab9f286c2be3c7bffd62fd201c7b57ca7bbc9b396ba",
-        "quality_auditor": "9533b4397e39c617233057a8a25a5b9401454d33417b32a831a600cfc8c4c2cb",
+        "consensus_analyst": "8a9892bc1ec044d2e55885ee35e520916ad01710bf0c214d585275ef25f44f37",
+        "quality_auditor": "fc71bb46e9fe638f218ee328e33d1dee25a58ff0bbcf565821747c5296d2dcbe",
     }
     assert all(evaluate_agent_spec(spec)["status"] == "passed" for spec in AGENT_SPECS)
 

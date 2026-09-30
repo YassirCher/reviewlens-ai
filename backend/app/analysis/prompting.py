@@ -5,8 +5,9 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.analysis.registry import UNIVERSAL_POLICY, AgentSpec
+from app.analysis.audit import CitedAuditorInput
 from app.analysis.review import VideoExtraction
-from app.analysis.synthesis import AtomicBuyingSynthesis, BuyingSynthesis, SourceBoundBuyingSynthesis
+from app.analysis.synthesis import AtomicBuyingSynthesis, BuyingSynthesis, QuoteSynthesisInput, SourceBoundBuyingSynthesis
 from app.runtime.contracts import canonical_json_hash
 
 
@@ -49,6 +50,10 @@ def build_prompt_envelope(
     }
     if correction:
         trusted["correction"] = correction
+    if spec.input_model in {QuoteSynthesisInput, CitedAuditorInput} and rendered_context == "<no-authorized-context />":
+        # These successors carry their complete authorized evidence in task_input.
+        # An absent extra retrieval packet must not imply that evidence is absent.
+        rendered_context = ""
     user = (
         "<trusted-task>\n"
         + json.dumps(trusted, sort_keys=True, separators=(",", ":"), default=str)

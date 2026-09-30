@@ -19,9 +19,11 @@ from types import SimpleNamespace
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
+from app.analysis.audit import CitedAuditorInput, cited_audit_input
 from app.analysis.contracts import (
     ConsensusAnalystInput,
     FinalReportDraft,
+    QualityAuditorInput,
     SourceAnalysis,
 )
 from app.analysis.grounding import ground_report
@@ -37,7 +39,7 @@ from app.analysis.review import (
     parse_video_extraction,
     video_extraction_schema,
 )
-from app.analysis.synthesis import compact_synthesis_input, evidence_catalog
+from app.analysis.synthesis import quote_synthesis_input, evidence_catalog
 from app.knowledge.retrieval import estimate_tokens
 from app.llmops.gateway import validated_chat_content
 from app.tools.caption_cache import caption_from_node
@@ -57,7 +59,7 @@ TOPICS = (
 LEGACY_CONSENSUS = replace(AGENT_REGISTRY["consensus_analyst"],
     input_model=ConsensusAnalystInput, output_model=FinalReportDraft,
     role_prompt="Summarize purchase-relevant agreement and opposing reviewer claims. Cite every finding from each named source; ground buyer fit and summary in those findings. Keep only material disagreements. Do not calculate score, verdict, or confidence.")
-LEGACY_AUDITOR = replace(AGENT_REGISTRY["quality_auditor"], role_prompt=(
+LEGACY_AUDITOR = replace(AGENT_REGISTRY["quality_auditor"], input_model=QualityAuditorInput, role_prompt=(
     "Check findings, disagreements, summary, buyer fit, and stated duration against cited claims and excerpts. "
     "Flag unsupported meaning, numbers, negation, or model scope with precise paths and codes "
     "unsupported_finding, unsupported_disagreement, or unsupported_narrative. "
@@ -92,6 +94,8 @@ async def replay(case, compact):
     ledger = {"total_tokens": 0, "model_call_count": 0}
 
     async def invoke(spec, payload, context, output):
+        if spec.input_model is CitedAuditorInput:
+            payload = cited_audit_input(payload)
         validated = spec.input_model.model_validate(payload).model_dump(mode="json")
         prompt = build_prompt_envelope(spec, task_instruction=spec.purpose, task_input=validated,
             context_manifest_id=None, rendered_context=context)
@@ -209,7 +213,7 @@ async def replay(case, compact):
         "longest_usage_period": "six months", "longest_usage_source_ref": next(key for key, sid in sources.items()
             if sid == reviews[0]["source_id"]), "who_should_buy": [TOPICS[5]], "limitations": ["Transcript-only evidence"]}
     if compact:
-        consensus_input = compact_synthesis_input(consensus_input)
+        consensus_input = quote_synthesis_input(consensus_input)
     drafted = await invoke(consensus_spec, consensus_input, "", synthesis if compact else report)
     if compact:
         drafted = drafted.as_report(title, title, reviews)
@@ -223,7 +227,7 @@ async def replay(case, compact):
         assert not terminal
         repaired_input = {**consensus_input, "correction_issues": [issue]}
         if compact:
-            repaired_input = compact_synthesis_input({"product_display_name": title, "product_canonical_name": title,
+            repaired_input = quote_synthesis_input({"product_display_name": title, "product_canonical_name": title,
                 "requested_source_count": 5, "source_analyses": reviews, "correction_issues": [issue],
                 "report_under_repair": report})
         drafted = await invoke(consensus_spec, repaired_input, "", synthesis if compact else report)
