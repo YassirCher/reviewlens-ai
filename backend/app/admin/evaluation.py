@@ -4,7 +4,7 @@ import asyncio
 import copy
 import json
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, ROUND_CEILING
 
@@ -12,7 +12,9 @@ from pydantic import ValidationError
 from sqlalchemy import select
 
 from app.admin.configuration import validate_payload, version_payload
-from app.analysis.registry import AGENT_REGISTRY
+from app.analysis.registry import AGENT_REGISTRY, snapshot_input_model, snapshot_output_model
+from app.analysis.review import VideoExtraction, bind_review, parse_video_extraction
+from app.analysis.synthesis import AtomicBuyingSynthesis, AtomicSynthesisInput, BuyingSynthesis, compact_synthesis_input
 from app.db.models import (
     ActiveConfiguration, AgentDefinition, AgentEvaluationResult, AgentVersion, AnalysisRun,
     BudgetPolicyVersion, ConfigurationSnapshot, ModelPolicyVersion, RunBudgetState,
@@ -423,6 +425,8 @@ def evaluate_agent_version(version_id: uuid.UUID, job_id: uuid.UUID) -> dict:
         if not validation["valid"]:
             raise ValueError("agent draft failed static validation")
         spec = AGENT_REGISTRY[definition.key]
+        spec = replace(spec, input_model=snapshot_input_model(definition.key, version.input_schema),
+                       output_model=snapshot_output_model(definition.key, version.output_schema))
         active = db.get(ActiveConfiguration, 1)
         workflow = db.get(WorkflowVersion, active.workflow_version_id) if active else None
         budget = db.get(BudgetPolicyVersion, active.budget_policy_version_id) if active else None
@@ -448,7 +452,9 @@ def evaluate_agent_version(version_id: uuid.UUID, job_id: uuid.UUID) -> dict:
     claim_count = 0
     budget_exhausted = False
     for case in golden_cases(role):
-        fixture = spec.input_model.model_validate(case_fixture(role, case)).model_dump(mode="json")
+        original_fixture = case_fixture(role, case)
+        fixture_input = compact_synthesis_input(original_fixture) if spec.input_model is AtomicSynthesisInput else original_fixture
+        fixture = spec.input_model.model_validate(fixture_input).model_dump(mode="json")
         trusted_task = json.dumps({
             "evaluation_case": case.key,
             "task_input": fixture,
@@ -503,10 +509,22 @@ def evaluate_agent_version(version_id: uuid.UUID, job_id: uuid.UUID) -> dict:
                 estimated_prompt_tokens=prompt_tokens + (64 if correction else 0),
                 estimated_cost_microusd=correction_estimate if correction else estimate,
                 max_network_attempts=1,
+                optional_output_fields=("product_information",) if spec.output_model is VideoExtraction else (),
             )
             try:
                 response = asyncio.run(OpenRouterGateway().chat(invocation))
-                output = spec.output_model.model_validate(response.content).model_dump(mode="json")
+                if spec.output_model is VideoExtraction:
+                    extracted = parse_video_extraction(response.content)
+                    output = bind_review(extracted.review, uuid.UUID(fixture["source_id"])).model_dump(mode="json")
+                elif issubclass(spec.output_model, AtomicBuyingSynthesis):
+                    output = spec.output_model.model_validate(response.content).as_report(
+                        fixture["product_display_name"], fixture["product_canonical_name"],
+                        original_fixture["source_analyses"]).model_dump(mode="json")
+                elif spec.output_model is BuyingSynthesis:
+                    output = BuyingSynthesis.model_validate(response.content).as_report(
+                        fixture["product_display_name"], fixture["product_canonical_name"]).model_dump(mode="json")
+                else:
+                    output = spec.output_model.model_validate(response.content).model_dump(mode="json")
                 checks = _case_checks(role, case, output)
                 issues.extend(key for key, passed in checks.items() if not passed)
                 break

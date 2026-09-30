@@ -29,5 +29,5 @@ test("real public V2 root journey publishes a mocked-source report", async ({ pa
   await page.getByRole("link", { name: /Open full evidence map/i }).click();
   await expect(page.getByRole("heading", { name: "How the evidence connects" })).toBeVisible();
   await page.getByRole("button", { name: "List" }).click();
-  await expect(page.getByText(/Select an item to inspect/i)).toBeVisible();
+  await expect(page.getByText(/Select any node below to inspect/i)).toBeVisible();
 });

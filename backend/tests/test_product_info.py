@@ -96,7 +96,7 @@ def test_video_text_stays_out_of_trusted_agent_input(monkeypatch: pytest.MonkeyP
     assert policy.maximum_graph_hops == policy.vector_top_k == policy.lexical_candidate_limit == 0
 
 
-def test_product_tasks_run_beside_reviews_and_publication_waits_for_terminal_results() -> None:
+def test_product_tasks_project_combined_reviews_and_publication_waits_for_terminal_results() -> None:
     agents = {key: SimpleNamespace(id=uuid.uuid4()) for key in AGENT_REGISTRY}
     tools = {key: SimpleNamespace(id=uuid.uuid4()) for key in TOOL_REGISTRY}
     dag = _default_workflow(agents, tools, run_timeout_seconds=1800).materialize(
@@ -105,7 +105,8 @@ def test_product_tasks_run_beside_reviews_and_publication_waits_for_terminal_res
     tasks = {item.task_key: item for item in dag.tasks}
     products = [item for item in dag.tasks if item.task_key.startswith("extract_product_information.source_")]
     assert len(products) == 3
-    assert all(item.dependencies == (f"fetch_transcript.source_{index}",) and item.optional
+    assert all(item.dependencies == (f"analyze_review.source_{index}",) and item.optional
+               and item.executor_kind == "deterministic" and item.agent_version_id is None
                for index, item in enumerate(products, 1))
     publisher = tasks["publish_report"]
     assert publisher.dependency_mode == "all_terminal_min_success" and publisher.minimum_successes == 1

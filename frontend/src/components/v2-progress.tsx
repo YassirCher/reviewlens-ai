@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowRight, Check, CircleAlert, CircleDashed, RotateCcw, Square, Wifi, WifiOff } from "lucide-react";
 import { cancelRun, getRun, readEvents, reportTokenFromApiPath, validRunId, V2ApiError, type PublicTask, type RunStatus } from "@/lib/v2";
 import { ProductInformationCard } from "./v2-product-info";
+import { partialNotice, warningLabel } from "@/lib/warnings";
 
 const TERMINAL = new Set(["complete", "partial", "failed", "cancelled"]);
 const STAGES = [
@@ -133,7 +134,7 @@ export function V2Progress({ runId }: { runId: string }) {
     : elapsed(run.started_at || run.created_at, now);
   return <>
     <div className="v2-page-heading"><Link className="v2-back" href="/">← New research</Link><p className="v2-eyebrow">{headingLabel}</p><h1>{run.product_name}</h1><p>Started {runDate(run.created_at)} UTC · {isActive ? "Elapsed" : "Duration"} {durationText}</p></div>
-    {run.status === "partial" && <div className="v2-alert v2-alert-warning v2-run-notice" role="status">Partial report: {run.source_count_analyzed} of {run.source_count_requested} requested sources could be analyzed. Valid evidence remains available.</div>}
+    {run.status === "partial" && <div className="v2-alert v2-alert-warning v2-run-notice" role="status">{partialNotice(run)}</div>}
     {run.status === "failed" && <div className="v2-alert v2-alert-error v2-run-notice" role="alert">{run.failure?.message || "The analysis could not be completed."} <Link href="/">Start a new research run</Link>.</div>}
     {run.status === "cancelled" && <div className="v2-alert v2-alert-warning v2-run-notice" role="status">This analysis was cancelled. No public report was published.</div>}
     <ProductInformationCard info={run.product_info} live={isActive} />
@@ -146,7 +147,7 @@ export function V2Progress({ runId }: { runId: string }) {
       {isActive ? <><p className="v2-aside-note">Research continues if you leave this page. Return with the same browser session to follow it.</p><button className="v2-button-secondary" onClick={() => { setRetrySerial(value => value + 1); }}><RotateCcw size={16} aria-hidden="true" /> Retry connection</button><button className="v2-button-danger" disabled={cancelling || run.status === "cancelling"} onClick={cancel}><Square size={14} aria-hidden="true" />{cancelling || run.status === "cancelling" ? "Cancelling…" : "Cancel analysis"}</button></> : null}
       {token && <Link className="v2-button" href={`/r/${token}`}>Open report <ArrowRight size={17} aria-hidden="true" /></Link>}
     </aside></div>
-    {run.warnings.length > 0 && <section className="v2-panel v2-warnings"><h2>Research notes</h2><ul>{run.warnings.map((warning, index) => <li key={`${warning}-${index}`}>{warning}</li>)}</ul></section>}
+    {run.warnings.length > 0 && <section className="v2-panel v2-warnings"><h2>Research notes</h2><ul>{run.warnings.map((warning, index) => <li key={`${warning}-${index}`}>{warningLabel(warning)}</li>)}</ul></section>}
     <p className="v2-sr-only" aria-live="polite" aria-atomic="true">{announcement}</p>
     {error && <div className="v2-alert v2-alert-error" role="alert">{error}</div>}
   </>;

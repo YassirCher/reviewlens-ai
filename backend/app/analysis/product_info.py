@@ -8,6 +8,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.tools.evidence import transcript_excerpt_matches
+
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -252,16 +254,9 @@ def validate_evidence(
         if draft.timestamp_seconds is None:
             return None
         timestamp = draft.timestamp_seconds
-        supported = False
-        for line in transcript_body.splitlines():
-            segment = _SEGMENT.match(line)
-            if not segment:
-                continue
-            start, end = float(segment.group(1)), float(segment.group(2))
-            if start - 1 <= timestamp <= max(start, end) + 1 and excerpt in _normalized(segment.group(3)):
-                supported = True
-                break
-        if not supported:
+        if not transcript_excerpt_matches(
+            transcript_body, draft.excerpt, timestamp, None, minimum_words=1,
+        ):
             return None
     return ProductEvidence(
         video_id=video_id,
@@ -280,6 +275,7 @@ def validate_extraction(
     transcript_body: str,
     video_id: str,
     canonical_product: str | None = None,
+    diagnostics: list[dict[str, str]] | None = None,
 ) -> tuple[tuple[ProductFact, ...], tuple[ProductVariant, ...], SampleUsed]:
     def evidence(item: EvidenceDraft, value: str) -> ProductEvidence | None:
         return validate_evidence(
@@ -287,26 +283,49 @@ def validate_extraction(
             transcript_body=transcript_body, video_id=video_id,
         )
 
-    def scoped_evidence(item: EvidenceDraft, value: str, scope: str | None) -> ProductEvidence | None:
+    def scoped_evidence(item: EvidenceDraft, value: str, scope: str | None,
+                        path: str) -> ProductEvidence | None:
+        code = None
         if scope and _compact(scope) not in _compact(" ".join((item.excerpt, title, description))):
-            return None
-        if _different_model(scope, item.excerpt, canonical_product):
-            return None
-        return evidence(item, value)
+            code = "scope_not_supported"
+        elif _different_model(scope, item.excerpt, canonical_product):
+            code = "sibling_model"
+        elif _SOURCE_INSTRUCTION.search(item.excerpt):
+            code = "source_instruction"
+        elif not _supported_value(value, item.excerpt):
+            code = "value_not_supported"
+        ref = evidence(item, value) if code is None else None
+        if ref is None and diagnostics is not None and len(diagnostics) < 96:
+            diagnostics.append({"path": path, "code": code or "quote_or_timestamp_mismatch"})
+        return ref
+
+    def reject_comparison_identity(item: FactDraft, index: int) -> bool:
+        # A comparison's identity is not a detail of the requested product,
+        # even when the model omits its scope and the quote is verbatim.
+        label = item.label.casefold().replace("_", " ").replace("-", " ")
+        comparison = bool(re.search(r"\b(?:compared|comparison|sibling|other)\b.*\b(?:product|model)\b", label))
+        if comparison and diagnostics is not None and len(diagnostics) < 96:
+            diagnostics.append({"path": f"facts[{index}]", "code": "sibling_model"})
+        return comparison
 
     facts = tuple(
         ProductFact(group=item.group, label=item.label, value=item.value, scope=item.scope, evidence=(ref,))
-        for item in draft.facts if (ref := scoped_evidence(item.evidence, item.value, item.scope)) is not None
+        for index, item in enumerate(draft.facts)
+        if (ref := scoped_evidence(item.evidence, item.value, item.scope, f"facts[{index}]")) is not None
+        and not reject_comparison_identity(item, index)
     )
     variants = tuple(
         ProductVariant(dimension=item.dimension, value=item.value, scope=item.scope, evidence=(ref,))
-        for item in draft.variants if (ref := scoped_evidence(item.evidence, item.value, item.scope)) is not None
+        for index, item in enumerate(draft.variants)
+        if (ref := scoped_evidence(item.evidence, item.value, item.scope, f"variants[{index}]")) is not None
     )
     units = []
-    for unit in draft.sample_units:
+    for unit_index, unit in enumerate(draft.sample_units):
         details = tuple(
             SampleDetail(label=item.label, value=item.value, evidence=ref)
-            for item in unit.details if (ref := evidence(item.evidence, item.value)) is not None
+            for index, item in enumerate(unit.details)
+            if (ref := scoped_evidence(item.evidence, item.value, None,
+                                      f"sample_units[{unit_index}].details[{index}]")) is not None
         )
         if details:
             units.append(SampleUnit(role=unit.role, details=details))

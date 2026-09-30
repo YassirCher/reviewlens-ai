@@ -138,6 +138,11 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
 
 TOOL_SUCCESSOR_SPECS: tuple[ToolSpec, ...] = (
     replace(
+        next(item for item in TOOL_SPECS if item.key == "youtube.transcript"),
+        semantic_version="1.1.0",
+        capabilities=("network", "read", "caption_cache"),
+    ),
+    replace(
         next(item for item in TOOL_SPECS if item.key == "graph.query_relations"),
         semantic_version="1.1.0",
         allowed_roles=("deterministic", "source_curator", "review_analyst", "knowledge_curator",

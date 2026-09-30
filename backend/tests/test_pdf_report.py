@@ -82,6 +82,30 @@ def test_pdf_product_links_use_report_source_numbers() -> None:
     assert links.index("Review source 2") < links.index("Review source 1")
     assert f"watch?v={second}&amp;t=42s" in links
 
+
+def test_pdf_includes_optional_decision_guide() -> None:
+    payload = {
+        "product_name": "Test headphones", "summary": "Cited review summary.",
+        "consensus_pros": [{"id": "finding-1", "statement": "Comfort lasted two hours", "source_ids": ["source-1"]}],
+        "consensus_cons": [],
+        "sources": [{"id": "source-1", "channel": "Reviewer", "title": "Review", "video_id": "abc123DEF45",
+                     "sample_used": {"units": [{"role": "Review unit", "details": [
+                         {"label": "Color", "value": "black", "evidence": {
+                             "video_id": "abc123DEF45",
+                             "source_url": "https://www.youtube.com/watch?v=abc123DEF45",
+                             "source_part": "description", "excerpt": "Review unit is black",
+                             "timestamp_seconds": None,
+                         }},
+                     ]}]}}],
+        "decision_guide": {
+            "buy_if_finding_ids": ["finding-1"], "caveat_finding_ids": [],
+            "tested_source_ids": ["source-1"], "long_term_period": "two months",
+            "long_term_source_id": "source-1", "unknowns": ["Current warranty terms"],
+        },
+    }
+    data = generate_report_pdf(payload, "a" * 43)
+    assert data.startswith(b"%PDF") and len(data) > 2000
+
 def test_download_report_pdf_route():
     token = "b" * 43
     digest = token_hash(token)

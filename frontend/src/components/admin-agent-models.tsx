@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Bot, CheckCircle2, Cpu, RotateCcw, Save, Sparkles } from "lucide-react";
 import { adminPut } from "@/lib/admin";
 import { AdminState, useAdminData } from "@/components/admin-ui";
@@ -35,21 +35,13 @@ export type AgentModelsState = {
 
 export function AdminAgentModelsPanel() {
   const { data, loading, error, reload } = useAdminData<AgentModelsState>("/agent-models");
-  const [selectedModels, setSelectedModels] = useState<Record<string, string>>({});
+  const [modelEdits, setSelectedModels] = useState<Record<string, string>>({});
   const [customInputMode, setCustomInputMode] = useState<Record<string, boolean>>({});
   const [message, setMessage] = useState("");
   const [isSuccess, setIsSuccess] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  // Initialize local selection state from fetched data
-  useEffect(() => {
-    if (!data?.agents) return;
-    const initial: Record<string, string> = {};
-    for (const a of data.agents) {
-      initial[a.key] = a.current_model;
-    }
-    setSelectedModels(initial);
-  }, [data]);
+  const selectedModels = { ...Object.fromEntries((data?.agents || []).map(a => [a.key, a.current_model])), ...modelEdits };
 
   const defaultModel = data?.default_model || "deepseek/deepseek-v4-flash";
   const availableModels = data?.available_models || [];
@@ -92,6 +84,7 @@ export function AdminAgentModelsPanel() {
       setIsSuccess(true);
       setMessage("Agent model assignments saved and active workflow updated.");
       await reload();
+      setSelectedModels({});
     } catch (err) {
       setIsSuccess(false);
       setMessage(err instanceof Error ? err.message : "Failed to save agent model assignments.");

@@ -10,7 +10,6 @@ from sqlalchemy.schema import CheckConstraint, CreateColumn
 from unittest.mock import patch
 
 from app.admin.agent_models import (
-    RECOMMENDED_MODELS,
     get_agent_models_state,
     save_agent_models_assignment,
 )

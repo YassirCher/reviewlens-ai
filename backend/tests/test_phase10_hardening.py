@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 
 from app.admin.evaluation import GOLDEN_CASES, case_fixture, golden_cases
 from app.analysis.registry import AGENT_REGISTRY
+from app.analysis.synthesis import AtomicSynthesisInput, compact_synthesis_input
 from app.api.v2 import auth as auth_routes
 from app.api.v2.admin_analytics import _safe_csv_cell
 from app.api.v2.dependencies import get_v2_db, get_v2_redis
@@ -241,7 +242,9 @@ def test_phase10_golden_suite_covers_contract_and_validates_every_role_fixture()
         cases = golden_cases(role)
         assert cases
         for case in cases:
-            spec.input_model.model_validate(case_fixture(role, case))
+            fixture = case_fixture(role, case)
+            spec.input_model.model_validate(compact_synthesis_input(fixture)
+                                            if spec.input_model is AtomicSynthesisInput else fixture)
 
 
 def test_local_upstream_mocks_expose_the_phase10_failure_matrix() -> None:

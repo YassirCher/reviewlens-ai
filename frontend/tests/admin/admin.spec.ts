@@ -277,6 +277,7 @@ test("model routing and agent draft through evaluation, publication, and rollbac
   await page.getByRole("button", { name: /DeepSeek V4 Flash/ }).click();
   await expect(page.getByText("ELIGIBLE")).toBeVisible();
   await page.goto("http://127.0.0.1:3000/admin/agents");
+  await page.getByRole("button", { name: "Advanced Definitions & Versions" }).click();
   await page.getByRole("button", { name: "Open versions" }).click();
   await page.getByRole("button", { name: "Rollback as draft" }).click();
   await expect(page.getByText("New draft created.", { exact: false })).toBeVisible();

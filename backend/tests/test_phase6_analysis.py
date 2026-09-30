@@ -67,6 +67,7 @@ def test_caption_ip_block_stops_candidate_fallback(monkeypatch: pytest.MonkeyPat
         raise ToolExecutionError("transcript_access_blocked", category="upstream")
 
     monkeypatch.setattr(executor, "invoke_tool", blocked)
+    monkeypatch.setattr(executor, "available_caption", lambda *_args, **_kwargs: None)
     run = SimpleNamespace(id=uuid.uuid4(), requested_options={"source_count": 1})
     with pytest.raises(RuntimeTaskError) as raised:
         asyncio.run(executor._fetch_transcript(uuid.uuid4(), run, 1, config=Settings(_env_file=None)))
@@ -127,13 +128,13 @@ def test_registry_contains_target_roles_and_product_information_analyst() -> Non
     )
     assert {spec.key: spec.content_hash for spec in AGENT_SPECS} == {
         "research_coordinator": "29a6c7d8d25d2416ae95b1fe30f221ea72fb61e43696e19298ec73d83271144c",
-        "source_curator": "6c8ff8293f71948640d3237faa69b8b8c522e56e8a1aa1acc5f205e1b447148d",
-        "review_analyst": "09f461322b8c52b9ec753190cb8c8d7235c576c3674307be5c2723c3759d519c",
-        "product_information_analyst": "0bc0475a76d3bdb14cc2686454b40e2e4e26de2d2e477d2d4effcb6d06059b60",
+        "source_curator": "cbc52537bf25dc14f98e8e8f9f852beb10e73e7c537be5d518dc90176df5af8a",
+        "review_analyst": "f9f005c756efba323b1d6f7b335af6261b08e0da057d1179d130100eec03add3",
+        "product_information_analyst": "7adccc849d5cf36b4aad7faefafb616ecc12564830be5c4d7ab2100625cc5935",
         "audience_analyst": "228b832c0b0a9ea0c2a6019580425f41ae5163868398e1405256eba2ea0e18d5",
         "knowledge_curator": "441fcf10754f4aad5063797b572543879e96407f489611e9ab4ef2152ade666d",
-        "consensus_analyst": "eb6919365d1c597333857756da8672e92b9c89799dec212d3559bac4029514b1",
-        "quality_auditor": "7bf6d36c5b74a430c0d4c49dac3c3e89a2610d8fe98714c2f83a6d861a9aa607",
+        "consensus_analyst": "9cb5b98265276d6c5dddbab9f286c2be3c7bffd62fd201c7b57ca7bbc9b396ba",
+        "quality_auditor": "9533b4397e39c617233057a8a25a5b9401454d33417b32a831a600cfc8c4c2cb",
     }
     assert all(evaluate_agent_spec(spec)["status"] == "passed" for spec in AGENT_SPECS)
 

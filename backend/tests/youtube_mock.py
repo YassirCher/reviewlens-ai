@@ -36,6 +36,7 @@ def _scenario(value: str) -> str:
     for marker, scenario in (
         ("retry once", "retry_once"),
         ("audit correction", "audit_correction"),
+        ("audit empty correction", "audit_empty_correction"),
         ("audit fail", "audit_fail"),
         ("comments", "comments"),
         ("cancel", "cancel"),
@@ -55,6 +56,7 @@ def _ids(scenario: str) -> list[str]:
     phase6_prefixes = {
         "retry_once": "retry",
         "audit_correction": "acorr",
+        "audit_empty_correction": "aempty",
         "audit_fail": "afail",
         "comments": "comm",
         "cancel": "cncl",
@@ -68,6 +70,7 @@ def _label(video_id: str) -> str:
     phase6_labels = {
         "retry": "Phase 6 retry once fixture",
         "acorr": "Phase 6 audit correction fixture",
+        "aempty": "Phase 6 audit empty correction fixture",
         "afail": "Phase 6 audit fail fixture",
         "comm": "Phase 6 comments fixture",
         "cncl": "Phase 6 cancel fixture",

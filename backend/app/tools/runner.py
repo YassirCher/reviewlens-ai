@@ -31,7 +31,8 @@ from app.tools import graph as graph_tools
 from app.tools.contracts import ToolExecutionContext
 from app.tools.evidence import validate_evidence
 from app.tools.errors import ToolAuthorizationError, ToolExecutionError
-from app.tools.registry import HANDLER_REGISTRY, TOOL_REGISTRY, ToolSpec
+from app.tools.registry import ALL_TOOL_SPECS, HANDLER_REGISTRY, TOOL_REGISTRY, ToolSpec
+from app.tools.caption_cache import available_caption, store_caption
 from app.tools.scoring import preview_scoring
 from app.tools.youtube import YouTubeDataClient, fetch_transcript
 
@@ -84,12 +85,22 @@ def _authorize(
         if attempt.status != "running" or task.status != "running" or run.status != "running":
             raise ToolAuthorizationError("tool_attempt_not_running")
         definition = db.scalar(select(ToolDefinition).where(ToolDefinition.key == tool_key))
-        version = db.scalar(
-            select(ToolVersion).where(
+        versions = select(ToolVersion).where(
                 ToolVersion.definition_id == definition.id if definition else False,
-                ToolVersion.semantic_version == spec.semantic_version,
-            )
-        )
+                ToolVersion.id.in_([item["id"] for item in snapshot.snapshot.get("tools", [])]),
+            ).order_by(ToolVersion.version_number.desc())
+        allowed_versions = (select(AgentVersionTool.tool_version_id).where(
+            AgentVersionTool.agent_version_id == task.agent_version_id) if task.agent_version_id else
+            select(TaskRunTool.tool_version_id).where(TaskRunTool.task_run_id == task.id))
+        authorized = ToolVersion.id.in_(allowed_versions)
+        if not task.agent_version_id and task.tool_version_id:
+            authorized = authorized | (ToolVersion.id == task.tool_version_id)
+        # A snapshot can contain different versions of the same tool for two roles.
+        # Select this task's declared version before verifying its hash and role.
+        version = db.scalar(versions.where(authorized).limit(1)) or db.scalar(versions.limit(1))
+        if version:
+            spec = next((item for item in ALL_TOOL_SPECS if item.key == tool_key
+                         and item.semantic_version == version.semantic_version), spec)
         if not definition or not version or version.lifecycle != "published" or version.content_hash != spec.content_hash:
             raise ToolAuthorizationError("tool_version_not_published")
         snapshot_tools = {item["id"]: item.get("content_hash") for item in snapshot.snapshot.get("tools", [])}
@@ -288,10 +299,17 @@ async def _dispatch(
         finally:
             await client.close()
     if spec.key == "youtube.transcript":
+        if "caption_cache" in spec.capabilities:
+            cached = await asyncio.to_thread(available_caption, request, config=config)
+            if cached:
+                return cached.transcript, 0
         last_error: ToolExecutionError | None = None
         for attempt in range(1, spec.max_attempts + 1):
             try:
-                return await fetch_transcript(request, config=config), attempt - 1  # type: ignore[arg-type]
+                transcript = await fetch_transcript(request, config=config)  # type: ignore[arg-type]
+                if "caption_cache" in spec.capabilities:
+                    await asyncio.to_thread(store_caption, request, transcript, config=config)
+                return transcript, attempt - 1
             except ToolExecutionError as exc:
                 last_error = exc
                 if not exc.retryable or attempt >= spec.max_attempts:

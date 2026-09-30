@@ -103,7 +103,11 @@ test("report shows evidence and unlisted sharing without private fields", async 
   await expect(page.getByText("3,128")).toBeVisible();
   await expect(page.getByText("8", { exact: true })).toBeVisible();
   await expect(page.getByText("Disagreement matters.")).toBeVisible();
-  await page.getByText(/Comfort remains strong over long sessions/).first().click();
+  await expect(page.getByRole("heading", { name: "Decide with the evidence" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Check before paying" })).toBeVisible();
+  await expect(page.getByText("Current warranty terms")).toBeVisible();
+  await expect(page.getByRole("link", { name: /Comfort remains strong over long sessions/ }).first()).toHaveAttribute("href", "#finding-finding-public-1");
+  await page.locator("#finding-finding-public-1 summary").click();
   await expect(page.getByText(/ear pads stayed comfortable/i).first()).toBeVisible();
   const timestamp = page.getByRole("link", { name: /1:32/i }).first();
   await expect(timestamp).toHaveAttribute("href", /youtube\.com\/watch\?v=7lCDEYXw3mM&t=92s/);
@@ -144,6 +148,21 @@ test("owner status is isolated and a failed stream falls back to polling", async
   await expect(page).toHaveURL(/\/analysis\/22222222/);
   await expect(page.getByText(/Reconnecting|Polling for updates/i)).toBeVisible();
   await expect(page.getByRole("link", { name: /Open report/i })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText("Partial report: 1 of 3 requested sources could be analyzed. Valid evidence remains available.")).toBeVisible();
+});
+
+test("full source coverage explains audit warnings on progress and report pages", async ({ page }) => {
+  await page.goto("/");
+  await page.getByLabel("Product name or exact model").fill("Audit Warning Widget");
+  await page.getByRole("button", { name: /Analyze product/i }).click();
+  const notice = "All 5 requested sources were analyzed. The report contains evidence warnings; some findings were omitted.";
+  await expect(page.getByText(notice)).toBeVisible();
+  await expect(page.getByText("Some findings were omitted because their evidence did not fully support them.")).toBeVisible();
+  await page.getByRole("link", { name: /Open report/i }).click();
+  await expect(page.getByText(notice)).toBeVisible();
+  await expect(page.getByText("EVIDENCE WARNINGS", { exact: true })).toBeVisible();
+  await expect(page.getByText("PARTIAL COVERAGE", { exact: true })).toHaveCount(0);
+  await expect(page.locator("body")).not.toContainText("quality_audit_warning");
 });
 
 test("a failed run exposes an actionable safe category and never offers a report", async ({ page }) => {

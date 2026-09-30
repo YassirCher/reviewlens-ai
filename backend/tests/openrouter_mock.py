@@ -89,7 +89,7 @@ def models(authorization: str | None = Header(default=None)) -> dict:
                 "architecture": {"input_modalities": ["text"], "output_modalities": ["text"]},
                 "supported_parameters": ["response_format", "temperature"],
                 "pricing": {"prompt": "0.000001", "completion": "0.000002"},
-                "top_provider": {"max_completion_tokens": 8192},
+                "top_provider": {"max_completion_tokens": 16384},
             },
             {
                 "id": "deepseek/deepseek-v4-flash-0731",
@@ -100,7 +100,7 @@ def models(authorization: str | None = Header(default=None)) -> dict:
                 "architecture": {"input_modalities": ["text"], "output_modalities": ["text"]},
                 "supported_parameters": ["response_format", "temperature"],
                 "pricing": {"prompt": "0.000001", "completion": "0.000002"},
-                "top_provider": {"max_completion_tokens": 8192},
+                "top_provider": {"max_completion_tokens": 16384},
             },
         ]
     }
@@ -157,7 +157,7 @@ def endpoints(author: str, slug: str, authorization: str | None = Header(default
                     "provider_slug": "fixture",
                     "provider_name": "Fixture Provider",
                     "context_length": 65536 if model in DEEPSEEK_FLASH_MODELS else 4096,
-                    "max_completion_tokens": 8192 if model in DEEPSEEK_FLASH_MODELS else 1024,
+                    "max_completion_tokens": 16384 if model in DEEPSEEK_FLASH_MODELS else 1024,
                     "quantization": "fp16",
                     "supported_parameters": ["response_format", "temperature"],
                     "pricing": {"prompt": "0.000001", "completion": "0.000002"},
@@ -241,7 +241,7 @@ async def chat(
 
 def _scenario(product: str) -> str:
     lowered = product.casefold()
-    for value in ("retry_once", "audit_correction", "audit_fail"):
+    for value in ("retry_once", "audit_correction", "audit_empty_correction", "audit_fail"):
         if value.replace("_", " ") in lowered:
             return value
     if "partial" in lowered:
@@ -290,6 +290,16 @@ def _structured_content(schema_name: str, trace_id: str, task_input: dict) -> di
             if eligible:
                 ordered.append(candidate["video_id"])
         return {"decisions": decisions, "ordered_video_ids": ordered}
+    if schema_name == "VideoExtraction":
+        review = _structured_content("SourceAnalysisDraft", trace_id, task_input)
+        review.pop("source_id")
+        for claim in review["claims"]:
+            for quote in claim["evidence"]:
+                quote.pop("source_node_id")
+        details_input = {**task_input, "canonical_product": "Aurora Headphones"} if (
+            task_input.get("source_title") == "Aurora review") else task_input
+        return {"review": review, "product_information": _structured_content(
+            "ProductExtractionDraft", trace_id, details_input)}
     if schema_name == "SourceAnalysisDraft":
         scenario = RUN_SCENARIOS.get(trace_id, "complete")
         central = not (
@@ -375,6 +385,42 @@ def _structured_content(schema_name: str, trace_id: str, task_input: dict) -> di
                 }
             ]
         }
+    if schema_name in {"AtomicBuyingSynthesis", "SourceBoundBuyingSynthesis"}:
+        if RUN_SCENARIOS.get(trace_id) == "audit_empty_correction" and task_input.get("correction_issues"):
+            return {"summary": "Narrative without any cited buying findings.", "assertions": []}
+        catalog = task_input["evidence_catalog"]
+        refs = []
+        seen = set()
+        for ref in catalog:
+            if ref["source_ref"] not in seen and ref["support_type"] == "supports":
+                refs.append(ref["evidence_ref"])
+                seen.add(ref["source_ref"])
+        disagreement = task_input.get("_evaluation_case_id") == "reviewer_disagreement"
+        assertions = [{"kind": "strength", "attribute": "Battery endurance",
+                       "observation": "The reviewer reports tested battery endurance.",
+                       "source_ref": ref["source_ref"], "evidence_refs": [ref["evidence_ref"]]}
+                      for ref in catalog if ref["evidence_ref"] in refs]
+        if schema_name == "AtomicBuyingSynthesis":
+            assertions = [{"kind": "strength", "attribute": "Battery endurance",
+                           "observation": "Reviewers report tested battery endurance.", "evidence_refs": refs}]
+        return {"summary": "The cited reviews describe tested battery endurance with value caveats.",
+                "assertions": assertions,
+                "longest_usage_period": "six months",
+                "longest_usage_source_ref": task_input["sources"][0]["source_ref"],
+                "who_should_buy": ["buyers prioritizing battery endurance"],
+                "who_should_avoid": ["buyers focused only on lowest price"],
+                "limitations": ["YouTube transcript evidence only"],
+                "disagreements": [{"topic": "long-session comfort", "side_a": "The first reviewer found the fit acceptable.",
+                                   "side_a_evidence_refs": refs[:1], "side_b": "The second reviewer found the fit uncomfortable.",
+                                   "side_b_evidence_refs": refs[1:2]}] if disagreement else []}
+    if schema_name == "BuyingSynthesis":
+        if RUN_SCENARIOS.get(trace_id) == "audit_empty_correction" and task_input.get("correction_issues"):
+            return {"summary": "Narrative without any cited buying findings.", "findings": []}
+        legacy = _structured_content("FinalReportDraft", trace_id, task_input)
+        return {**{key: value for key, value in legacy.items() if key not in (
+                    "product_display_name", "product_canonical_name", "consensus_pros", "consensus_cons")},
+                "findings": [{**item, "kind": kind} for kind, field in (
+                    ("strength", "consensus_pros"), ("caveat", "consensus_cons")) for item in legacy[field]]}
     if schema_name == "FinalReportDraft":
         analyses = task_input["source_analyses"]
         source_ids = [item["source_id"] for item in analyses]
@@ -411,15 +457,15 @@ def _structured_content(schema_name: str, trace_id: str, task_input: dict) -> di
     if schema_name == "AuditResult":
         scenario = RUN_SCENARIOS.get(trace_id, "complete")
         audit_number = ROLE_CALLS[(trace_id, schema_name)]
-        should_fail = (bool(task_input.get("_evaluation_case_id")) or scenario == "audit_fail"
+        should_fail = (bool(task_input.get("_evaluation_case_id")) or scenario in {"audit_fail", "audit_empty_correction"}
                        or (scenario == "audit_correction" and audit_number == 1))
         if should_fail:
             return {
                 "verdict": "fail",
                 "issues": [
                     {
-                        "code": "summary_scope_requires_correction",
-                        "field_path": "summary",
+                        "code": "unsupported_finding",
+                        "field_path": "report_draft.consensus_pros[0]",
                         "evidence_node_ids": [],
                         "retryable": True,
                     }

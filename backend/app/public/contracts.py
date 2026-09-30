@@ -168,6 +168,15 @@ class PublicDisagreement(StrictModel):
     side_b_source_ids: tuple[str, ...]
 
 
+class PublicDecisionGuide(StrictModel):
+    buy_if_finding_ids: tuple[str, ...]
+    caveat_finding_ids: tuple[str, ...]
+    tested_source_ids: tuple[str, ...]
+    long_term_period: str | None
+    long_term_source_id: str | None
+    unknowns: tuple[str, ...]
+
+
 class PublicReportResponse(StrictModel):
     schema_version: Literal[1]
     report_id: uuid.UUID
@@ -191,6 +200,7 @@ class PublicReportResponse(StrictModel):
     warnings: tuple[str, ...]
     sources: tuple[PublicSource, ...]
     product_info: ProductInfo | None = None
+    decision_guide: PublicDecisionGuide | None = None
     generated_at: datetime
     total_tokens: int = Field(ge=0)
     model_call_count: int = Field(ge=0)

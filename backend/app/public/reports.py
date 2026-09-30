@@ -51,6 +51,39 @@ def public_id(report_id: uuid.UUID, kind: str, value: str) -> str:
     return str(uuid.uuid5(report_id, f"public:{kind}:{value}"))
 
 
+def _decision_guide(validated: FinalReport, sources: list[dict], pros: list[dict], cons: list[dict], source_ids: dict[str, str]) -> dict:
+    """Reframe published evidence as purchase checks without another inference call."""
+    tested = [source["id"] for source in sources if (source.get("sample_used") or {}).get("units")]
+    unknowns = ["Current price in your market", "Local availability", "Current warranty terms"]
+    if not tested:
+        unknowns.append("Exact configuration reviewers tested")
+    if not validated.longest_usage_period:
+        unknowns.append("Long-term reliability")
+    source_claims = [claim["claim"] for source in sources for claim in source["claims"]]
+    fact_labels = (
+        [f"{fact.group} {fact.label}" for fact in validated.product_info.facts]
+        if validated.product_info else []
+    )
+    corpus = " ".join([validated.product_canonical_name, *source_claims, *fact_labels]).casefold()
+    category_checks = (
+        (("comfort", "Long-session comfort"), ("battery", "Battery life under your usage"))
+        if any(word in corpus for word in ("headphone", "earbud", "earphone", "audio")) else
+        (("battery", "Battery life under your usage"), ("performance", "Performance in your workload"))
+        if any(word in corpus for word in ("phone", "laptop", "tablet", "computer")) else
+        (("maintenance", "Ongoing maintenance"), ("durability", "Long-term durability"))
+    )
+    evidenced = " ".join(source_claims).casefold()
+    unknowns.extend(label for keyword, label in category_checks if keyword not in evidenced)
+    return {
+        "buy_if_finding_ids": [item["id"] for item in pros[:3]],
+        "caveat_finding_ids": [item["id"] for item in cons[:3]],
+        "tested_source_ids": tested,
+        "long_term_period": validated.longest_usage_period,
+        "long_term_source_id": source_ids.get(str(validated.longest_usage_source_id)),
+        "unknowns": unknowns,
+    }
+
+
 def _task_output(db: Session, run_id: uuid.UUID, task_key: str) -> dict[str, Any]:
     row = db.scalar(
         select(TaskAttempt)
@@ -96,11 +129,11 @@ def _validate_product_links(info: ProductInfo, allowed_video_ids: set[str]) -> N
         if ref.source_url != expected:
             raise PublicProjectionError("product evidence URL is invalid")
 
-    for item in info.facts:
-        for ref in item.evidence:
+    for fact in info.facts:
+        for ref in fact.evidence:
             check(ref)
-    for item in info.variants:
-        for ref in item.evidence:
+    for variant in info.variants:
+        for ref in variant.evidence:
             check(ref)
 
 
@@ -230,24 +263,24 @@ def build_public_projection(db: Session, report: Report, run: AnalysisRun) -> tu
     pros = [visible_finding(item, "pro", idx) for idx, item in enumerate(validated.consensus_pros)]
     cons = [visible_finding(item, "con", idx) for idx, item in enumerate(validated.consensus_cons)]
     disagreements = []
-    for index, item in enumerate(validated.disagreements):
+    for index, disagreement in enumerate(validated.disagreements):
         disagreement_id = public_id(report.id, "finding", f"disagreement:{index}")
-        graph_nodes.append({"id": disagreement_id, "type": "finding", "label": item.topic, "polarity": "disagreement"})
-        for source_id in item.side_a_source_ids:
+        graph_nodes.append({"id": disagreement_id, "type": "finding", "label": disagreement.topic, "polarity": "disagreement"})
+        for source_id in disagreement.side_a_source_ids:
             linked_source_id = source_ids.get(str(source_id))
             if linked_source_id:
                 graph_edges.append({"source": linked_source_id, "target": disagreement_id, "type": "SUPPORTS"})
-        for source_id in item.side_b_source_ids:
+        for source_id in disagreement.side_b_source_ids:
             linked_source_id = source_ids.get(str(source_id))
             if linked_source_id:
                 graph_edges.append({"source": linked_source_id, "target": disagreement_id, "type": "CONTRADICTS"})
         disagreements.append(
             {
-                "topic": item.topic,
-                "side_a": item.side_a,
-                "side_a_source_ids": [source_ids[str(sid)] for sid in item.side_a_source_ids if str(sid) in source_ids],
-                "side_b": item.side_b,
-                "side_b_source_ids": [source_ids[str(sid)] for sid in item.side_b_source_ids if str(sid) in source_ids],
+                "topic": disagreement.topic,
+                "side_a": disagreement.side_a,
+                "side_a_source_ids": [source_ids[str(sid)] for sid in disagreement.side_a_source_ids if str(sid) in source_ids],
+                "side_b": disagreement.side_b,
+                "side_b_source_ids": [source_ids[str(sid)] for sid in disagreement.side_b_source_ids if str(sid) in source_ids],
             }
         )
     payload = {
@@ -272,6 +305,7 @@ def build_public_projection(db: Session, report: Report, run: AnalysisRun) -> tu
         "limitations": list(validated.limitations),
         "warnings": list(validated.warnings),
         "sources": source_cards,
+        "decision_guide": _decision_guide(validated, source_cards, pros, cons, source_ids),
         **({"product_info": validated.product_info.model_dump(mode="json")} if validated.product_info is not None else {}),
         "generated_at": validated.generated_at.isoformat(),
     }

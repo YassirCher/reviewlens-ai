@@ -159,7 +159,8 @@ def _validate_workflow(db: Session, payload: dict) -> dict:
     dag = WorkflowDag.model_validate(payload["dag"])
     templates = dag.templates if dag.schema_version == 2 else dag.tasks
     handlers = {"analysis.validate_request", "analysis.discover_candidates", "analysis.fetch_transcript",
-                "analysis.fetch_comments", "analysis.publish_report"}
+                "analysis.fetch_comments", "analysis.project_product_information", "analysis.project_knowledge",
+                "analysis.publish_report"}
     keys = set()
     for task in templates:
         keys.add(task.template_key if dag.schema_version == 2 else task.task_key)

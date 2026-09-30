@@ -368,7 +368,9 @@ def _default_workflow(
             handler=f"analysis.agent.{role}",
             dependencies=dependencies,
             input=input_payload or {},
-            retry=agent_retry,
+            # Repair and re-audit each get one model call, including schema errors.
+            retry=RetryPolicy(max_attempts=1) if (input_payload or {}).get("correction_stage")
+                or (input_payload or {}).get("reaudit_stage") else agent_retry,
             timeout_seconds=timeout_seconds,
             agent_version_id=agents[role].id,
             fanout=fanout,
@@ -442,15 +444,15 @@ def _default_workflow(
             minimum_successes=1,
             timeout_seconds=300,
         ),
-        agent_task(
-            "extract_product_information",
-            "extract_product_information.source_{index}",
-            "product_information_analyst",
-            ("fetch_transcript",),
+        WorkflowTaskTemplate(
+            template_key="extract_product_information",
+            task_key="extract_product_information.source_{index}",
+            handler="analysis.project_product_information",
+            dependencies=("analyze_review",),
             fanout="source_slots",
             dependency_mode="all_terminal_min_success",
             minimum_successes=1,
-            timeout_seconds=240,
+            timeout_seconds=30,
             optional=True,
         ),
         agent_task(
@@ -464,14 +466,15 @@ def _default_workflow(
             minimum_successes=1,
             timeout_seconds=240,
         ),
-        agent_task(
-            "curate_knowledge",
-            "curate_knowledge",
-            "knowledge_curator",
-            ("analyze_review", "analyze_audience"),
+        WorkflowTaskTemplate(
+            template_key="curate_knowledge",
+            task_key="curate_knowledge",
+            handler="analysis.project_knowledge",
+            dependencies=("analyze_review", "analyze_audience"),
             dependency_mode="all_terminal_min_success",
             minimum_successes=1,
-            timeout_seconds=300,
+            retry=RetryPolicy(max_attempts=1),
+            timeout_seconds=60,
         ),
         agent_task("build_consensus", "build_consensus", "consensus_analyst", ("curate_knowledge",), timeout_seconds=420),
         agent_task("audit_report", "audit_report", "quality_auditor", ("build_consensus",), timeout_seconds=300),
@@ -570,9 +573,9 @@ def seed_analysis_configuration(
         db.add(active)
     if active.environment != config.app_env:
         raise AnalysisConfigurationConflict("active configuration belongs to another environment")
-    if active.workflow_version_id is None or config.is_local_development:
+    if active.workflow_version_id is None or config.app_env.lower() in {"development", "local"}:
         active.workflow_version_id = workflow.id
-    if active.budget_policy_version_id is None or config.is_local_development:
+    if active.budget_policy_version_id is None or config.app_env.lower() in {"development", "local"}:
         active.budget_policy_version_id = budget_policy.id
     if active.system_settings_version_id is None:
         system_settings = db.scalar(

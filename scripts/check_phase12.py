@@ -301,6 +301,30 @@ def _stack_browser(admin_password: str) -> None:
     )
 
 
+def _audit_repair_drill(compose: list[str]) -> None:
+    for scenario, publishes in (("audit_correction", True), ("audit_fail", False), ("audit_empty_correction", False)):
+        output = support.run(
+            compose + [
+                "exec", "-T", "api", "python", "-m", "app.cli",
+                "analysis-fixture", "--scenario", scenario, "--wait",
+                "--timeout-seconds", "240",
+            ],
+            capture_output=True,
+        ).stdout
+        result = json.loads(output.strip().splitlines()[-1])
+        expected_reaudits = 0 if scenario == "audit_empty_correction" else 1
+        if result["correction_model_calls"] != 1 or result["reaudit_model_calls"] != expected_reaudits:
+            raise RuntimeError(f"{scenario} did not record one correction and one re-audit call: {result}")
+        if bool(result["report_id"]) != publishes:
+            raise RuntimeError(f"{scenario} violated the publication gate: {result}")
+        if (result["model_requests"] != 10 + expected_reaudits or result["product_information_model_calls"] != 0
+                or result["knowledge_curator_model_calls"] != 0
+                or not result["knowledge_projection_replay_verified"]
+                or not result["knowledge_projection_transaction_verified"]
+                or result["source_count_analyzed"] != 5 or not result["review_context_verified"]):
+            raise RuntimeError(f"{scenario} violated combined extraction, source coverage, or context isolation: {result}")
+
+
 def _stack_checks() -> None:
     for port in (3000, 8000, 5432, 6379, 7474, 7687, 6333, 6334):
         if _occupied(port):
@@ -377,6 +401,7 @@ def _stack_checks() -> None:
         _assert_retired_routes()
         _assert_frontend_redirect()
         support.run(compose + ["run", "--rm", "foundation-tests"])
+        _audit_repair_drill(compose)
         _stack_browser(admin_password)
         _assert_approved_models(compose)
         _dependency_outage_drill(compose, "redis")
@@ -389,6 +414,17 @@ def _stack_checks() -> None:
             raise RuntimeError("isolated stack logs exposed a generated credential")
         if "openrouter.ai/api" in logs or "www.googleapis.com/youtube" in logs:
             raise RuntimeError("isolated acceptance attempted a live provider endpoint")
+    except (subprocess.CalledProcessError, RuntimeError):
+        logs = support.run(compose + ["logs", "--no-color", "--tail", "60"],
+                           check=False, capture_output=True).stdout
+        for line in environment.read_text(encoding="utf-8").splitlines():
+            key, _, value = line.partition("=")
+            if any(marker in key for marker in ("PASSWORD", "SECRET", "KEY", "HASH")):
+                value = value.strip("'")
+                if value:
+                    logs = logs.replace(value, "[redacted]")
+        print(logs, file=sys.stderr)
+        raise
     finally:
         support.run(
             compose + ["down", "--volumes", "--remove-orphans"],

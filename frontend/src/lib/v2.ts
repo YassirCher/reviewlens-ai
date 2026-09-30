@@ -72,6 +72,10 @@ export type Source = {
 };
 export type Finding = { id: string; statement: string; source_ids: string[]; evidence_ids: string[] };
 export type Disagreement = { topic: string; side_a: string; side_a_source_ids: string[]; side_b: string; side_b_source_ids: string[] };
+export type DecisionGuide = {
+  buy_if_finding_ids: string[]; caveat_finding_ids: string[]; tested_source_ids: string[];
+  long_term_period: string | null; long_term_source_id: string | null; unknowns: string[];
+};
 export type Report = {
   schema_version: 1; report_id: string; product_name: string; status: "complete" | "partial";
   source_count_requested: number; source_count_analyzed: number; overall_score: number;
@@ -81,6 +85,7 @@ export type Report = {
   who_should_buy: string[]; who_should_avoid: string[]; limitations: string[]; warnings: string[];
   sources: Source[]; generated_at: string; total_tokens: number; model_call_count: number; usage_pending: boolean;
   product_info?: ProductInfo | null;
+  decision_guide?: DecisionGuide | null;
 };
 export type GraphNode = { id: string; type: "product" | "source" | "finding" | "evidence"; label: string; video_id?: string | null; polarity?: string | null };
 export type GraphEdge = { source: string; target: string; type: "ABOUT" | "SUPPORTS" | "CONTRADICTS" };

@@ -365,7 +365,7 @@ def _analysis_fixture(scenario: str, *, wait: bool, timeout_seconds: int) -> int
     from sqlalchemy import func, select
 
     from app.analysis.configuration import seed_analysis_configuration
-    from app.db.models import AnalysisRun, Report, TaskAttempt, TaskRun, UsageEvent
+    from app.db.models import AnalysisRun, ContextEdge, ContextManifestItem, ContextNode, ContextNodeVersion, Report, TaskAttempt, TaskRun, UsageEvent, Workspace
     from app.db.session import session_scope
     from app.runtime.contracts import RUN_TERMINAL_STATUSES, RunStatus, TaskStatus
     from app.runtime.outbox import relay_runtime_outbox
@@ -417,6 +417,45 @@ def _analysis_fixture(scenario: str, *, wait: bool, timeout_seconds: int) -> int
                     cancellation_sent = True
             if RunStatus(current.status) in RUN_TERMINAL_STATUSES:
                 report = db.scalar(select(Report).where(Report.run_id == run_id))
+                projection_verified = False
+                projection_transaction_verified = False
+                knowledge = db.scalar(select(TaskRun).where(TaskRun.run_id == run_id,
+                    TaskRun.workflow_task_key == "curate_knowledge", TaskRun.status == "succeeded"))
+                if knowledge and knowledge.handler == "analysis.project_knowledge":
+                    from app.analysis.contracts import GraphMutationPlan
+                    from app.analysis.executor import _outputs_with_prefix, _postprocess_knowledge, _project_knowledge
+                    from app.runtime.service import RuntimeTaskError
+                    knowledge_attempt = db.scalar(select(TaskAttempt).where(TaskAttempt.task_run_id == knowledge.id,
+                        TaskAttempt.status == "succeeded").order_by(TaskAttempt.attempt_number.desc()).limit(1))
+                    workspace = db.scalar(select(Workspace).where(Workspace.run_id == run_id))
+                    def artifact_counts():
+                        return (db.scalar(select(func.count()).select_from(ContextNode)
+                                          .where(ContextNode.workspace_id == workspace.id)),
+                                db.scalar(select(func.count()).select_from(ContextNodeVersion)
+                                          .where(ContextNodeVersion.workspace_id == workspace.id)),
+                                db.scalar(select(func.count()).select_from(ContextEdge)
+                                          .where(ContextEdge.workspace_id == workspace.id)))
+                    before = artifact_counts()
+                    replay = _project_knowledge(knowledge_attempt.id, current, config=settings)
+                    repeated = _project_knowledge(knowledge_attempt.id, current, config=settings)
+                    projection_verified = (replay == repeated == knowledge_attempt.output_payload and before == artifact_counts())
+                    if replay["plan"]["findings"]:
+                        first = dict(replay["plan"]["findings"][0])
+                        first["statement"] += " (transaction rollback fixture)"
+                        invalid = {**first, "evidence_node_ids": [str(uuid.uuid4())]}
+                        projected_reviews = [output["analysis"] for output in
+                                             _outputs_with_prefix(run_id, "analyze_review.source_")
+                                             if output.get("analysis")]
+                        owners = {str(ref["evidence_node_id"]): (str(review["source_id"]), ref["support_type"])
+                                  for review in projected_reviews
+                                  for claim in review["claims"] for ref in claim["evidence"]}
+                        try:
+                            _postprocess_knowledge(knowledge_attempt.id, current,
+                                GraphMutationPlan.model_validate({"findings": [first, invalid]}),
+                                config=settings, evidence_owners=owners)
+                        except RuntimeTaskError as exc:
+                            projection_transaction_verified = (exc.code == "finding_lineage_invalid"
+                                and not exc.retryable and before == artifact_counts())
                 model_attempts = int(
                     db.scalar(
                         select(func.count())
@@ -434,6 +473,45 @@ def _analysis_fixture(scenario: str, *, wait: bool, timeout_seconds: int) -> int
                     )
                     or 0
                 )
+                repair_calls = dict(
+                    db.execute(
+                        select(TaskRun.workflow_task_key, func.count())
+                        .join(UsageEvent, UsageEvent.task_run_id == TaskRun.id)
+                        .where(
+                            TaskRun.run_id == run_id,
+                            TaskRun.workflow_task_key.in_(("correct_consensus", "reaudit_report")),
+                            UsageEvent.operation == "chat",
+                        )
+                        .group_by(TaskRun.workflow_task_key)
+                    ).all()
+                )
+                product_calls = int(db.scalar(select(func.count()).select_from(UsageEvent)
+                    .join(TaskRun, TaskRun.id == UsageEvent.task_run_id)
+                    .where(TaskRun.run_id == run_id, UsageEvent.operation == "chat",
+                           TaskRun.workflow_task_key.like("extract_product_information.source_%"))) or 0)
+                reviews = db.execute(select(TaskRun, TaskAttempt)
+                    .join(TaskAttempt, TaskAttempt.task_run_id == TaskRun.id)
+                    .where(TaskRun.run_id == run_id, TaskRun.workflow_task_key.like("analyze_review.source_%"),
+                           TaskAttempt.status == "succeeded")).all()
+                context_verified = bool(reviews)
+                for review_task, review_attempt in reviews:
+                    source_index = review_task.input_payload["source_index"]
+                    source_task = db.scalar(select(TaskRun).where(TaskRun.run_id == run_id,
+                        TaskRun.workflow_task_key == f"fetch_transcript.source_{source_index}"))
+                    source_attempt = db.scalar(select(TaskAttempt).where(TaskAttempt.task_run_id == source_task.id,
+                        TaskAttempt.status == "succeeded").order_by(TaskAttempt.attempt_number.desc()).limit(1))
+                    video_id = source_attempt.output_payload["video_id"]
+                    items = db.execute(select(ContextManifestItem, ContextNodeVersion, ContextNode)
+                        .join(ContextNodeVersion, ContextNodeVersion.id == ContextManifestItem.node_version_id)
+                        .join(ContextNode, ContextNode.id == ContextNodeVersion.node_id)
+                        .where(ContextManifestItem.manifest_id == review_attempt.context_manifest_id)
+                        .order_by(ContextManifestItem.position)).all()
+                    starts = [version.provenance["segment_start"] for _, version, node in items
+                              if node.node_type == "transcript_chunk"]
+                    context_verified &= (bool(items) and len({node.id for _, _, node in items}) == len(items)
+                        and all(node.node_type in {"source", "transcript_chunk"}
+                            and version.provenance.get("video_id") == video_id for _, version, node in items)
+                        and starts == sorted(starts))
                 payload = {
                     "run_id": str(run_id),
                     "scenario": scenario,
@@ -443,6 +521,18 @@ def _analysis_fixture(scenario: str, *, wait: bool, timeout_seconds: int) -> int
                     "audit_status": report.audit_status if report else None,
                     "model_requests": model_attempts,
                     "correction_attempts": corrections,
+                    "correction_model_calls": int(repair_calls.get("correct_consensus", 0)),
+                    "reaudit_model_calls": int(repair_calls.get("reaudit_report", 0)),
+                    "product_information_model_calls": product_calls,
+                    "knowledge_curator_model_calls": int(db.scalar(select(func.count()).select_from(UsageEvent)
+                        .join(TaskRun, TaskRun.id == UsageEvent.task_run_id)
+                        .where(UsageEvent.run_id == run_id, UsageEvent.operation == "chat",
+                               TaskRun.workflow_task_key == "curate_knowledge")) or 0),
+                    "knowledge_projection_replay_verified": projection_verified,
+                    "knowledge_projection_transaction_verified": projection_transaction_verified,
+                    "source_count_analyzed": len([task for task, attempt in reviews
+                        if not attempt.output_payload.get("skipped")]),
+                    "review_context_verified": context_verified,
                     "live_calls": 0,
                 }
                 if RunStatus(current.status) == RunStatus.FAILED:
@@ -475,9 +565,10 @@ def _analysis_fixture(scenario: str, *, wait: bool, timeout_seconds: int) -> int
                     "retry_once": {RunStatus.COMPLETE, RunStatus.PARTIAL},
                     "audit_correction": {RunStatus.COMPLETE, RunStatus.PARTIAL},
                     "audit_fail": {RunStatus.FAILED},
+                    "audit_empty_correction": {RunStatus.FAILED},
                     "cancel": {RunStatus.CANCELLED},
                 }[scenario]
-                published_expected = scenario not in {"audit_fail", "cancel"}
+                published_expected = scenario not in {"audit_fail", "audit_empty_correction", "cancel"}
                 return 0 if RunStatus(current.status) in expected and bool(report) == published_expected else 1
         time.sleep(0.2)
     print(f"analysis fixture run {run_id} did not finish within {timeout_seconds} seconds", file=sys.stderr)
@@ -588,7 +679,7 @@ def main() -> int:
     )
     analysis_fixture.add_argument(
         "--scenario",
-        choices=("complete", "comments", "partial", "retry_once", "audit_correction", "audit_fail", "cancel"),
+        choices=("complete", "comments", "partial", "retry_once", "audit_correction", "audit_empty_correction", "audit_fail", "cancel"),
         required=True,
     )
     analysis_fixture.add_argument("--wait", action="store_true")

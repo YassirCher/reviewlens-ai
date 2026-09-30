@@ -247,6 +247,13 @@ def build_context_packet(
             candidate.semantic_score = score
 
     ranked = sorted(candidates.values(), key=lambda item: (-item.score, str(item.version.id)))
+    # Explicit per-video seeds already chose the bounded, nonoverlapping spans.
+    # Keep metadata first and transcript chunks chronological instead of UUID order.
+    if (request.policy.maximum_graph_hops == 0 and request.policy.lexical_candidate_limit == 0
+            and request.policy.vector_top_k == 0
+            and all(item.node.node_type in {"source", "transcript_chunk"} for item in ranked)):
+        ranked.sort(key=lambda item: (item.node.node_type != "source",
+                                     item.version.provenance.get("segment_start", 0), str(item.node.id)))
     selected: list[tuple[Candidate, str, int]] = []
     source_counts: dict[str, int] = defaultdict(int)
     packet_prefix = (

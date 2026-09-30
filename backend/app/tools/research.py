@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 
@@ -20,10 +21,12 @@ from app.tools.contracts import (
     YouTubeCommentsOutput,
     YouTubeSearchOutput,
     YouTubeTranscriptOutput,
+    YouTubeTranscriptInput,
     YouTubeVideoDetailsOutput,
 )
 from app.tools.errors import ToolExecutionError
 from app.tools.runner import invoke_tool
+from app.tools.caption_cache import available_caption, caption_origin
 from app.tools.youtube import chunk_transcript, rank_candidates
 
 
@@ -192,6 +195,8 @@ async def execute_research(
                 continue
             raise
         transcript = YouTubeTranscriptOutput.model_validate(transcript_payload)
+        cached = available_caption(YouTubeTranscriptInput(video_id=video.video_id,
+            requested_language=plan.requested_language), config=config)
         chunks = chunk_transcript(transcript, config=config)
         duration = max(
             segment.start_seconds + (segment.duration_seconds or 0)
@@ -213,6 +218,9 @@ async def execute_research(
                     "caption_kind": transcript.caption_kind,
                     "translated": transcript.translated,
                     "duration_seconds": duration,
+                    "caption_origin": caption_origin(config),
+                    "caption_fetched_at": cached.fetched_at.isoformat() if cached else
+                        datetime.now(timezone.utc).isoformat(),
                     "untrusted": True,
                 },
                 public_visibility="admin",

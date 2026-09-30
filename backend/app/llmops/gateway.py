@@ -35,6 +35,18 @@ def _remaining_seconds(deadline: datetime) -> float:
     return (deadline - datetime.now(timezone.utc)).total_seconds()
 
 
+def validated_chat_content(invocation: ChatInvocation, content: dict) -> tuple[dict, list]:
+    """A declared nullable, optional section may degrade independently of the main result."""
+    validator = Draft202012Validator(invocation.response_schema)
+    errors = list(validator.iter_errors(content))
+    if errors and all(error.path and error.path[0] in invocation.optional_output_fields for error in errors):
+        cleaned = {**content, **{field: None for field in invocation.optional_output_fields}}
+        remaining = list(validator.iter_errors(cleaned))
+        if not remaining:
+            return cleaned, []
+    return content, errors
+
+
 class OpenRouterGateway:
     def __init__(
         self,
@@ -96,8 +108,8 @@ class OpenRouterGateway:
                     raise
                 await self.sleeper(delay)
                 continue
-            validation = Draft202012Validator(invocation.response_schema)
-            schema_errors = list(validation.iter_errors(result.content))
+            content, schema_errors = validated_chat_content(invocation, result.content)
+            result = result.model_copy(update={"content": content})
             valid = not schema_errors
             finalize_successful_request(
                 reservation_id,

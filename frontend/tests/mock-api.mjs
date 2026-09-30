@@ -2,10 +2,12 @@ import { createServer } from "node:http";
 
 const TOKEN = "A".repeat(43);
 const PARTIAL_TOKEN = "C".repeat(43);
+const WARNING_TOKEN = "E".repeat(43);
 const RUN = "11111111-1111-4111-8111-111111111111";
 const PARTIAL_RUN = "22222222-2222-4222-8222-222222222222";
 const CANCEL_RUN = "33333333-3333-4333-8333-333333333333";
 const FAIL_RUN = "44444444-4444-4444-8444-444444444444";
+const WARNING_RUN = "55555555-5555-4555-8555-555555555555";
 const sourceId = "source-public-1";
 const evidenceId = "evidence-public-1";
 const findingId = "finding-public-1";
@@ -39,6 +41,11 @@ function report(partial = false) {
     generated_at: "2026-09-17T10:00:00Z", total_tokens: 3128, model_call_count: 8, usage_pending: false,
   };
   if (!partial) {
+    value.decision_guide = {
+      buy_if_finding_ids: [findingId], caveat_finding_ids: [], tested_source_ids: [sourceId],
+      long_term_period: "Three months", long_term_source_id: sourceId,
+      unknowns: ["Current price in your market", "Local availability", "Current warranty terms"],
+    };
     value.product_info = productInfo();
     value.sources[0].sample_used = { units: [{ role: "Review unit", details: [{ label: "Color", value: "black", evidence: { video_id: "7lCDEYXw3mM", source_url: "https://www.youtube.com/watch?v=7lCDEYXw3mM", source_part: "description", excerpt: "Review unit is black", timestamp_seconds: null } }] }] };
     value.sources.push({ ...value.sources[0], id: "source-public-2", video_id: "def456GHI78", url: "https://www.youtube.com/watch?v=def456GHI78", title: "Second independent review", channel: "Reviewer Two", claims: [], sample_used: { units: [] } });
@@ -52,12 +59,21 @@ function longReport() {
   value.sources[0].recommendation_summary = "Evidence remains traceable even when a source has unusually long content. ".repeat(18);
   return value;
 }
+function warningReport() {
+  const value = report();
+  value.product_name = "Audit Warning Widget";
+  value.status = "partial";
+  value.source_count_analyzed = 5;
+  value.warnings = ["quality_audit_warning"];
+  return value;
+}
 function status(id) {
   const reads = (statusReads.get(id) || 0) + 1; statusReads.set(id, reads);
   const partial = id === PARTIAL_RUN;
+  const auditWarning = id === WARNING_RUN;
   const isCancelled = cancelled.has(id);
   const done = isCancelled || (id !== CANCEL_RUN && (partial ? reads > 2 : reads > 1));
-  const state = isCancelled ? "cancelled" : done ? (id === FAIL_RUN ? "failed" : partial ? "partial" : "complete") : "running";
+  const state = isCancelled ? "cancelled" : done ? (id === FAIL_RUN ? "failed" : partial || auditWarning ? "partial" : "complete") : "running";
   return { run_id: id, status: state, product_name: partial ? "Partial Widget" : "Sony WH-1000XM5 headphones", product_info: id === RUN ? productInfo() : undefined, created_at: "2026-09-17T09:00:00Z", started_at: "2026-09-17T09:00:01Z", completed_at: done ? "2026-09-17T09:01:00Z" : null, source_count_requested: partial ? 3 : 5, source_count_analyzed: done && id !== FAIL_RUN ? (partial ? 1 : 3) : 0, completed_tasks: done ? 7 : 2, total_tasks: 7, warnings: partial && done ? ["transcript_unavailable"] : [], failure: state === "failed" ? { code: "no_transcripts", message: "Review videos were found, but usable captions were unavailable. Try another product or model." } : null, total_tokens: done ? 3128 : 84, usage_pending: false, tasks: [
     { task_key: "validate_request", status: "succeeded", label: "Validate request", started_at: "2026-09-17T09:00:01Z", completed_at: "2026-09-17T09:00:02Z" },
     { task_key: "plan_research", status: "succeeded", label: "Plan research", started_at: "2026-09-17T09:00:02Z", completed_at: "2026-09-17T09:00:04Z" },
@@ -66,7 +82,8 @@ function status(id) {
     { task_key: "analyze_review.source_1", status: done ? "succeeded" : "queued", label: "Analyze review", started_at: null, completed_at: null },
     { task_key: "audit_report", status: done ? "succeeded" : "queued", label: "Audit report", started_at: null, completed_at: null },
     { task_key: "publish_report", status: done ? "succeeded" : "queued", label: "Publish report", started_at: null, completed_at: null },
-  ], report_url: done && !isCancelled && id !== FAIL_RUN ? `/api/v2/reports/${partial ? PARTIAL_TOKEN : TOKEN}` : null, progress_sequence: done ? 2 : 1 };
+  ], report_url: done && !isCancelled && id !== FAIL_RUN ? `/api/v2/reports/${partial ? PARTIAL_TOKEN : auditWarning ? WARNING_TOKEN : TOKEN}` : null, progress_sequence: done ? 2 : 1,
+  ...(auditWarning ? { product_name: "Audit Warning Widget", source_count_analyzed: done ? 5 : 0, warnings: done ? ["quality_audit_warning"] : [] } : {}) };
 }
 
 createServer(async (req, res) => {
@@ -87,7 +104,7 @@ createServer(async (req, res) => {
       if (!retryKeys.has(input.product_name)) { retryKeys.set(input.product_name, key); return send(res, 503, error("temporary_unavailable", "Connection interrupted. Retry the submission.")); }
       if (retryKeys.get(input.product_name) !== key) return send(res, 409, error("idempotency_conflict", "Submission key changed."));
     }
-    const id = String(input.product_name).toLowerCase().includes("partial") ? PARTIAL_RUN : String(input.product_name).toLowerCase().includes("cancel") ? CANCEL_RUN : String(input.product_name).toLowerCase().includes("fail") ? FAIL_RUN : RUN;
+    const id = String(input.product_name).toLowerCase().includes("audit warning") ? WARNING_RUN : String(input.product_name).toLowerCase().includes("partial") ? PARTIAL_RUN : String(input.product_name).toLowerCase().includes("cancel") ? CANCEL_RUN : String(input.product_name).toLowerCase().includes("fail") ? FAIL_RUN : RUN;
     return send(res, 202, { run_id: id, status: "queued", status_url: `/api/v2/analyses/${id}`, events_url: `/api/v2/analyses/${id}/events` });
   }
   const runMatch = path.match(/^\/api\/v2\/analyses\/([0-9a-f-]{36})(\/events|\/cancel)?$/);
@@ -104,14 +121,14 @@ createServer(async (req, res) => {
   }
   const reportMatch = path.match(/^\/api\/v2\/reports\/([A-Za-z0-9_-]{43})(\/graph)?$/);
   if (reportMatch) {
-    if (![TOKEN, PARTIAL_TOKEN, LONG_TOKEN].includes(reportMatch[1])) return send(res, 404, error("not_found", "The requested resource was not found."));
+    if (![TOKEN, PARTIAL_TOKEN, LONG_TOKEN, WARNING_TOKEN].includes(reportMatch[1])) return send(res, 404, error("not_found", "The requested resource was not found."));
     if (reportMatch[2] === "/graph") {
       const cursor = new URL(req.url, "http://127.0.0.1:8899").searchParams.get("cursor");
       const nodes = [{ id: "product-public", type: "product", label: "Sony WH-1000XM5 headphones" }, { id: sourceId, type: "source", label: "A long reviewer title", video_id: "7lCDEYXw3mM" }, { id: findingId, type: "finding", label: "Comfort remains strong", polarity: "pro" }, { id: evidenceId, type: "evidence", label: "The ear pads stayed comfortable" }, { id: "disagreement-public", type: "finding", label: "Battery life", polarity: "disagreement" }];
       const edges = [{ source: sourceId, target: "product-public", type: "ABOUT" }, { source: sourceId, target: findingId, type: "SUPPORTS" }, { source: evidenceId, target: findingId, type: "SUPPORTS" }, { source: sourceId, target: "disagreement-public", type: "CONTRADICTS" }];
       return send(res, 200, { nodes: cursor ? nodes.slice(3) : nodes.slice(0, 3), edges, next_cursor: cursor ? null : "next" });
     }
-    return send(res, 200, reportMatch[1] === LONG_TOKEN ? longReport() : report(reportMatch[1] === PARTIAL_TOKEN));
+    return send(res, 200, reportMatch[1] === WARNING_TOKEN ? warningReport() : reportMatch[1] === LONG_TOKEN ? longReport() : report(reportMatch[1] === PARTIAL_TOKEN));
   }
   return send(res, 404, error("not_found", "The requested resource was not found."));
 }).listen(8899, "127.0.0.1");

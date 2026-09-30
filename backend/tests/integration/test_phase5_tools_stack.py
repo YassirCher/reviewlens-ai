@@ -28,6 +28,10 @@ from app.tools.registry import TOOL_REGISTRY, seed_tool_registry
 from app.tools.research import execute_research
 from app.tools.runner import _authorize, _begin_invocation, _finish_invocation, invoke_tool
 from app.tools.youtube import finalize_quota, reserve_quota, youtube_quota_date
+from app.cache import get_redis
+from app.db.models import ContextEdge, ContextNodeVersion
+from app.tools.caption_cache import available_caption, bootstrap_caption, cache_key
+from app.tools.contracts import YouTubeTranscriptInput
 
 pytestmark = pytest.mark.skipif(
     os.getenv("REVIEWLENS_RUN_INTEGRATION") != "1",
@@ -145,6 +149,41 @@ def test_comments_off_performs_no_comment_invocation_or_mock_request() -> None:
     metrics = httpx.get("http://youtube-mock:8090/metrics", timeout=5).json()
     assert comment_invocations == 0
     assert metrics.get("comments", 0) == 0
+
+
+def test_verified_caption_bootstrap_and_reuse_create_fresh_run_lineage() -> None:
+    _, _, first = _execute("complete")
+    source = first.selected_sources[0]
+    request = YouTubeTranscriptInput(video_id=source.video_id)
+    original = available_caption(request)
+    assert original is not None
+    get_redis().delete(cache_key(request, settings))
+    bootstrapped = bootstrap_caption(request)
+    assert bootstrapped is not None
+    assert bootstrapped.fetched_at == original.fetched_at
+    assert bootstrapped.transcript == original.transcript
+    assert get_redis().ttl(cache_key(request, settings)) <= 7 * 86400
+
+    httpx.post("http://youtube-mock:8090/reset", timeout=5).raise_for_status()
+    _, _, second = _execute("complete")
+    metrics = httpx.get("http://youtube-mock:8090/metrics", timeout=5).json()
+    assert metrics.get("transcripts", 0) == 0
+    old_ids = {item.transcript_node_id for item in first.selected_sources}
+    new_ids = {item.transcript_node_id for item in second.selected_sources}
+    assert old_ids.isdisjoint(new_ids) and len(new_ids) == 5
+    with session_scope() as db:
+        for item in second.selected_sources:
+            node = db.get(ContextNode, item.transcript_node_id)
+            version = db.get(ContextNodeVersion, node.current_version_id)
+            source_node = db.get(ContextNode, item.source_node_id)
+            edge = db.scalar(select(ContextEdge).where(
+                ContextEdge.workspace_id == second.workspace_id,
+                ContextEdge.source_version_id == version.id,
+                ContextEdge.target_version_id == source_node.current_version_id,
+                ContextEdge.relation_type == "DERIVED_FROM"))
+            assert edge is not None and node.workspace_id == second.workspace_id
+            if item.video_id == source.video_id:
+                assert version.provenance["caption_fetched_at"] == original.fetched_at.isoformat()
 
 
 def test_duplicate_logical_call_is_rejected_and_terminal_invocation_is_immutable() -> None:

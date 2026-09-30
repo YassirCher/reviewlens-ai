@@ -4,7 +4,9 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
-from app.analysis.registry import AgentSpec
+from app.analysis.registry import UNIVERSAL_POLICY, AgentSpec
+from app.analysis.review import VideoExtraction
+from app.analysis.synthesis import AtomicBuyingSynthesis, BuyingSynthesis, SourceBoundBuyingSynthesis
 from app.runtime.contracts import canonical_json_hash
 
 
@@ -24,13 +26,19 @@ def build_prompt_envelope(
     rendered_context: str,
     correction: dict[str, Any] | None = None,
 ) -> PromptEnvelope:
-    schema = spec.output_model.model_json_schema()
+    combined = spec.output_model is VideoExtraction
+    schema_in_response = combined or spec.output_model in {BuyingSynthesis, AtomicBuyingSynthesis, SourceBoundBuyingSynthesis} or "CITATION AUDIT:" in spec.role_prompt
+    output_contract = (
+        "STRICT OUTPUT SCHEMA\nReturn one object according to the supplied strict response_format JSON schema."
+        if schema_in_response else
+        "STRICT OUTPUT SCHEMA\n" + json.dumps(spec.output_model.model_json_schema(), sort_keys=True, separators=(",", ":"))
+    )
     system = "\n\n".join(
         (
-            spec.persisted_payload()["system_prompt"],
+            f"{UNIVERSAL_POLICY}\n\n{spec.role_prompt}",
             "ROLE OBJECTIVE\n" + spec.purpose,
             "PROHIBITED BEHAVIOR\n- " + "\n- ".join(spec.prohibited_behaviors),
-            "STRICT OUTPUT SCHEMA\n" + json.dumps(schema, sort_keys=True, separators=(",", ":")),
+            output_contract,
             "TOOL CONTRACT\nAllowed immutable tools: " + (", ".join(spec.tool_keys) or "none"),
         )
     )

@@ -316,6 +316,45 @@ def generate_report_pdf(payload: dict[str, Any], token: str) -> bytes:
     story.append(summary_table)
     story.append(Spacer(1, 14))
 
+    guide = payload.get("decision_guide")
+    if isinstance(guide, dict):
+        findings_by_id = {
+            item.get("id"): item for item in payload.get("consensus_pros", []) + payload.get("consensus_cons", [])
+        }
+        sources_by_id = {item.get("id"): item for item in sources_list}
+        story.append(Paragraph("PURCHASE CHECK", style_sec_heading))
+        for label, key in (("Buy if these strengths matter", "buy_if_finding_ids"),
+                           ("Think twice about", "caveat_finding_ids")):
+            selected = [findings_by_id.get(item_id) for item_id in guide.get(key, [])]
+            story.append(Paragraph(f"<b>{label}</b>", style_body_bold))
+            if not any(selected):
+                story.append(Paragraph("Not established by the cited reviews.", style_meta))
+            for item in selected:
+                if item:
+                    story.append(Paragraph(f"â€¢ {_sanitize(item.get('statement', ''))}", style_body))
+        story.append(Paragraph("<b>Tested configuration and duration</b>", style_body_bold))
+        tested = [sources_by_id.get(item_id) for item_id in guide.get("tested_source_ids", [])]
+        if any(tested):
+            for source in tested:
+                if not source:
+                    continue
+                details = [f"{detail.get('label')}: {detail.get('value')}"
+                           for unit in (source.get("sample_used") or {}).get("units", [])
+                           for detail in unit.get("details", [])]
+                story.append(Paragraph(
+                    f"{_sanitize(source.get('channel', 'Reviewer'))}: {_sanitize('; '.join(details) or 'Unconfirmed')}",
+                    style_body,
+                ))
+        else:
+            story.append(Paragraph("Exact tested configuration was not confirmed.", style_meta))
+        story.append(Paragraph(
+            f"Longest stated use: {_sanitize(guide.get('long_term_period') or 'not established')}", style_body,
+        ))
+        story.append(Paragraph("<b>Check before paying</b>", style_body_bold))
+        for item in guide.get("unknowns", []):
+            story.append(Paragraph(f"â€¢ {_sanitize(item)}", style_body))
+        story.append(Spacer(1, 12))
+
     raw_product_info = payload.get("product_info")
     if raw_product_info:
         info = ProductInfo.model_validate(raw_product_info)
@@ -384,7 +423,8 @@ def generate_report_pdf(payload: dict[str, Any], token: str) -> bytes:
     # -------------------------------------------------------------
     pros = payload.get("consensus_pros", [])
     if pros:
-        story.append(Paragraph("1. CORROBORATED STRENGTHS (CONSENSUS PROS)", style_sec_heading))
+        strength_heading = "1. SOURCE STRENGTHS" if sources_analyzed == 1 else "1. CORROBORATED STRENGTHS (CONSENSUS PROS)"
+        story.append(Paragraph(strength_heading, style_sec_heading))
         story.append(HRFlowable(width="100%", thickness=1, color=c_border, spaceBefore=2, spaceAfter=8))
 
         pro_elements: list[Any] = []
@@ -420,7 +460,8 @@ def generate_report_pdf(payload: dict[str, Any], token: str) -> bytes:
     # -------------------------------------------------------------
     cons = payload.get("consensus_cons", [])
     if cons:
-        story.append(Paragraph("2. VERIFIED DRAWBACKS &amp; CAVEATS (CONSENSUS CONS)", style_sec_heading))
+        caveat_heading = "2. SOURCE CAVEATS" if sources_analyzed == 1 else "2. VERIFIED DRAWBACKS &amp; CAVEATS (CONSENSUS CONS)"
+        story.append(Paragraph(caveat_heading, style_sec_heading))
         story.append(HRFlowable(width="100%", thickness=1, color=c_border, spaceBefore=2, spaceAfter=8))
 
         con_elements: list[Any] = []
@@ -512,7 +553,7 @@ def generate_report_pdf(payload: dict[str, Any], token: str) -> bytes:
     # -------------------------------------------------------------
     who_buy = payload.get("who_should_buy", [])
     who_avoid = payload.get("who_should_avoid", [])
-    if who_buy or who_avoid:
+    if (who_buy or who_avoid) and not guide:
         story.append(Paragraph("4. CONSUMER DECISION MATRIX (WHO SHOULD BUY VS. AVOID)", style_sec_heading))
         story.append(HRFlowable(width="100%", thickness=1, color=c_border, spaceBefore=2, spaceAfter=8))
 

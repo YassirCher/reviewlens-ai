@@ -1,8 +1,18 @@
 import { expect, test } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { productError, readEvents, reportTokenFromApiPath, validRunId, validToken } from "../../src/lib/v2";
+import { partialNotice, warningLabel } from "../../src/lib/warnings";
 
 const RUN = "11111111-1111-4111-8111-111111111111";
+
+test("partial notices distinguish source coverage from audit warnings", () => {
+  expect(partialNotice({ source_count_analyzed: 5, source_count_requested: 5, warnings: ["quality_audit_warning"] }))
+    .toBe("All 5 requested sources were analyzed. The report contains evidence warnings; some findings were omitted.");
+  expect(partialNotice({ source_count_analyzed: 2, source_count_requested: 5, warnings: ["partial_source_coverage"] }))
+    .toContain("2 of 5 requested sources could be analyzed");
+  expect(warningLabel("quality_audit_warning")).toContain("Some findings were omitted");
+  expect(warningLabel("future_warning")).toBe("future warning");
+});
 
 test("public path and input validation rejects unsafe shapes", () => {
   expect(productError("Sony WH-1000XM5")).toBeNull();

@@ -163,6 +163,11 @@ def test_public_projection_contract_forbids_cost_and_internal_fields() -> None:
         "usage_pending": False,
     }
     assert PublicReportResponse.model_validate(safe).total_tokens == 120
+    guide = {"buy_if_finding_ids": [], "caveat_finding_ids": [], "tested_source_ids": [],
+             "long_term_period": None, "long_term_source_id": None, "unknowns": ["Current price"]}
+    assert PublicReportResponse.model_validate({**safe, "decision_guide": guide}).decision_guide.unknowns == (
+        "Current price",
+    )
     with pytest.raises(ValidationError):
         PublicReportResponse.model_validate({**safe, "cost_microusd": 500})
     with pytest.raises(ValidationError):

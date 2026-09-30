@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from jsonschema import Draft202012Validator
@@ -23,6 +23,8 @@ from app.analysis.contracts import (
     SourceCuratorInput,
 )
 from app.analysis.product_info import ProductAnalystInput, ProductExtractionDraft
+from app.analysis.review import VideoExtraction
+from app.analysis.synthesis import AtomicBuyingSynthesis, AtomicSynthesisInput, BuyingSynthesis, SourceBoundBuyingSynthesis, SynthesisInput
 from app.knowledge.contracts import NodeType, RelationType, RetrievalPolicy, TrustLevel
 from app.runtime.contracts import canonical_json_hash
 
@@ -146,7 +148,7 @@ AGENT_SPECS: tuple[AgentSpec, ...] = (
         prohibited_behaviors=("analyze product verdict", "use views as sole quality signal", "fetch arbitrary URLs"),
         input_model=SourceCuratorInput,
         output_model=SourceCuration,
-        role_prompt="Classify every supplied candidate, preserve deterministic exclusions, and recommend a diverse ordered eligible list.",
+        role_prompt="Classify every candidate, preserve exclusions, and order eligible reviews for independent channels, long-term use, and complementary tests.",
         tool_keys=("youtube.video_details", "graph.get_nodes", "graph.query_relations"),
         # Candidate metadata is already present in the structured task input. Pulling
         # every raw source node a second time made real 20–40 candidate prompts exceed
@@ -168,7 +170,12 @@ AGENT_SPECS: tuple[AgentSpec, ...] = (
         prohibited_behaviors=("use outside knowledge", "analyze another source", "claim visual evidence"),
         input_model=ReviewAnalystInput,
         output_model=SourceAnalysisDraft,
-        role_prompt="Extract review context, pros, cons, issues, fit, recommendation, and atomic timestamped evidence. Do not calculate source_score.",
+        role_prompt=(
+            "Extract atomic review claims about observed results, conditions, duration, and buyer relevance; "
+            "label stated specs as specs. For every evidence item set source_node_id exactly to task_input.source_id "
+            "and copy at least three consecutive transcript words verbatim, with start/end times near those words. "
+            "Keep prose lists brief. Do not calculate source_score."
+        ),
         tool_keys=("graph.get_nodes", "graph.query_relations", "evidence.validate", "scoring.preview"),
         retrieval_policy=_retrieval(
             (NodeType.SOURCE, NodeType.TRANSCRIPT, NodeType.TRANSCRIPT_CHUNK),
@@ -193,15 +200,10 @@ AGENT_SPECS: tuple[AgentSpec, ...] = (
         input_model=ProductAnalystInput,
         output_model=ProductExtractionDraft,
         role_prompt=(
-            "Use only this video's title, description, and timestamped transcript. Choose useful attribute groups "
-            "for the requested product category. Extract every distinct, useful product detail you can cite within "
-            "the output limits, including explicitly listed options and the reviewer's stated sample. Cover details "
-            "throughout the supplied transcript, not only its opening. Do not repeat the same attribute and value. "
-            "Facts about comparison products or sibling models do not belong to the requested product card. "
-            "Preserve the exact model and region scope of each claim. A sample detail is not a product-wide option. "
-            "Never infer color, capacity, or combinations from model knowledge or unseen video frames. "
-            "For every item quote a short exact excerpt and identify title, description, or transcript; transcript "
-            "timestamps must be segment starts. Return empty lists when unknown."
+            "From this video's title, description, and timed transcript, extract cited category facts, exact model/region, "
+            "stated options, and the reviewer's tested sample. Prioritize purchase-relevant details over repetition. "
+            "Keep sibling products and sample-only details separate; never infer variants or unseen visuals. "
+            "Quote exact excerpts with source part and segment-start time. Use empty lists for unknowns."
         ),
         tool_keys=(),
         retrieval_policy=_retrieval(
@@ -263,9 +265,19 @@ AGENT_SPECS: tuple[AgentSpec, ...] = (
         name="Consensus Analyst",
         purpose="Produce a cross-source buying recommendation draft.",
         prohibited_behaviors=("hide disagreement", "read unselected transcripts", "let comments outweigh reviewers"),
-        input_model=ConsensusAnalystInput,
-        output_model=FinalReportDraft,
-        role_prompt="Synthesize independent reviewer agreement and disagreement. Focus on the most salient consensus pros, cons, and genuine reviewer disagreements grounded in the supplied analyses. Do not calculate overall_score, verdict, or final confidence.",
+        input_model=SynthesisInput,
+        output_model=BuyingSynthesis,
+        role_prompt=(
+            "Return a buying synthesis with 1-12 atomic cited findings, labelled strength or caveat. "
+            "Use exact supplied source_ids and evidence_node_ids. Every named source must support the entire "
+            "finding through its cited excerpts; combine multiple excerpts when needed. Narrow or split claims "
+            "rather than add unsupported quantities, conditions, or model scope. Attribute stated specs as claims, "
+            "not observed tests. Retain material drawbacks and opposing reviewer results. Ground summary and buyer "
+            "fit in the findings. Use null for unknown usage duration and empty lists for unknown optional details. "
+            "When report_under_repair is supplied, repair the precise correction_issues using source_analyses; "
+            "rebuild narrowed cited findings even when all original findings were rejected. A narrative-only "
+            "response is invalid. Do not calculate score, verdict, or confidence."
+        ),
         tool_keys=("graph.get_nodes", "graph.query_relations", "vector.search", "scoring.preview"),
         retrieval_policy=_retrieval(
             (NodeType.SOURCE_ANALYSIS, NodeType.AUDIENCE_SIGNAL, NodeType.EVIDENCE, NodeType.CLAIM, NodeType.FINDING, NodeType.COMPARISON),
@@ -285,7 +297,22 @@ AGENT_SPECS: tuple[AgentSpec, ...] = (
         prohibited_behaviors=("rewrite the report", "silently remove claims", "approve missing central evidence"),
         input_model=QualityAuditorInput,
         output_model=AuditResult,
-        role_prompt="Return pass, pass_with_warnings, or fail with typed field issues. Never return a replacement report.",
+        role_prompt=(
+            "CITATION AUDIT: Check the report_draft against source_analyses. Stored evidence excerpts already passed "
+            "source-lineage, verbatim-quote, and timestamp validation; check their meaning, not external availability. "
+            "Resolve each finding's evidence_node_ids inside claims.evidence and combine cited supporting excerpts "
+            "per named source. Each named source must support the entire finding. Compare translations by meaning "
+            "while preserving quantities, negation, test conditions, and product scope. An English finding need not "
+            "copy a non-English quote. Source IDs alone and claim prose beyond its excerpts are insufficient. "
+            "Single-source findings are allowed. Stated specs must not become tested results. Disagreement sides "
+            "must match claims and excerpts from their respective sources. Summary and buyer fit synthesize cited "
+            "findings and have no separate evidence-ID fields. Duration uses the source's usage_period_raw, not "
+            "battery runtime. Empty optional lists and null duration make no claim and are valid. Low review scores "
+            "are not proof that a quote is unsupported. Flag a specific unsupported assertion at its indexed path "
+            "using unsupported_finding, unsupported_disagreement, or unsupported_narrative; do not reject an entire "
+            "field merely for lacking inline UUIDs. Pass supported reports, warn about stated limitations, and fail "
+            "unsupported material. Return typed issues, never a replacement report."
+        ),
         tool_keys=("graph.get_nodes", "graph.query_relations", "evidence.validate", "scoring.preview"),
         retrieval_policy=_retrieval(
             (NodeType.SOURCE_ANALYSIS, NodeType.AUDIENCE_SIGNAL, NodeType.EVIDENCE, NodeType.CLAIM, NodeType.FINDING, NodeType.COMPARISON, NodeType.VERDICT),
@@ -300,7 +327,83 @@ AGENT_SPECS: tuple[AgentSpec, ...] = (
     ),
 )
 
+LEGACY_REVIEW_SPEC = next(item for item in AGENT_SPECS if item.key == "review_analyst")
+LEGACY_SYNTHESIS_SPEC = next(item for item in AGENT_SPECS if item.key == "consensus_analyst")
+AGENT_SPECS = tuple(replace(item,
+    output_model=VideoExtraction,
+    role_prompt=(
+        "Analyze only assigned metadata and timed transcript. Return review and optional product_information. "
+        "Use at most six distinct atomic buying claims: retain drawbacks, observed tests, conditions, duration, "
+        "and buyer fit. Label specs as stated; mark buying conclusions central. Every claim clause and quantity "
+        "needs quoted support. Copy at least three consecutive original words per quote with nearby start/end times. "
+        "Server binds sources; omit UUIDs. supports means a quote agrees with the claim, even a negative claim; "
+        "contradicts means it opposes it. Scores and confidence are integer 0-100 points: sentiment/recommendation "
+        "0 negative, 50 mixed/neutral, 100 positive. Evidence quality/confidence measure support, not sentiment. "
+        "Keep prose brief. Product values must appear literally in their exact short excerpts; copy original units. "
+        "Quotes may span adjacent caption segments; cite their first segment start. Scope is null unless stated. Include "
+        "only stated category, variant, and sample facts; omit siblings, inferences, and unknowns. Never calculate source_score."
+    ),
+    retrieval_policy=_retrieval((NodeType.SOURCE, NodeType.TRANSCRIPT_CHUNK),
+        required=(NodeType.SOURCE, NodeType.TRANSCRIPT_CHUNK), tokens=14000, hops=0,
+        vector_top_k=0, lexical_candidate_limit=0),
+    max_output_tokens=4000, max_reasoning_tokens=0, max_total_tokens=26000,
+) if item.key == "review_analyst" else replace(item,
+    input_model=AtomicSynthesisInput, output_model=SourceBoundBuyingSynthesis,
+    role_prompt=(
+        "Return 1-12 atomic assertions from evidence_catalog. Each assertion binds ONE source_ref and only that "
+        "source's evidence_refs. Write one short, complete observation per assertion, not a paragraph listing "
+        "different reviewers. Use kind strength for a supported benefit or stated useful feature; caveat for "
+        "a drawback or limitation. Keep a balanced selection of buying-relevant benefits and drawbacks. "
+        "Cover different sources where useful, retaining contrary test results as separate assertions. "
+        "Put s1/e1-style catalog labels ONLY in reference fields, never in attribute, observation or conditions. "
+        "Use natural attribute names, not snake_case. Each assertion has one attribute, one observation, "
+        "optional test/usage conditions, and evidence_refs such as e1. Split distinct properties: "
+        "sound quality versus driver size, comfort versus weight, gaming latency versus directional sound, "
+        "and battery runtime versus case capacity. Do not combine reviewers' different details in one assertion. "
+        "The assigned source must support the whole assertion; cite multiple excerpts from that source if needed. "
+        "Quote meaning, quantities, polarity, conditions and product scope must agree. "
+        "Use short evidence/source references from the catalog, never UUIDs. Label claimed specs as stated rather "
+        "than tested. Retain material drawbacks, opposing observations, and buyer fit. Summary and buyer guidance "
+        "must synthesize these assertions. Duration uses a source's usage_period_raw, never battery runtime. "
+        "When report_under_repair exists, replace rejected compound findings with short source-bound assertions "
+        "from the catalog; never repeat an unchanged rejected finding. Even when all old findings were removed, "
+        "use the catalog to rebuild. Use null/empty lists for unknown optional details. "
+        "Do not calculate scores, verdict or confidence."
+    ),
+    retrieval_policy=_retrieval((), tokens=128, hops=0, vector_top_k=0, lexical_candidate_limit=0),
+) if item.key == "consensus_analyst" else replace(item,
+    role_prompt=item.role_prompt + " Examine every assertion clause against actual excerpts, not merely the "
+        "derived claim prose. Unsupported material need not be contradicted to fail. Check each condition "
+        "and attribute separately, including compound build, fit, and performance claims.",
+) if item.key == "quality_auditor" else item for item in AGENT_SPECS)
 AGENT_REGISTRY = {item.key: item for item in AGENT_SPECS}
+
+
+def snapshot_output_model(role: str, schema: dict) -> type[BaseModel]:
+    """Only compiled, known contracts can execute an immutable published schema."""
+    current = AGENT_REGISTRY[role].output_model
+    if schema == current.model_json_schema():
+        return current
+    if role == "review_analyst" and schema == SourceAnalysisDraft.model_json_schema():
+        return SourceAnalysisDraft
+    if role == "consensus_analyst" and schema == FinalReportDraft.model_json_schema():
+        return FinalReportDraft
+    if role == "consensus_analyst" and schema == BuyingSynthesis.model_json_schema():
+        return BuyingSynthesis
+    if role == "consensus_analyst" and schema == AtomicBuyingSynthesis.model_json_schema():
+        return AtomicBuyingSynthesis
+    raise ValueError("unsupported snapshotted output contract")
+
+
+def snapshot_input_model(role: str, schema: dict) -> type[BaseModel]:
+    current = AGENT_REGISTRY[role].input_model
+    if schema == current.model_json_schema():
+        return current
+    if role == "consensus_analyst" and schema == ConsensusAnalystInput.model_json_schema():
+        return ConsensusAnalystInput
+    if role == "consensus_analyst" and schema == SynthesisInput.model_json_schema():
+        return SynthesisInput
+    raise ValueError("unsupported snapshotted input contract")
 
 
 def evaluate_agent_spec(spec: AgentSpec) -> dict[str, Any]:

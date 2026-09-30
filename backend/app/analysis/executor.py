@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import json
 import random
-import re
 import uuid
 from dataclasses import replace
 from datetime import datetime, timezone
@@ -16,7 +15,6 @@ from sqlalchemy import func, select
 from app.analysis.contracts import (
     AudienceAnalysis,
     AudienceAnalysisDraft,
-    AuditIssue,
     AuditResult,
     CandidateContext,
     FinalReport,
@@ -28,6 +26,8 @@ from app.analysis.contracts import (
     SourceCuration,
 )
 from app.analysis.prompting import build_prompt_envelope
+from app.analysis.grounding import ground_report
+from app.analysis.projection import project_claims
 from app.analysis.product_info import (
     ProductExtractionDraft,
     SampleUsed,
@@ -36,7 +36,9 @@ from app.analysis.product_info import (
     source_metadata,
     validate_extraction,
 )
-from app.analysis.registry import AGENT_REGISTRY, AgentSpec, UNIVERSAL_POLICY
+from app.analysis.registry import AGENT_REGISTRY, AgentSpec, UNIVERSAL_POLICY, snapshot_input_model, snapshot_output_model
+from app.analysis.review import VideoExtraction, bind_review, parse_video_extraction, video_extraction_schema
+from app.analysis.synthesis import AtomicBuyingSynthesis, AtomicSynthesisInput, BuyingSynthesis, SynthesisBindingError, compact_synthesis_input
 from app.config import Settings, settings
 from app.db.models import (
     AgentDefinition,
@@ -44,6 +46,7 @@ from app.db.models import (
     AnalysisRun,
     ConfigurationSnapshot,
     ContextNode,
+    ContextEdge,
     ContextNodeVersion,
     ModelPolicyVersion,
     OpenRouterModelSnapshot,
@@ -71,12 +74,15 @@ from app.tools.contracts import (
     YouTubeCommentsOutput,
     YouTubeSearchOutput,
     YouTubeTranscriptOutput,
+    YouTubeTranscriptInput,
     YouTubeVideoDetailsOutput,
 )
 from app.tools.errors import ToolExecutionError
+from app.tools.evidence import transcript_excerpt_matches
 from app.tools.runner import invoke_tool
 from app.tools.scoring import preview_scoring
-from app.tools.youtube import chunk_transcript, rank_candidates
+from app.tools.youtube import chunk_transcript, rank_candidates, source_slot_queues
+from app.tools.caption_cache import available_caption, caption_origin
 import logging
 
 logger = logging.getLogger(__name__)
@@ -400,29 +406,24 @@ async def _fetch_transcript(
     *,
     config: Settings,
 ) -> dict[str, Any]:
-    startup_delay = 0.35 * (source_index - 1) + random.uniform(0.05, 0.25)
-    if startup_delay > 0:
-        await asyncio.sleep(startup_delay)
-
     discovery = _task_output(run.id, "discover_candidates") or {}
-    curation = SourceCuration.model_validate(_task_output(run.id, "curate_sources") or {})
+    curated = _task_output(run.id, "curate_sources") or {}
+    curation = SourceCuration.model_validate({key: curated[key] for key in ("decisions", "ordered_video_ids")})
     candidates = {item["video_id"]: item for item in discovery.get("candidates", [])}
     source_count = int(run.requested_options.get("source_count", config.default_video_count))
-    ordered = [item for item in curation.ordered_video_ids if item in candidates]
-
-    primary = [ordered[source_index - 1]] if (source_index - 1) < len(ordered) else []
-    reserves = [
-        vid for vid in ordered[source_count:]
-        if vid not in primary
-    ] + [
-        item["video_id"] for item in discovery.get("candidates", [])
-        if item.get("video_id") and item["video_id"] not in ordered and item["video_id"] in candidates
-    ]
-    slot_reserves = reserves[source_index - 1 :: source_count]
-    queue = primary + slot_reserves
+    queues = curated.get("source_queues") or source_slot_queues(list(curation.ordered_video_ids), candidates,
+        [item.model_dump(mode="json") for item in curation.decisions], source_count)
+    queue = queues[source_index - 1]
+    language = discovery.get("requested_language", "en")
+    if queue and queue[0] not in curated.get("cached_video_ids", []):
+        await asyncio.sleep(0.35 * (source_index - 1) + random.uniform(0.05, 0.25))
+    blocked = False
 
     for video_id in queue:
         candidate = candidates[video_id]
+        request = YouTubeTranscriptInput(video_id=video_id, requested_language=language)
+        if blocked and not await asyncio.to_thread(available_caption, request, config=config):
+            continue
         try:
             payload = await invoke_tool(
                 attempt_id,
@@ -436,11 +437,14 @@ async def _fetch_transcript(
             )
         except ToolExecutionError as exc:
             if exc.code == "transcript_access_blocked":
-                raise RuntimeTaskError(exc.code, category=exc.category, retryable=False) from exc
+                blocked = True
+                continue
             if exc.code.startswith("transcript_"):
                 continue
             raise RuntimeTaskError(exc.code, category=exc.category, retryable=exc.retryable) from exc
         transcript = YouTubeTranscriptOutput.model_validate(payload)
+        cached = await asyncio.to_thread(available_caption, request, config=config)
+        fetched_at = cached.fetched_at if cached else utc_now()
         chunks = chunk_transcript(transcript, config=config)
         duration = max(
             segment.start_seconds + (segment.duration_seconds or 0)
@@ -462,6 +466,8 @@ async def _fetch_transcript(
                     "caption_kind": transcript.caption_kind,
                     "translated": transcript.translated,
                     "duration_seconds": duration,
+                    "caption_origin": caption_origin(config),
+                    "caption_fetched_at": fetched_at.isoformat(),
                     "untrusted": True,
                 },
                 public_visibility="admin",
@@ -550,7 +556,31 @@ async def _fetch_transcript(
             "translated": transcript.translated,
             "caption_kind": transcript.caption_kind,
         }
+    if blocked:
+        raise RuntimeTaskError("transcript_access_blocked", category="upstream", retryable=False)
     return {"available": False, "source_index": source_index, "reason": "transcript_unavailable"}
+
+
+async def _curated_source_queues(run: AnalysisRun, curation: SourceCuration, config: Settings) -> dict:
+    discovery = _task_output(run.id, "discover_candidates") or {}
+    candidates = {item["video_id"]: item for item in discovery.get("candidates", [])}
+    eligible = {item.video_id for item in curation.decisions if item.eligible}
+    language = discovery.get("requested_language", "en")
+    allowed = list(dict.fromkeys(video_id for video_id in curation.ordered_video_ids
+        if video_id in eligible and video_id in candidates and not candidates[video_id].get("deterministic_exclusion")))
+    slots = asyncio.Semaphore(4)
+
+    async def cached(video_id: str) -> bool:
+        async with slots:
+            return bool(await asyncio.to_thread(available_caption,
+                YouTubeTranscriptInput(video_id=video_id, requested_language=language), config=config))
+
+    hits = await asyncio.gather(*(cached(video_id) for video_id in allowed))
+    cached_ids = [video_id for video_id, hit in zip(allowed, hits, strict=True) if hit]
+    queues = source_slot_queues(list(curation.ordered_video_ids), candidates,
+        [item.model_dump(mode="json") for item in curation.decisions],
+        int(run.requested_options.get("source_count", 5)), frozenset(cached_ids))
+    return {**curation.model_dump(mode="json"), "source_queues": queues, "cached_video_ids": cached_ids}
 
 
 async def _fetch_comments(
@@ -716,12 +746,16 @@ def _agent_task_input(spec: AgentSpec, task: TaskRun, run: AnalysisRun) -> tuple
         return {"source_analyses": reviews, "audience_analyses": audiences}, ()
     if spec.key == "consensus_analyst":
         discovery = _task_output(run.id, "discover_candidates") or {}
+        report_under_repair = None
         if task.input_payload.get("correction_stage"):
             audit = _task_output(run.id, "audit_report") or {}
             original = _task_output(run.id, "build_consensus") or {}
+            if audit.get("grounding_terminal"):
+                return {"_shortcut": original}, ()
             if (audit.get("audit") or {}).get("verdict") in {"pass", "pass_with_warnings"}:
                 return {"_shortcut": original}, ()
             issues = (audit.get("audit") or {}).get("issues", [])
+            report_under_repair = original.get("draft")
         else:
             issues = []
         return {
@@ -731,11 +765,12 @@ def _agent_task_input(spec: AgentSpec, task: TaskRun, run: AnalysisRun) -> tuple
             "source_analyses": reviews,
             "audience_analyses": audiences,
             "correction_issues": issues,
+            "report_under_repair": report_under_repair,
         }, ()
     if spec.key == "quality_auditor":
         if task.input_payload.get("reaudit_stage"):
             first_audit = _task_output(run.id, "audit_report") or {}
-            if (first_audit.get("audit") or {}).get("verdict") in {"pass", "pass_with_warnings"}:
+            if first_audit.get("grounding_terminal") or (first_audit.get("audit") or {}).get("verdict") in {"pass", "pass_with_warnings"}:
                 return {"_shortcut": first_audit}, ()
             consensus = _task_output(run.id, "correct_consensus") or {}
         else:
@@ -878,6 +913,8 @@ async def _call_agent(
             raise RuntimeTaskError("agent_snapshot_prompt_invalid", category="configuration")
         spec = replace(
             spec,
+            input_model=snapshot_input_model(spec.key, version.input_schema),
+            output_model=snapshot_output_model(spec.key, version.output_schema),
             role_prompt=version.system_prompt[len(prefix):],
             prohibited_behaviors=tuple(version.prohibited_behaviors),
             retrieval_policy=RetrievalPolicy.model_validate(version.retrieval_policy),
@@ -889,7 +926,13 @@ async def _call_agent(
             timeout_seconds=int(version.execution_limits["timeout_seconds"]),
         )
     try:
-        validated_input = spec.input_model.model_validate(payload)
+        # Legacy snapshots keep their original input contract.
+        input_payload = dict(payload)
+        if spec.input_model is AtomicSynthesisInput:
+            input_payload = compact_synthesis_input(input_payload)
+        if spec.key == "consensus_analyst" and "report_under_repair" not in spec.input_model.model_fields:
+            input_payload.pop("report_under_repair", None)
+        validated_input = spec.input_model.model_validate(input_payload)
     except ValidationError as exc:
         raise RuntimeTaskError(
             "agent_input_invalid",
@@ -901,7 +944,7 @@ async def _call_agent(
     # Reserve tokens for system prompt (~600 tokens), task wrapper (~300 tokens), and safety margin (400 tokens)
     available_context = max(0, spec.max_input_tokens - task_input_tokens - 1300)
     budget_override = min(spec.retrieval_policy.input_token_budget, available_context) if available_context > 0 else 0
-    if spec.key == "product_information_analyst" and budget_override >= 200:
+    if (spec.key == "product_information_analyst" or spec.output_model is VideoExtraction) and budget_override >= 200:
         seeds = _product_context_seeds(
             run, task, config=config, token_budget=budget_override,
             max_nodes_per_source=spec.retrieval_policy.maximum_nodes_per_source,
@@ -918,16 +961,6 @@ async def _call_agent(
     )
     correction = attempt_input.get("correction")
     task_instruction = spec.purpose
-    if spec.key == "quality_auditor":
-        task_instruction = (
-            "Verify the report_draft against the supplied source_analyses. "
-            "Return verdict 'pass' with empty issues if the consensus claims are supported by the reviews. "
-            "Return 'pass_with_warnings' if there are minor limitations or caveats noted in the reviews. "
-            "Return 'fail' only if there are critical fabricated claims contradicted by the sources. "
-            "Note: Only consensus_pros and consensus_cons require evidence_node_ids (which are already linked to the sources). "
-            "Narrative fields (summary, who_should_buy, who_should_avoid, limitations, product names) synthesize findings and do not take evidence_node_ids. "
-            "Do not return missing_central_evidence on narrative fields or on items that already have evidence_node_ids."
-        )
     envelope = build_prompt_envelope(
         spec,
         task_instruction=task_instruction,
@@ -997,11 +1030,12 @@ async def _call_agent(
             ChatMessage(role="system", content=envelope.system),
             ChatMessage(role="user", content=envelope.user),
         ),
-        response_schema=spec.output_model.model_json_schema(),
+        response_schema=video_extraction_schema() if spec.output_model is VideoExtraction else spec.output_model.model_json_schema(),
         schema_name=spec.output_model.__name__,
         estimated_prompt_tokens=max(prompt_tokens, context_tokens),
         estimated_cost_microusd=estimated_cost,
         max_network_attempts=1,
+        optional_output_fields=("product_information",) if spec.output_model is VideoExtraction else (),
     )
     try:
         result = await OpenRouterGateway(config=config).chat(invocation)
@@ -1032,7 +1066,8 @@ async def _call_agent(
             },
         ) from exc
     try:
-        return spec.output_model.model_validate(result.content)
+        return (parse_video_extraction(result.content) if spec.output_model is VideoExtraction
+                else spec.output_model.model_validate(result.content))
     except ValidationError as exc:
         raise RuntimeTaskError(
             "agent_output_invalid",
@@ -1077,23 +1112,53 @@ async def _postprocess_review(
         transcript_version_id = transcript.current_version_id
         source_version_id = source_node.current_version_id
         source_version = db.get(ContextNodeVersion, source_version_id)
+        transcript_version = db.get(ContextNodeVersion, transcript_version_id)
+        if (
+            not source_version or not transcript_version
+            or source_version.provenance.get("video_id") != source["video_id"]
+            or transcript_version.provenance.get("video_id") != source["video_id"]
+        ):
+            raise RuntimeTaskError("review_source_lineage_invalid", category="validation", retryable=False)
+        transcript_body = read_version_body(workspace, transcript_version, config=config)[1]
+        validated_claims = []
+        invalid_evidence = 0
+        wrong_source_ids = 0
+        invalid_quotes_or_times = 0
+        for claim in draft.claims:
+            valid_refs = []
+            for evidence in claim.evidence:
+                if evidence.source_node_id != draft.source_id:
+                    wrong_source_ids += 1
+                    invalid_evidence += 1
+                elif transcript_excerpt_matches(
+                    transcript_body, evidence.evidence_text,
+                    evidence.timestamp_start_seconds, evidence.timestamp_end_seconds,
+                ):
+                    valid_refs.append(evidence)
+                else:
+                    invalid_quotes_or_times += 1
+                    invalid_evidence += 1
+            if any(ref.support_type == "supports" for ref in valid_refs):
+                validated_claims.append((claim, valid_refs))
+        if not any(claim.central for claim, _ in validated_claims):
+            return {
+                "skipped": True,
+                "reason": "central_evidence_unverified",
+                "source_index": source["source_index"],
+                "validation_counts": {
+                    "claims": len(draft.claims),
+                    "valid_noncentral_claims": len(validated_claims),
+                    "wrong_source_ids": wrong_source_ids,
+                    "invalid_quotes_or_times": invalid_quotes_or_times,
+                },
+            }
         source_uri = source_version.source_uri if source_version else None
-        source_duration: float | None = None
-        if source_version and isinstance(source_version.provenance.get("duration_seconds"), (int, float)):
-            source_duration = float(source_version.provenance["duration_seconds"])
         claims: list[dict[str, Any]] = []
-        for claim_index, claim in enumerate(draft.claims):
+        for claim_index, (claim, valid_refs) in enumerate(validated_claims):
             evidence_rows: list[dict[str, Any]] = []
-            for evidence_index, evidence in enumerate(claim.evidence):
+            for evidence_index, evidence in enumerate(valid_refs):
                 start_sec = evidence.timestamp_start_seconds
                 end_sec = evidence.timestamp_end_seconds
-                if source_duration is not None and source_duration > 0:
-                    if end_sec is not None and end_sec > source_duration:
-                        end_sec = source_duration
-                    if start_sec is not None and start_sec > source_duration:
-                        start_sec = max(0.0, source_duration - 1.0)
-                    if start_sec is not None and end_sec is not None and end_sec < start_sec:
-                        end_sec = start_sec
                 version = create_node(
                     db,
                     workspace.id,
@@ -1140,9 +1205,10 @@ async def _postprocess_review(
                         "evidence_node_id": str(version.node_id),
                     }
                 )
-            claims.append({"claim": claim.claim, "central": claim.central, "evidence": evidence_rows})
-    for claim_index, claim in enumerate(claims):
-        for evidence_index, evidence in enumerate(claim["evidence"]):
+            if evidence_rows:
+                claims.append({"claim": claim.claim, "central": claim.central, "evidence": evidence_rows})
+    for claim_index, claim_row in enumerate(claims):
+        for evidence_index, evidence in enumerate(claim_row["evidence"]):
             result = await invoke_tool(
                 attempt_id,
                 "evidence.validate",
@@ -1152,7 +1218,7 @@ async def _postprocess_review(
                     "evidence_text": evidence["evidence_text"],
                     "timestamp_start_seconds": evidence["timestamp_start_seconds"],
                     "timestamp_end_seconds": evidence["timestamp_end_seconds"],
-                    "central_claim": claim["central"],
+                    "central_claim": claim_row["central"],
                 },
                 call_key=f"analysis.evidence.{claim_index}.{evidence_index}",
                 config=config,
@@ -1161,17 +1227,24 @@ async def _postprocess_review(
                 raise RuntimeTaskError(
                     "evidence_validation_failed",
                     category="validation",
-                    retryable=True,
+                    retryable=False,
                     invalid_output_hash=canonical_json_hash(draft.model_dump(mode="json")),
                     validator_results={"status": "failed", "issues": result["error_codes"]},
                 )
     source_score = round(
         0.60 * draft.purchase_recommendation_score + 0.40 * draft.reviewer_sentiment_score
     )
+    safe_prose = {
+        "recommendation_summary": "Some source details could not be verified; inspect the cited claims.",
+        "pros": (), "cons": (), "major_issues": (),
+        "recommended_for": (), "not_recommended_for": (),
+    } if invalid_evidence else {}
     analysis_payload = {
         **draft.model_dump(mode="json", exclude={"claims"}),
+        **safe_prose,
         "channel_id": source["channel_id"],
         "source_score": source_score,
+        "evidence_quality_score": min(draft.evidence_quality_score, round(100 * len(claims) / len(draft.claims))),
         "claims": claims,
         "transcript_language": source["transcript_language"],
         "translated": source["translated"],
@@ -1279,9 +1352,12 @@ def _postprocess_knowledge(
     plan: GraphMutationPlan,
     *,
     config: Settings,
+    evidence_owners: dict[str, tuple[str, str]] | None = None,
 ) -> dict[str, Any]:
     finding_ids: list[str] = []
     with session_scope() as db:
+        if evidence_owners is not None:
+            db.scalar(select(AnalysisRun).where(AnalysisRun.id == run.id).with_for_update())
         workspace = db.scalar(select(Workspace).where(Workspace.run_id == run.id))
         if workspace is None:
             raise RuntimeTaskError("analysis_workspace_missing", category="storage")
@@ -1302,15 +1378,28 @@ def _postprocess_knowledge(
                 if analysis_node:
                     source_versions.append(analysis_node.id)
             evidence_nodes = [db.get(ContextNode, item) for item in finding.evidence_node_ids]
-            if not source_versions or any(
+            if len(source_versions) != len(finding.source_ids) or any(
                 item is None
                 or item.workspace_id != workspace.id
                 or item.node_type != NodeType.EVIDENCE.value
                 or item.status != "active"
                 for item in evidence_nodes
             ):
-                raise RuntimeTaskError("finding_lineage_invalid", category="validation", retryable=True)
-            version = create_node(
+                raise RuntimeTaskError("finding_lineage_invalid", category="validation",
+                                       retryable=evidence_owners is None)
+            if evidence_owners is not None:
+                for node in evidence_nodes:
+                    owner = evidence_owners.get(str(node.id))
+                    if owner is None or owner[0] not in {str(sid) for sid in finding.source_ids}:
+                        raise RuntimeTaskError("finding_lineage_invalid", category="validation")
+                    _verify_projection_lineage(db, workspace.id, node, uuid.UUID(owner[0]))
+            stable_id = uuid.uuid5(run.id, "projected-finding:" + canonical_json_hash(
+                finding.model_dump(mode="json"))) if evidence_owners is not None else None
+            existing = db.get(ContextNode, stable_id) if stable_id is not None else None
+            if existing and (existing.workspace_id != workspace.id or existing.status != "active"
+                             or existing.node_type != NodeType.FINDING.value or existing.current_version_id is None):
+                raise RuntimeTaskError("finding_lineage_invalid", category="validation")
+            version = db.get(ContextNodeVersion, existing.current_version_id) if existing else create_node(
                 db,
                 workspace.id,
                 NodeDraft(
@@ -1327,7 +1416,7 @@ def _postprocess_knowledge(
                     public_visibility="admin",
                     created_by_attempt_id=attempt_id,
                 ),
-                config=config,
+                config=config, node_id=stable_id,
             )
             finding_ids.append(str(version.node_id))
             for source_version_id in source_versions:
@@ -1345,17 +1434,82 @@ def _postprocess_knowledge(
                         ),
                     ),
                 )
+            if evidence_owners is not None:
+                for node in evidence_nodes:
+                    relation = (RelationType.SUPPORTS if evidence_owners[str(node.id)][1] == "supports"
+                                else RelationType.CONTRADICTS)
+                    create_relation(db, workspace.id, RelationDraft(
+                        source_version_id=node.current_version_id, target_version_id=version.id,
+                        relation_type=relation, confidence=finding.confidence,
+                        created_by_attempt_id=attempt_id,
+                        idempotency_key=canonical_json_hash(["projection-evidence", str(node.current_version_id),
+                                                            str(version.id), relation.value]),
+                    ))
     return {"plan": plan.model_dump(mode="json"), "finding_node_ids": finding_ids}
 
 
-def _score(reviews: list[dict[str, Any]], audiences: list[dict[str, Any]], requested: int) -> dict[str, Any]:
+def _verify_projection_lineage(db: Any, workspace_id: uuid.UUID, evidence: ContextNode,
+                               source_id: uuid.UUID) -> None:
+    """Check the directed evidence -> transcript -> assigned-source lineage."""
+    source = db.get(ContextNode, source_id)
+    if not source or source.workspace_id != workspace_id or source.status != "active" or source.node_type != "source":
+        raise RuntimeTaskError("finding_lineage_invalid", category="validation")
+    targets = db.scalars(select(ContextEdge.target_version_id).where(
+        ContextEdge.workspace_id == workspace_id, ContextEdge.status == "active",
+        ContextEdge.source_version_id == evidence.current_version_id,
+        ContextEdge.relation_type == RelationType.DERIVED_FROM.value,
+    )).all()
+    for target_id in targets:
+        transcript = db.get(ContextNodeVersion, target_id)
+        node = db.get(ContextNode, transcript.node_id) if transcript else None
+        if not node or node.status != "active" or node.node_type != "transcript" or node.current_version_id != target_id:
+            continue
+        linked = db.scalar(select(ContextEdge.id).where(
+            ContextEdge.workspace_id == workspace_id, ContextEdge.status == "active",
+            ContextEdge.source_version_id == target_id,
+            ContextEdge.target_version_id == source.current_version_id,
+            ContextEdge.relation_type == RelationType.DERIVED_FROM.value,
+        ).limit(1))
+        if linked:
+            return
+    raise RuntimeTaskError("finding_lineage_invalid", category="validation")
+
+
+def _project_knowledge(attempt_id: uuid.UUID, run: AnalysisRun, *, config: Settings) -> dict[str, Any]:
+    reviews = [item["analysis"] for item in _outputs_with_prefix(run.id, "analyze_review.source_") if item.get("analysis")]
+    try:
+        plan = project_claims(reviews)
+    except (ValueError, ValidationError) as exc:
+        raise RuntimeTaskError("finding_projection_invalid", category="validation") from exc
+    owners: dict[str, tuple[str, str]] = {}
+    for review in reviews:
+        for claim in review["claims"]:
+            for ref in claim["evidence"]:
+                owner = (str(review["source_id"]), str(ref["support_type"]))
+                eid = str(ref["evidence_node_id"])
+                if eid in owners and owners[eid] != owner:
+                    raise RuntimeTaskError("finding_lineage_invalid", category="validation")
+                owners[eid] = owner
+    return _postprocess_knowledge(attempt_id, run, plan, config=config, evidence_owners=owners)
+
+
+def _score(
+    reviews: list[dict[str, Any]], audiences: list[dict[str, Any]], requested: int,
+    draft: FinalReportDraft,
+) -> dict[str, Any]:
     positive = sum(item["positive_pct"] - item["negative_pct"] for item in audiences)
     delta = round(positive / len(audiences)) if audiences else 0
     confidence = round(sum(item["confidence_score"] for item in audiences) / len(audiences)) if audiences else 0
     channels = {item["channel_id"] for item in reviews}
     recurrence = min(1.0, max(0.0, len(channels) / max(1, requested)))
-    source_signs = [item["source_score"] >= 60 for item in reviews]
-    agreement = max(sum(source_signs), len(source_signs) - sum(source_signs)) / len(source_signs)
+    channel_by_source = {str(item["source_id"]): str(item["channel_id"]) for item in reviews}
+    findings = (*draft.consensus_pros, *draft.consensus_cons)
+    agreement = (
+        sum(max(0, len({channel_by_source[str(sid)] for sid in item.source_ids if str(sid) in channel_by_source}) - 1)
+            / (len(channels) - 1) for item in findings) / len(findings)
+        if findings and len(channels) > 1 else 0.0
+    )
+    conflict = len(draft.disagreements) / max(1, len(findings) + len(draft.disagreements))
     request = ScoringPreviewInput(
         sources=tuple(
             {
@@ -1374,80 +1528,11 @@ def _score(reviews: list[dict[str, Any]], audiences: list[dict[str, Any]], reque
         audience_confidence=confidence,
         independent_recurrence=recurrence,
         agreement_ratio=agreement,
-        central_conflict_ratio=0,
+        central_conflict_ratio=conflict,
         has_long_term_evidence=any(item["review_type"] in {"long_term", "retrospective"} for item in reviews),
         central_claims_valid=all(any(claim["central"] for claim in item["claims"]) for item in reviews),
     )
     return preview_scoring(request).model_dump(mode="json")
-
-
-def _deterministic_audit(draft: FinalReportDraft, reviews: list[dict[str, Any]], model_audit: AuditResult) -> AuditResult:
-    evidence_ids = {
-        evidence["evidence_node_id"]
-        for review in reviews
-        for claim in review["claims"]
-        for evidence in claim["evidence"]
-    }
-    central_ids = {
-        evidence["evidence_node_id"]
-        for review in reviews
-        for claim in review["claims"]
-        if claim["central"]
-        for evidence in claim["evidence"]
-    }
-    referenced = {
-        str(item)
-        for consensus in (*draft.consensus_pros, *draft.consensus_cons)
-        for item in consensus.evidence_node_ids
-    }
-    fatal_issues: list[AuditIssue] = []
-    if not central_ids:
-        fatal_issues.append(AuditIssue(code="central_evidence_missing", field_path="source_analyses", retryable=False))
-    if referenced - evidence_ids:
-        fatal_issues.append(AuditIssue(code="untraceable_report_evidence", field_path="consensus", retryable=True))
-
-    narrative_fields = {
-        "report_draft.summary",
-        "report_draft.who_should_buy",
-        "report_draft.who_should_avoid",
-        "report_draft.limitations",
-        "report_draft.longest_usage_period",
-        "report_draft.longest_usage_source_id",
-        "report_draft.product_canonical_name",
-        "report_draft.product_display_name",
-    }
-    valid_pro_indices = {
-        i for i, item in enumerate(draft.consensus_pros)
-        if item.evidence_node_ids and set(str(eid) for eid in item.evidence_node_ids) <= evidence_ids
-    }
-    valid_con_indices = {
-        i for i, item in enumerate(draft.consensus_cons)
-        if item.evidence_node_ids and set(str(eid) for eid in item.evidence_node_ids) <= evidence_ids
-    }
-
-    filtered_model_issues: list[AuditIssue] = []
-    for issue in model_audit.issues:
-        if issue.code == "missing_central_evidence":
-            if any(issue.field_path.startswith(prefix) for prefix in narrative_fields):
-                continue
-            if issue.field_path.startswith("report_draft.disagreements"):
-                continue
-            pro_match = re.search(r"consensus_pros\[(\d+)\]", issue.field_path)
-            if pro_match and int(pro_match.group(1)) in valid_pro_indices:
-                continue
-            con_match = re.search(r"consensus_cons\[(\d+)\]", issue.field_path)
-            if con_match and int(con_match.group(1)) in valid_con_indices:
-                continue
-        filtered_model_issues.append(issue)
-
-    all_issues = tuple({(item.code, item.field_path): item for item in (*fatal_issues, *filtered_model_issues)}.values())
-    if fatal_issues:
-        return AuditResult(verdict="fail", issues=all_issues)
-    if not all_issues:
-        return AuditResult(verdict="pass", issues=())
-    if model_audit.verdict == "pass_with_warnings":
-        return AuditResult(verdict="pass_with_warnings", issues=all_issues)
-    return AuditResult(verdict="fail", issues=all_issues)
 
 
 async def _execute_agent(
@@ -1486,35 +1571,23 @@ async def _execute_agent(
         config=config,
     )
     if spec.key == "review_analyst":
+        if isinstance(result, VideoExtraction):
+            source_index = int(task.input_payload.get("source_index", 0) or 0)
+            source = _task_output(run.id, f"fetch_transcript.source_{source_index}") or {}
+            draft = bind_review(result.review, uuid.UUID(source["source_id"]))
+            output = await _postprocess_review(attempt_id, run, draft, config=config)
+            output["product_information"] = _postprocess_product_information(
+                run, source, result.product_information, config=config)
+            return output
         return await _postprocess_review(attempt_id, run, SourceAnalysisDraft.model_validate(result), config=config)
     if spec.key == "product_information_analyst":
         source_index = int(task.input_payload.get("source_index", 0) or 0)
         source = _task_output(run.id, f"fetch_transcript.source_{source_index}") or {}
         if not source.get("available"):
             return {"skipped": True, "reason": "source_unavailable", "source_index": source_index}
-        metadata, transcript_body = _product_source_material(run, source, config)
-        draft = ProductExtractionDraft.model_validate(result)
-        facts, variants, sample = validate_extraction(
-            draft,
-            title=str(metadata.get("title") or ""),
-            description=str(metadata.get("description") or ""),
-            transcript_body=transcript_body,
-            video_id=source["video_id"],
-            canonical_product=run.canonical_product,
-        )
-        return {
-            "source_id": source["source_id"],
-            "video_id": source["video_id"],
-            "facts": [item.model_dump(mode="json") for item in facts],
-            "variants": [item.model_dump(mode="json") for item in variants],
-            "sample_used": sample.model_dump(mode="json"),
-            "extraction_diagnostics": {
-                "proposed_facts": len(draft.facts), "accepted_facts": len(facts),
-                "proposed_variants": len(draft.variants), "accepted_variants": len(variants),
-                "proposed_sample_details": sum(len(unit.details) for unit in draft.sample_units),
-                "accepted_sample_details": sum(len(unit.details) for unit in sample.units),
-            },
-        }
+        return _postprocess_product_information(run, source, ProductExtractionDraft.model_validate(result), config=config)
+    if spec.key == "source_curator":
+        return await _curated_source_queues(run, SourceCuration.model_validate(result), config)
     if spec.key == "audience_analyst":
         return _postprocess_audience(attempt_id, run, AudienceAnalysisDraft.model_validate(result), config=config)
     if spec.key == "knowledge_curator":
@@ -1522,9 +1595,21 @@ async def _execute_agent(
     if spec.key == "consensus_analyst":
         reviews = [item["analysis"] for item in _outputs_with_prefix(run.id, "analyze_review.source_") if item.get("analysis")]
         audiences = [item["analysis"] for item in _outputs_with_prefix(run.id, "analyze_audience.source_") if item.get("analysis")]
-        scoring = _score(reviews, audiences, int(run.requested_options.get("source_count", 5)))
+        try:
+            if isinstance(result, AtomicBuyingSynthesis):
+                report_draft = result.as_report(payload["product_display_name"], payload["product_canonical_name"], reviews)
+            elif isinstance(result, BuyingSynthesis):
+                report_draft = result.as_report(payload["product_display_name"], payload["product_canonical_name"])
+            else:
+                report_draft = FinalReportDraft.model_validate(result)
+        except ValueError as exc:
+            raise RuntimeTaskError("synthesis_reference_invalid", category="validation", retryable=True,
+                                   validator_results={"status": "failed", "issues": [
+                                       exc.issue if isinstance(exc, SynthesisBindingError) else {"type": "reference_invalid"}
+                                   ]}) from exc
+        scoring = _score(reviews, audiences, int(run.requested_options.get("source_count", 5)), report_draft)
         return {
-            "draft": FinalReportDraft.model_validate(result).model_dump(mode="json"),
+            "draft": report_draft.model_dump(mode="json"),
             "scoring": scoring,
             "source_analyses": reviews,
             "audience_analyses": audiences,
@@ -1533,13 +1618,51 @@ async def _execute_agent(
         consensus_key = "correct_consensus" if task.input_payload.get("reaudit_stage") else "build_consensus"
         consensus = _task_output(run.id, consensus_key) or {}
         reviews = consensus.get("source_analyses", [])
-        audit = _deterministic_audit(
+        with session_scope() as db:
+            auditor_version = db.get(AgentVersion, task.agent_version_id)
+            strict_grounding = bool(auditor_version and "unsupported_narrative" in auditor_version.system_prompt)
+        safe_draft, audit, grounding_terminal = ground_report(
             FinalReportDraft.model_validate(consensus.get("draft", {})),
             reviews,
             AuditResult.model_validate(result),
+            strict_grounding=strict_grounding,
         )
-        return {"audit": audit.model_dump(mode="json"), "consensus_task": consensus_key}
+        scoring = _score(reviews, consensus.get("audience_analyses", []),
+                         int(run.requested_options.get("source_count", 5)), safe_draft)
+        return {
+            "audit": audit.model_dump(mode="json"),
+            "consensus_task": consensus_key,
+            "safe_draft": safe_draft.model_dump(mode="json"),
+            "scoring": scoring,
+            "grounding_terminal": grounding_terminal,
+        }
     return result.model_dump(mode="json")
+
+
+def _postprocess_product_information(run: AnalysisRun, source: dict,
+        draft: ProductExtractionDraft | None, *, config: Settings) -> dict:
+    if draft is None:
+        return {"source_id": source["source_id"], "video_id": source["video_id"], "facts": [],
+                "variants": [], "sample_used": {"units": []},
+                "extraction_diagnostics": {"product_information_invalid_or_missing": True}}
+    metadata, transcript_body = _product_source_material(run, source, config)
+    rejected: list[dict[str, str]] = []
+    facts, variants, sample = validate_extraction(draft,
+        title=str(metadata.get("title") or ""), description=str(metadata.get("description") or ""),
+        transcript_body=transcript_body, video_id=source["video_id"], canonical_product=run.canonical_product,
+        diagnostics=rejected)
+    return {"source_id": source["source_id"], "video_id": source["video_id"],
+        "facts": [item.model_dump(mode="json") for item in facts],
+        "variants": [item.model_dump(mode="json") for item in variants],
+        "sample_used": sample.model_dump(mode="json"),
+        "extraction_diagnostics": {
+            "proposed_facts": len(draft.facts), "accepted_facts": len(facts),
+            "proposed_variants": len(draft.variants), "accepted_variants": len(variants),
+            "proposed_sample_details": sum(len(unit.details) for unit in draft.sample_units),
+            "accepted_sample_details": sum(len(unit.details) for unit in sample.units),
+            "rejected_items": rejected,
+            "rejection_counts": {code: sum(item["code"] == code for item in rejected)
+                                 for code in sorted({item["code"] for item in rejected})}}}
 
 
 def _publish_report(
@@ -1557,8 +1680,8 @@ def _publish_report(
         raise RuntimeTaskError("report_audit_failed", category="quality")
     consensus_key = audit_payload.get("consensus_task", "correct_consensus")
     consensus = _task_output(run.id, consensus_key) or _task_output(run.id, "build_consensus") or {}
-    draft = FinalReportDraft.model_validate(consensus.get("draft", {}))
-    scoring = consensus.get("scoring", {})
+    draft = FinalReportDraft.model_validate(audit_payload.get("safe_draft") or consensus.get("draft", {}))
+    scoring = audit_payload.get("scoring") or consensus.get("scoring", {})
     reviews = consensus.get("source_analyses", [])
     audiences = consensus.get("audience_analyses", [])
     if not reviews or not scoring.get("publishable"):
@@ -1728,6 +1851,11 @@ async def _execute(
             int(input_payload["source_index"]),
             config=config,
         )
+    if handler == "analysis.project_product_information":
+        review = _task_output(run.id, f"analyze_review.source_{int(input_payload['source_index'])}") or {}
+        return review.get("product_information") or {"skipped": True, "reason": "source_unavailable"}
+    if handler == "analysis.project_knowledge":
+        return _project_knowledge(attempt_id, run, config=config)
     if handler == "analysis.publish_report":
         return _publish_report(attempt_id, run, snapshot, config=config)
     if handler.startswith("analysis.agent."):

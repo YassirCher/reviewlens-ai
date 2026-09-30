@@ -1,0 +1,984 @@
+{
+  "captured_run_id": "e2d5b40e-a9d4-4e9d-b854-3f92fc2d9972",
+  "source_analyses": [
+    {
+      "cons": [],
+      "pros": [],
+      "claims": [
+        {
+          "claim": "Build quality is solid but the sliding mechanism feels loose, raising durability concerns.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 1,
+              "support_type": "supports",
+              "evidence_text": "এটার বিল্ড কোয়ালিটি ঠিক আছে কিন্তু যে জিনিসটা স্লাইড করে না ভাই এটাই যে দেখেন এভাবে একটু ফাঁকা থাকে",
+              "source_node_id": "2c91f666-4ec6-4e6a-97eb-8a5c0eef0c2e",
+              "evidence_node_id": "ea3310cf-d5b7-42c3-8e31-ec9724a27984",
+              "timestamp_end_seconds": 240.799,
+              "timestamp_start_seconds": 232.959
+            }
+          ]
+        },
+        {
+          "claim": "Sound quality is good with a clean, punchy bass from the 13 mm driver; music experience is enjoyable.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 1,
+              "support_type": "supports",
+              "evidence_text": "বেসটা একদম ক্লিন এন্ড অনেক ফাংসি একটা বেইস দেয়। মিউজিক এক্সপেরিয়েন্স একচুয়ালি আমার অনেক ভালো ছিল",
+              "source_node_id": "2c91f666-4ec6-4e6a-97eb-8a5c0eef0c2e",
+              "evidence_node_id": "193fb006-cb15-433a-a81d-0378e9de925b",
+              "timestamp_end_seconds": 92.72,
+              "timestamp_start_seconds": 84.96
+            }
+          ]
+        },
+        {
+          "claim": "Gaming mode provides clear directional audio to detect enemy positions; no disconnection or lag experienced during gaming.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 1,
+              "support_type": "supports",
+              "evidence_text": "এটার ডিরেকশনাল সাউন্ড এবং এনিমি কোন দিক থেকে আসছে সেটা খুব ক্লিয়ারলি বোঝা যায়",
+              "source_node_id": "2c91f666-4ec6-4e6a-97eb-8a5c0eef0c2e",
+              "evidence_node_id": "38adf60d-3725-4f1d-b8f5-e9039588532c",
+              "timestamp_end_seconds": 109.119,
+              "timestamp_start_seconds": 103.119
+            }
+          ]
+        },
+        {
+          "claim": "Battery life tested at about 5 hours continuous music/gaming per charge, with total 25–30 hours including case recharges.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 1,
+              "support_type": "supports",
+              "evidence_text": "25 থেকে 30 ঘন্টার মত একটা ব্যাটারি ব্যাকাপ পাবেন",
+              "source_node_id": "2c91f666-4ec6-4e6a-97eb-8a5c0eef0c2e",
+              "evidence_node_id": "4569fa6d-bb5c-4e2f-9ad6-269895303199",
+              "timestamp_end_seconds": 164.72,
+              "timestamp_start_seconds": 159.36
+            }
+          ]
+        },
+        {
+          "claim": "Single-tap touch sensor does not respond, preventing accidental commands; volume control is absent.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 1,
+              "support_type": "supports",
+              "evidence_text": "সিঙ্গেল টাচে কোন রেসপন্স করে না",
+              "source_node_id": "2c91f666-4ec6-4e6a-97eb-8a5c0eef0c2e",
+              "evidence_node_id": "a4bb1ff6-df45-41ef-b0af-97dbbe38c61a",
+              "timestamp_end_seconds": 173.519,
+              "timestamp_start_seconds": 170.64
+            },
+            {
+              "confidence": 1,
+              "support_type": "supports",
+              "evidence_text": "ভলিউম বাড়ানোর কোন অপশন আমি পাই নাই",
+              "source_node_id": "2c91f666-4ec6-4e6a-97eb-8a5c0eef0c2e",
+              "evidence_node_id": "9f3d2e7d-a678-4371-8669-3babc9c81c21",
+              "timestamp_end_seconds": 196.4,
+              "timestamp_start_seconds": 192.64
+            }
+          ]
+        }
+      ],
+      "source_id": "2c91f666-4ec6-4e6a-97eb-8a5c0eef0c2e",
+      "channel_id": "UC8v1oT1rnCVqqrkgKDkrCzQ",
+      "translated": false,
+      "limitations": [
+        "Review is based on a single unit provided by a shop (Tekli); potential bias.",
+        "Fit issues are subjective; other users reported perfect fit.",
+        "No IP rating confirmed; reviewer suspects lack of water resistance."
+      ],
+      "review_type": "short_term",
+      "caption_kind": "automatic",
+      "major_issues": [],
+      "source_score": 3,
+      "recommended_for": [],
+      "purchase_verdict": "mixed",
+      "usage_period_raw": "বেশ কিছুদিন ধরে এই বার্ডসটা ব্যবহার করতেছি",
+      "ownership_context": "review_unit",
+      "not_recommended_for": [],
+      "transcript_language": "bn",
+      "evidence_quality_score": 1,
+      "recommendation_summary": "Some source details could not be verified; inspect the cited claims.",
+      "usage_period_mentioned": true,
+      "source_analysis_node_id": "58d83f6f-df8a-422b-8fe9-a8e8b3e661ca",
+      "reviewer_sentiment_score": 3,
+      "usage_period_days_estimate": 7,
+      "purchase_recommendation_score": 3
+    },
+    {
+      "cons": [
+        "Free Fire has a ~0.1-second audio delay (transcript 152.28-158.28, 154.64-171.599).",
+        "Bass is only 'good but not that great' (transcript 196.44-201.4).",
+        "Semi-in-ear design lets in outside noise (transcript 317.96-323)."
+      ],
+      "pros": [
+        "Metal build with RGB lights (transcript 50.92-64.439).",
+        "Good compatibility across multiple phones (transcript 252.2-264.32).",
+        "Supports simultaneous device connection (transcript 239.439-246.04)."
+      ],
+      "claims": [
+        {
+          "claim": "Free Fire has a noticeable audio delay of about 0.1 seconds, making it the only tested game without low latency.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 1,
+              "support_type": "contradicts",
+              "evidence_text": "Free Fire has improved considerably. A year ago, I tried the T6, the Lucifer T6, which I'll tell you about later. What are the differences? So, Free Fire has improved; it's the only game where there's no low latency.",
+              "source_node_id": "2bb277ef-b99f-400d-99b3-800384a43cef",
+              "evidence_node_id": "e36dc26a-77ff-466f-9beb-69c0ed00d4d9",
+              "timestamp_end_seconds": 171.599,
+              "timestamp_start_seconds": 154.64
+            },
+            {
+              "confidence": 1,
+              "support_type": "supports",
+              "evidence_text": "There was about a 0.1-second delay.",
+              "source_node_id": "2bb277ef-b99f-400d-99b3-800384a43cef",
+              "evidence_node_id": "7a572fc9-4881-4b45-9445-2c4aa0fc5523",
+              "timestamp_end_seconds": 158.28,
+              "timestamp_start_seconds": 152.28
+            }
+          ]
+        },
+        {
+          "claim": "The T11 has good bass but not great, and the semi-in-ear design does not isolate outside noise well.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 1,
+              "support_type": "supports",
+              "evidence_text": "good bass, but not that great.",
+              "source_node_id": "2bb277ef-b99f-400d-99b3-800384a43cef",
+              "evidence_node_id": "df194abd-b1b3-4d8e-b281-888865959c2f",
+              "timestamp_end_seconds": 201.4,
+              "timestamp_start_seconds": 196.44
+            },
+            {
+              "confidence": 1,
+              "support_type": "supports",
+              "evidence_text": "these, being in-ear, we'll have more chances of hearing outside noise.",
+              "source_node_id": "2bb277ef-b99f-400d-99b3-800384a43cef",
+              "evidence_node_id": "240d9451-22b0-427a-9fdf-b59895556460",
+              "timestamp_end_seconds": 323.0,
+              "timestamp_start_seconds": 317.96
+            }
+          ]
+        },
+        {
+          "claim": "The T11 has a metal construction with RGB lights, a physical button to toggle a characteristic sound, and touch controls for music and mode switching.",
+          "central": false,
+          "evidence": [
+            {
+              "confidence": 1,
+              "support_type": "supports",
+              "evidence_text": "This part is made of metal, with RGB lights everywhere you look.",
+              "source_node_id": "2bb277ef-b99f-400d-99b3-800384a43cef",
+              "evidence_node_id": "64f61724-23fc-4993-9d2a-3d58a00e60fb",
+              "timestamp_end_seconds": 64.439,
+              "timestamp_start_seconds": 50.92
+            },
+            {
+              "confidence": 1,
+              "support_type": "supports",
+              "evidence_text": "We also have a little button here where we're going to eliminate that characteristic sound.",
+              "source_node_id": "2bb277ef-b99f-400d-99b3-800384a43cef",
+              "evidence_node_id": "b665670f-3f29-46f0-bcbc-fd8508161a2d",
+              "timestamp_end_seconds": 75.52,
+              "timestamp_start_seconds": 68.799
+            }
+          ]
+        },
+        {
+          "claim": "The T11 does not have a companion app; resetting and switching devices is done manually by pressing both earbuds simultaneously.",
+          "central": false,
+          "evidence": [
+            {
+              "confidence": 1,
+              "support_type": "supports",
+              "evidence_text": "No, it doesn't have any app.",
+              "source_node_id": "2bb277ef-b99f-400d-99b3-800384a43cef",
+              "evidence_node_id": "a5c03cf0-f5c5-472d-ba98-cb0fadd1205c",
+              "timestamp_end_seconds": 214.72,
+              "timestamp_start_seconds": 210.28
+            },
+            {
+              "confidence": 1,
+              "support_type": "supports",
+              "evidence_text": "you can press both earbuds here at the same time to unpair them from the other device",
+              "source_node_id": "2bb277ef-b99f-400d-99b3-800384a43cef",
+              "evidence_node_id": "bd358d55-d6bc-40e7-9021-f7bdbb9aee25",
+              "timestamp_end_seconds": 225.239,
+              "timestamp_start_seconds": 218.4
+            }
+          ]
+        },
+        {
+          "claim": "The T11 supports simultaneous connection to multiple devices and was tested on Red Magic 9 Pro, Poco F3, and Infinix Note 40 Pro with good compatibility.",
+          "central": false,
+          "evidence": [
+            {
+              "confidence": 1,
+              "support_type": "supports",
+              "evidence_text": "you can use them with simultaneous devices.",
+              "source_node_id": "2bb277ef-b99f-400d-99b3-800384a43cef",
+              "evidence_node_id": "6e6f8768-442d-44de-a036-a9914afb31ba",
+              "timestamp_end_seconds": 246.04,
+              "timestamp_start_seconds": 239.439
+            },
+            {
+              "confidence": 1,
+              "support_type": "supports",
+              "evidence_text": "I tested it on the Red Magic 9 Pro, the Poco F3, and I also tested it on the last one. It was on an Infinix Note 40 Pro.",
+              "source_node_id": "2bb277ef-b99f-400d-99b3-800384a43cef",
+              "evidence_node_id": "d5a10fb0-0292-483e-bba1-6498098a9787",
+              "timestamp_end_seconds": 264.32,
+              "timestamp_start_seconds": 252.2
+            }
+          ]
+        },
+        {
+          "claim": "The reviewer personally prefers the Lucifer T6 over the T11 due to its rubber in-ear tips, better bass, and noise isolation, despite the T11's LED lights.",
+          "central": false,
+          "evidence": [
+            {
+              "confidence": 1,
+              "support_type": "supports",
+              "evidence_text": "I'd say these. These are Sensa, but I do like the Ad Geek with LED lights and how cool they look in my ears. I would choose these.",
+              "source_node_id": "2bb277ef-b99f-400d-99b3-800384a43cef",
+              "evidence_node_id": "5f7b3e91-17fe-4f8d-a1a2-5df1503b9716",
+              "timestamp_end_seconds": 404.36,
+              "timestamp_start_seconds": 386.16
+            },
+            {
+              "confidence": 1,
+              "support_type": "supports",
+              "evidence_text": "Here we'll have a little more sound, a little more bass, and they'll isolate practically all outside noise",
+              "source_node_id": "2bb277ef-b99f-400d-99b3-800384a43cef",
+              "evidence_node_id": "9ad101bd-fb6a-463a-ae39-df2ec0a93801",
+              "timestamp_end_seconds": 313.32,
+              "timestamp_start_seconds": 305.56
+            }
+          ]
+        }
+      ],
+      "source_id": "2bb277ef-b99f-400d-99b3-800384a43cef",
+      "channel_id": "UC64T7SgnKibx4bVGZJxesoA",
+      "translated": true,
+      "limitations": [
+        "Review is based on a single reviewer's personal unit; no long-term durability test.",
+        "Only one game (Free Fire) showed latency issues; other games were fine.",
+        "No objective latency measurements provided; only subjective impression."
+      ],
+      "review_type": "comparison",
+      "caption_kind": "automatic",
+      "major_issues": [
+        "Free Fire latency issue may be a dealbreaker for players of that specific game.",
+        "No app support limits customization and EQ adjustments."
+      ],
+      "source_score": 0,
+      "recommended_for": [
+        "Gamers playing titles other than Free Fire who want low latency.",
+        "Users who prefer semi-in-ear fit and don't need noise isolation.",
+        "Buyers looking for a budget-friendly option with RGB aesthetics."
+      ],
+      "purchase_verdict": "mixed",
+      "usage_period_raw": null,
+      "ownership_context": "review_unit",
+      "not_recommended_for": [
+        "Free Fire players who require low-latency audio.",
+        "Users who prefer strong noise isolation from earbuds."
+      ],
+      "transcript_language": "en",
+      "evidence_quality_score": 0,
+      "recommendation_summary": "The Black Shark T11 offers decent build and features for general gaming and music, but its semi-in-ear design and lack of app support may disappoint users seeking noise isolation or customization. The notable latency issue in Free Fire is a specific drawback for that game's players.",
+      "usage_period_mentioned": false,
+      "source_analysis_node_id": "799ff63b-af7b-4ebc-9378-f63bf6a2033d",
+      "reviewer_sentiment_score": 0,
+      "usage_period_days_estimate": 0,
+      "purchase_recommendation_score": 0
+    },
+    {
+      "cons": [
+        "No mention of actual tested battery life or latency figures; all claims are stated specs.",
+        "No comparison with competitors or discussion of sound signature beyond 'powerful bass'.",
+        "No mention of microphone quality or real-world ENC performance."
+      ],
+      "pros": [
+        "Unique slide cover design with satisfying opening sound.",
+        "Lightweight (3.2 g) and compact ergonomic fit.",
+        "Stylish RGB lighting that doubles as battery level indicator (red flash below 10%)."
+      ],
+      "claims": [
+        {
+          "claim": "Earbuds weigh 3.2 g and measure 1.86x3.2 cm, providing a lightweight, compact fit.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 1,
+              "support_type": "supports",
+              "evidence_text": "weighing only 3.2 g and measuring a compact 1.86x 3.2 cm",
+              "source_node_id": "54aca767-3663-4a70-a1a9-b7f6a44a4fc1",
+              "evidence_node_id": "be1b3b85-6829-42b7-b824-633df6b3c60b",
+              "timestamp_end_seconds": 56.079,
+              "timestamp_start_seconds": 45.2
+            }
+          ]
+        },
+        {
+          "claim": "Total battery life is up to 30 hours, combining earbuds with a 500 mAh charging case.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 1,
+              "support_type": "supports",
+              "evidence_text": "combined with their 500 milliamp hours capacity charging case offer a total battery life of up to 30 hours",
+              "source_node_id": "54aca767-3663-4a70-a1a9-b7f6a44a4fc1",
+              "evidence_node_id": "f7e26c0f-38f0-45ea-99ed-107f40462c31",
+              "timestamp_end_seconds": 104.799,
+              "timestamp_start_seconds": 97.52
+            }
+          ]
+        },
+        {
+          "claim": "Uses Bluetooth 5.3 and a 13 mm dynamic driver for stable connection and sound.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 1,
+              "support_type": "supports",
+              "evidence_text": "utilize Bluetooth 5.3 for a stable and efficient connection and house a 13 mm dynamic driver",
+              "source_node_id": "54aca767-3663-4a70-a1a9-b7f6a44a4fc1",
+              "evidence_node_id": "76289ab1-60bd-496b-8427-be65860098af",
+              "timestamp_end_seconds": 124.56,
+              "timestamp_start_seconds": 111.68
+            }
+          ]
+        },
+        {
+          "claim": "Gaming mode provides ultra-low latency for synchronized audio and visuals.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 1,
+              "support_type": "supports",
+              "evidence_text": "there's a dedicated gaming mode that boasts ultra- low latency",
+              "source_node_id": "54aca767-3663-4a70-a1a9-b7f6a44a4fc1",
+              "evidence_node_id": "5f93d7d0-eb45-4e55-9d03-fd86e20a5603",
+              "timestamp_end_seconds": 134.879,
+              "timestamp_start_seconds": 129.679
+            }
+          ]
+        },
+        {
+          "claim": "Includes ENC call noise reduction to minimize background noise during calls and games.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 1,
+              "support_type": "supports",
+              "evidence_text": "includes an ENC call noise reduction function, which helps ensure clear audio during both games and phone calls by minimizing background noise",
+              "source_node_id": "54aca767-3663-4a70-a1a9-b7f6a44a4fc1",
+              "evidence_node_id": "47d0ba89-e72a-4aa8-a929-d9bd332de274",
+              "timestamp_end_seconds": 153.68,
+              "timestamp_start_seconds": 142.16
+            }
+          ]
+        },
+        {
+          "claim": "IPX4 rating resists rainwater, sweat, splashes, and dust, suitable for workouts or outdoor use.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 1,
+              "support_type": "supports",
+              "evidence_text": "with an IPX4 protection rating, these earbuds are designed to resist rainwater, sweat, splashes, and dust",
+              "source_node_id": "54aca767-3663-4a70-a1a9-b7f6a44a4fc1",
+              "evidence_node_id": "5886ea42-48e0-4852-8c1e-a00ceefbf915",
+              "timestamp_end_seconds": 161.44,
+              "timestamp_start_seconds": 153.68
+            }
+          ]
+        }
+      ],
+      "source_id": "54aca767-3663-4a70-a1a9-b7f6a44a4fc1",
+      "channel_id": "UCctSoWwSkdpttuUWN0NlUSA",
+      "translated": false,
+      "limitations": [
+        "Review is entirely based on manufacturer-stated specifications; no independent testing or measurements are provided.",
+        "No discussion of fit issues, call quality, or real-world usage duration.",
+        "No mention of price or value relative to alternatives."
+      ],
+      "review_type": "unknown",
+      "caption_kind": "automatic",
+      "major_issues": [
+        "All performance claims (battery life, latency, noise reduction) are unverified; reviewer does not report any personal testing results.",
+        "No disclosure of whether the unit was a review sample or purchased."
+      ],
+      "source_score": 0,
+      "recommended_for": [
+        "Users who value lightweight design and unique aesthetics (slide cover, RGB).",
+        "Gamers looking for a low-latency mode (stated, not tested)."
+      ],
+      "purchase_verdict": "mixed",
+      "usage_period_raw": null,
+      "ownership_context": "unknown",
+      "not_recommended_for": [
+        "Buyers who want verified real-world battery life or latency numbers.",
+        "Users who prioritize microphone call quality over stated features."
+      ],
+      "transcript_language": "en",
+      "evidence_quality_score": 0,
+      "recommendation_summary": "The review presents a positive overview of the Black Shark T11 earbuds but relies entirely on stated specs without any verified testing. Potential buyers should treat battery life, latency, and noise reduction claims as unconfirmed until independent tests are available.",
+      "usage_period_mentioned": false,
+      "source_analysis_node_id": "1fdaf4a1-9cc0-418e-960d-db608e2ebb16",
+      "reviewer_sentiment_score": 0,
+      "usage_period_days_estimate": 0,
+      "purchase_recommendation_score": 0
+    },
+    {
+      "cons": [
+        "No mention of water resistance rating.",
+        "Touch controls described as basic, not special.",
+        "No active noise cancellation (ANC) mentioned."
+      ],
+      "pros": [
+        "Ultra-low latency confirmed in PUBG test.",
+        "Solid build quality and attractive gaming packaging.",
+        "Good sound quality with 13mm drivers and Hi-Fi stereo."
+      ],
+      "claims": [
+        {
+          "claim": "The earbuds have ultra-low latency with no perceptible lag in gaming.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 1,
+              "support_type": "supports",
+              "evidence_text": "There is absolutely no lag",
+              "source_node_id": "d21aa150-ef9d-4f87-8698-985511094f5a",
+              "evidence_node_id": "eb78cac6-460f-4aac-adfb-1797e2318c17",
+              "timestamp_end_seconds": 237.112,
+              "timestamp_start_seconds": 234.144
+            },
+            {
+              "confidence": 1,
+              "support_type": "supports",
+              "evidence_text": "the sound is coming simultaneously",
+              "source_node_id": "d21aa150-ef9d-4f87-8698-985511094f5a",
+              "evidence_node_id": "5c01cc10-f178-441c-b19c-125b850df55f",
+              "timestamp_end_seconds": 235.098,
+              "timestamp_start_seconds": 232.36
+            }
+          ]
+        },
+        {
+          "claim": "Build quality is solid and the packaging is gaming-oriented.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 1,
+              "support_type": "supports",
+              "evidence_text": "build quality felt quite solid",
+              "source_node_id": "d21aa150-ef9d-4f87-8698-985511094f5a",
+              "evidence_node_id": "77f16008-ece4-4993-9316-92637256daaf",
+              "timestamp_end_seconds": 39.572,
+              "timestamp_start_seconds": 36.656
+            },
+            {
+              "confidence": 1,
+              "support_type": "supports",
+              "evidence_text": "build quality is made very sturdy",
+              "source_node_id": "d21aa150-ef9d-4f87-8698-985511094f5a",
+              "evidence_node_id": "0cbc1079-3fc5-4142-9fe0-84ca3c407965",
+              "timestamp_end_seconds": 103.238,
+              "timestamp_start_seconds": 99.883
+            }
+          ]
+        },
+        {
+          "claim": "Sound quality is great with Hi-Fi stereo and 13mm drivers.",
+          "central": false,
+          "evidence": [
+            {
+              "confidence": 1,
+              "support_type": "supports",
+              "evidence_text": "13mm dynamic drivers, which produce great sound",
+              "source_node_id": "d21aa150-ef9d-4f87-8698-985511094f5a",
+              "evidence_node_id": "db4faac5-fc41-49ea-b7e3-e0ce857cf551",
+              "timestamp_end_seconds": 194.51,
+              "timestamp_start_seconds": 186.373
+            },
+            {
+              "confidence": 1,
+              "support_type": "supports",
+              "evidence_text": "You get Hi-Fi stereo",
+              "source_node_id": "d21aa150-ef9d-4f87-8698-985511094f5a",
+              "evidence_node_id": "07cf4be2-02d6-4945-996e-f864e5fb48da",
+              "timestamp_end_seconds": 199.187,
+              "timestamp_start_seconds": 195.426
+            }
+          ]
+        },
+        {
+          "claim": "Battery life is claimed at 30 hours with a 500mAh case.",
+          "central": false,
+          "evidence": [
+            {
+              "confidence": 1,
+              "support_type": "supports",
+              "evidence_text": "30-hour battery backup life",
+              "source_node_id": "d21aa150-ef9d-4f87-8698-985511094f5a",
+              "evidence_node_id": "35b99d40-50a0-4070-8cf5-598aaecf5027",
+              "timestamp_end_seconds": 87.812,
+              "timestamp_start_seconds": 84.005
+            },
+            {
+              "confidence": 1,
+              "support_type": "supports",
+              "evidence_text": "500mAh battery that the company claims gives 30 hours",
+              "source_node_id": "d21aa150-ef9d-4f87-8698-985511094f5a",
+              "evidence_node_id": "269099e0-7363-4ebd-b161-b5633d978e4d",
+              "timestamp_end_seconds": 132.602,
+              "timestamp_start_seconds": 127.715
+            }
+          ]
+        },
+        {
+          "claim": "Touch sensors allow call and music control.",
+          "central": false,
+          "evidence": [
+            {
+              "confidence": 1,
+              "support_type": "supports",
+              "evidence_text": "earbuds have sensors that allow you to pick up calls",
+              "source_node_id": "d21aa150-ef9d-4f87-8698-985511094f5a",
+              "evidence_node_id": "bb75d222-f59c-4229-a69b-a62fb34331e1",
+              "timestamp_end_seconds": 169.402,
+              "timestamp_start_seconds": 165.834
+            },
+            {
+              "confidence": 1,
+              "support_type": "supports",
+              "evidence_text": "change the music by pressing it, and also pause and play",
+              "source_node_id": "d21aa150-ef9d-4f87-8698-985511094f5a",
+              "evidence_node_id": "b69d92ab-6c9a-494f-9b31-72051189664f",
+              "timestamp_end_seconds": 176.725,
+              "timestamp_start_seconds": 173.264
+            }
+          ]
+        },
+        {
+          "claim": "Price is very cheap at 1699 AED (or 139 AED as per title) and offers good value.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 1,
+              "support_type": "supports",
+              "evidence_text": "price is 1699, which I found very cheap",
+              "source_node_id": "d21aa150-ef9d-4f87-8698-985511094f5a",
+              "evidence_node_id": "5e483e87-96cd-4a7d-b72f-dceafb49a7cc",
+              "timestamp_end_seconds": 276.52,
+              "timestamp_start_seconds": 273.425
+            },
+            {
+              "confidence": 1,
+              "support_type": "supports",
+              "evidence_text": "price starts at 169 Dirhams in Dubai, which is very good",
+              "source_node_id": "d21aa150-ef9d-4f87-8698-985511094f5a",
+              "evidence_node_id": "e1b727cd-e458-4a5f-a6e7-f6f71039b7ef",
+              "timestamp_end_seconds": 44.059,
+              "timestamp_start_seconds": 40.78
+            }
+          ]
+        }
+      ],
+      "source_id": "d21aa150-ef9d-4f87-8698-985511094f5a",
+      "channel_id": "UCJpeXG9i5ttjyoqnwWmfJdw",
+      "translated": false,
+      "limitations": [
+        "Review is based on a single unit, not a long-term test.",
+        "Battery life claim not verified; only stated by company.",
+        "Sound quality assessment is subjective and not measured."
+      ],
+      "review_type": "unknown",
+      "caption_kind": "automatic",
+      "major_issues": [
+        "No testing of battery life or call quality in noisy environments.",
+        "No comparison with other gaming earbuds at similar price."
+      ],
+      "source_score": 0,
+      "recommended_for": [
+        "Gamers looking for low-latency wireless earbuds.",
+        "Users who value unique packaging and RGB effects.",
+        "Buyers on a budget (around 139-169 AED)."
+      ],
+      "purchase_verdict": "buy",
+      "usage_period_raw": "Not mentioned; reviewer appears to have used them before the video (I had connected them before).",
+      "ownership_context": "review_unit",
+      "not_recommended_for": [
+        "Users needing water resistance or ANC.",
+        "Those who prefer minimalistic design without RGB."
+      ],
+      "transcript_language": "en-US",
+      "evidence_quality_score": 0,
+      "recommendation_summary": "Recommended for budget-conscious gamers who prioritize low latency and solid build over water resistance or ANC.",
+      "usage_period_mentioned": false,
+      "source_analysis_node_id": "31bc491d-fccc-485e-a71a-0f948b552bc6",
+      "reviewer_sentiment_score": 0,
+      "usage_period_days_estimate": 0,
+      "purchase_recommendation_score": 0
+    },
+    {
+      "cons": [],
+      "pros": [],
+      "claims": [
+        {
+          "claim": "The earbuds are very light and comfortable in the ear.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 0,
+              "support_type": "supports",
+              "evidence_text": "كتحس بهم خفاف ومرتاحين في وذنك",
+              "source_node_id": "34d0451a-f05d-4169-9ca6-e12b5daebde9",
+              "evidence_node_id": "d93816fb-62fb-45e9-ac59-060a34babad0",
+              "timestamp_end_seconds": 56.44,
+              "timestamp_start_seconds": 48.879
+            }
+          ]
+        },
+        {
+          "claim": "The sound quality is described as immersive and excellent, with a feeling of being inside the environment.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 0,
+              "support_type": "supports",
+              "evidence_text": "كتحس براسك دخلتي وسطك المحيط واحد الصوت خيالي",
+              "source_node_id": "34d0451a-f05d-4169-9ca6-e12b5daebde9",
+              "evidence_node_id": "c7840ae9-afd1-48a6-9024-8531f6fb09e5",
+              "timestamp_end_seconds": 79.439,
+              "timestamp_start_seconds": 71.4
+            }
+          ]
+        },
+        {
+          "claim": "The microphone quality is poor; the caller cannot hear you well and often says 'I didn't hear you'.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 0,
+              "support_type": "supports",
+              "evidence_text": "هذاك يسمعك انته معور ما عمرك غ تسمع الو ما سمعتكش",
+              "source_node_id": "34d0451a-f05d-4169-9ca6-e12b5daebde9",
+              "evidence_node_id": "3c54b5ff-52f9-40e6-b311-0993d24afc20",
+              "timestamp_end_seconds": 97.64,
+              "timestamp_start_seconds": 87.24
+            }
+          ]
+        },
+        {
+          "claim": "Battery life exceeds 30 hours on a single charge, charging only once or twice per month.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 0,
+              "support_type": "supports",
+              "evidence_text": "تديو اكثر من 30 ساعه عن تجربه",
+              "source_node_id": "34d0451a-f05d-4169-9ca6-e12b5daebde9",
+              "evidence_node_id": "a904d123-8ada-4f1f-85f9-14795a9bda17",
+              "timestamp_end_seconds": 127.0,
+              "timestamp_start_seconds": 120.24
+            }
+          ]
+        },
+        {
+          "claim": "The earbuds feature Bluetooth 5.3 and a 13 mm dynamic driver.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 0,
+              "support_type": "supports",
+              "evidence_text": "فيرسيون ديال البلوتو 5.3",
+              "source_node_id": "34d0451a-f05d-4169-9ca6-e12b5daebde9",
+              "evidence_node_id": "e0578583-f55a-49cd-870f-9d6ddf0c31e0",
+              "timestamp_end_seconds": 40.52,
+              "timestamp_start_seconds": 34.6
+            },
+            {
+              "confidence": 0,
+              "support_type": "supports",
+              "evidence_text": "13 ناميك يفر ديناميك دفر فيهم 13 ملي",
+              "source_node_id": "34d0451a-f05d-4169-9ca6-e12b5daebde9",
+              "evidence_node_id": "92541555-ea82-4bb5-9863-6b50b5a9a413",
+              "timestamp_end_seconds": 71.4,
+              "timestamp_start_seconds": 60.6
+            }
+          ]
+        },
+        {
+          "claim": "The price is 399 MAD, which the reviewer considers excellent value compared to the international price of 600–700 MAD.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 0,
+              "support_type": "supports",
+              "evidence_text": "كيتباع ب 600 700 650",
+              "source_node_id": "34d0451a-f05d-4169-9ca6-e12b5daebde9",
+              "evidence_node_id": "3133de8f-5412-4e0c-9e9f-bdd8dcf1af50",
+              "timestamp_end_seconds": 166.44,
+              "timestamp_start_seconds": 158.56
+            }
+          ]
+        }
+      ],
+      "source_id": "34d0451a-f05d-4169-9ca6-e12b5daebde9",
+      "channel_id": "UCm79ytbW_VNNu0T6c_lmtFQ",
+      "translated": false,
+      "limitations": [
+        "Transcript is automatic Arabic captions; some words may be misrecognized.",
+        "Only one reviewer's experience; no comparative testing shown.",
+        "No objective measurements (e.g., frequency response, latency) provided."
+      ],
+      "review_type": "first_impressions",
+      "caption_kind": "automatic",
+      "major_issues": [],
+      "source_score": 0,
+      "recommended_for": [],
+      "purchase_verdict": "mixed",
+      "usage_period_raw": "",
+      "ownership_context": "review_unit",
+      "not_recommended_for": [],
+      "transcript_language": "ar",
+      "evidence_quality_score": 0,
+      "recommendation_summary": "Some source details could not be verified; inspect the cited claims.",
+      "usage_period_mentioned": false,
+      "source_analysis_node_id": "766add13-f8c3-40e0-85ee-f57abd8c55a1",
+      "reviewer_sentiment_score": 0,
+      "usage_period_days_estimate": 0,
+      "purchase_recommendation_score": 0
+    }
+  ],
+  "original_draft": {
+    "summary": "The Black Shark T11 gaming earbuds are praised for their lightweight comfort (3.2 g), solid build, IPX4 water resistance, Bluetooth 5.3, 13 mm driver, and ultra-low latency gaming mode (source 54aca767, d21aa150). Battery life is consistently reported at up to 30 hours with the case (sources 2c91f666, 54aca767, 34d0451a). Sound quality is generally described as good with punchy bass (source 2c91f666) or immersive (source 34d0451a), though one reviewer finds bass only 'good but not great' and notes poor noise isolation due to the semi-in-ear design (source 2bb277ef). A key disagreement exists on gaming latency: while most sources report no perceptible lag (source d21aa150, 54aca767), one reviewer measured a ~0.1-second delay specifically in Free Fire (source 2bb277ef). Build quality is solid overall, but one source reports the sliding mechanism feels loose (source 2c91f666). The touch controls lack volume adjustment and single-tap response (source 2c91f666). Microphone quality is reported as poor (source 34d0451a). The earbuds are very affordable (139–169 AED, 399 MAD) and offer good value for budget-conscious gamers (sources d21aa150, 34d0451a).",
+    "limitations": [
+      "Review from source 2c91f666 is based on a single unit provided by a shop (Tekli); potential bias.",
+      "Review from source 2c91f666: Fit issues are subjective; other users reported perfect fit.",
+      "Review from source 2c91f666: No IP rating confirmed; reviewer suspects lack of water resistance.",
+      "Review from source 2bb277ef is based on a single reviewer's personal unit; no long-term durability test.",
+      "Review from source 2bb277ef: Only one game (Free Fire) showed latency issues; other games were fine.",
+      "Review from source 2bb277ef: No objective latency measurements provided; only subjective impression.",
+      "Review from source 54aca767 is entirely based on manufacturer-stated specifications; no independent testing or measurements are provided.",
+      "Review from source 54aca767: No discussion of fit issues, call quality, or real-world usage duration.",
+      "Review from source 54aca767: No mention of price or value relative to alternatives.",
+      "Review from source d21aa150 is based on a single unit, not a long-term test.",
+      "Review from source d21aa150: Battery life claim not verified; only stated by company.",
+      "Review from source d21aa150: Sound quality assessment is subjective and not measured.",
+      "Review from source 34d0451a: Transcript is automatic Arabic captions; some words may be misrecognized.",
+      "Review from source 34d0451a: Only one reviewer's experience; no comparative testing shown.",
+      "Review from source 34d0451a: No objective measurements (e.g., frequency response, latency) provided."
+    ],
+    "disagreements": [
+      {
+        "topic": "Gaming latency performance across different games",
+        "side_a": "Gaming mode provides ultra-low latency with no perceptible lag in tested games (PUBG).",
+        "side_b": "Free Fire has a noticeable audio delay of about 0.1 seconds, making it the only tested game without low latency.",
+        "side_a_source_ids": [
+          "d21aa150-ef9d-4f87-8698-985511094f5a"
+        ],
+        "side_b_source_ids": [
+          "2bb277ef-b99f-400d-99b3-800384a43cef"
+        ]
+      },
+      {
+        "topic": "Sound quality and bass performance",
+        "side_a": "Sound quality is great with Hi-Fi stereo and immersive experience.",
+        "side_b": "Bass is only 'good but not that great'; semi-in-ear design lets in outside noise.",
+        "side_a_source_ids": [
+          "d21aa150-ef9d-4f87-8698-985511094f5a",
+          "34d0451a-f05d-4169-9ca6-e12b5daebde9"
+        ],
+        "side_b_source_ids": [
+          "2bb277ef-b99f-400d-99b3-800384a43cef"
+        ]
+      },
+      {
+        "topic": "Build quality and sliding mechanism durability",
+        "side_a": "Build quality is solid and sturdy.",
+        "side_b": "Build quality is solid but the sliding mechanism feels loose, raising durability concerns.",
+        "side_a_source_ids": [
+          "d21aa150-ef9d-4f87-8698-985511094f5a"
+        ],
+        "side_b_source_ids": [
+          "2c91f666-4ec6-4e6a-97eb-8a5c0eef0c2e"
+        ]
+      }
+    ],
+    "consensus_cons": [
+      {
+        "statement": "Single-tap touch sensor does not respond, and there is no volume control.",
+        "source_ids": [
+          "2c91f666-4ec6-4e6a-97eb-8a5c0eef0c2e"
+        ],
+        "evidence_node_ids": [
+          "a4bb1ff6-df45-41ef-b0af-97dbbe38c61a",
+          "9f3d2e7d-a678-4371-8669-3babc9c81c21"
+        ]
+      },
+      {
+        "statement": "Microphone quality is poor; callers often cannot hear the user.",
+        "source_ids": [
+          "34d0451a-f05d-4169-9ca6-e12b5daebde9"
+        ],
+        "evidence_node_ids": [
+          "3c54b5ff-52f9-40e6-b311-0993d24afc20"
+        ]
+      },
+      {
+        "statement": "Semi-in-ear design does not isolate outside noise well.",
+        "source_ids": [
+          "2bb277ef-b99f-400d-99b3-800384a43cef"
+        ],
+        "evidence_node_ids": [
+          "240d9451-22b0-427a-9fdf-b59895556460"
+        ]
+      }
+    ],
+    "consensus_pros": [
+      {
+        "statement": "Sound quality is good with clean, punchy bass from the 13 mm driver.",
+        "source_ids": [
+          "2c91f666-4ec6-4e6a-97eb-8a5c0eef0c2e"
+        ],
+        "evidence_node_ids": [
+          "193fb006-cb15-433a-a81d-0378e9de925b"
+        ]
+      },
+      {
+        "statement": "Build quality is solid and sturdy.",
+        "source_ids": [
+          "d21aa150-ef9d-4f87-8698-985511094f5a"
+        ],
+        "evidence_node_ids": [
+          "77f16008-ece4-4993-9316-92637256daaf",
+          "0cbc1079-3fc5-4142-9fe0-84ca3c407965"
+        ]
+      },
+      {
+        "statement": "Earbuds are lightweight (3.2 g) and comfortable to wear.",
+        "source_ids": [
+          "54aca767-3663-4a70-a1a9-b7f6a44a4fc1",
+          "34d0451a-f05d-4169-9ca6-e12b5daebde9"
+        ],
+        "evidence_node_ids": [
+          "be1b3b85-6829-42b7-b824-633df6b3c60b",
+          "d93816fb-62fb-45e9-ac59-060a34babad0"
+        ]
+      },
+      {
+        "statement": "Total battery life is up to 30 hours including the charging case.",
+        "source_ids": [
+          "54aca767-3663-4a70-a1a9-b7f6a44a4fc1",
+          "2c91f666-4ec6-4e6a-97eb-8a5c0eef0c2e",
+          "34d0451a-f05d-4169-9ca6-e12b5daebde9"
+        ],
+        "evidence_node_ids": [
+          "f7e26c0f-38f0-45ea-99ed-107f40462c31",
+          "4569fa6d-bb5c-4e2f-9ad6-269895303199",
+          "a904d123-8ada-4f1f-85f9-14795a9bda17"
+        ]
+      },
+      {
+        "statement": "Uses Bluetooth 5.3 and a 13 mm dynamic driver.",
+        "source_ids": [
+          "54aca767-3663-4a70-a1a9-b7f6a44a4fc1",
+          "34d0451a-f05d-4169-9ca6-e12b5daebde9"
+        ],
+        "evidence_node_ids": [
+          "76289ab1-60bd-496b-8427-be65860098af",
+          "e0578583-f55a-49cd-870f-9d6ddf0c31e0"
+        ]
+      },
+      {
+        "statement": "Gaming mode provides ultra-low latency with no perceptible lag.",
+        "source_ids": [
+          "54aca767-3663-4a70-a1a9-b7f6a44a4fc1",
+          "d21aa150-ef9d-4f87-8698-985511094f5a"
+        ],
+        "evidence_node_ids": [
+          "5f93d7d0-eb45-4e55-9d03-fd86e20a5603",
+          "eb78cac6-460f-4aac-adfb-1797e2318c17",
+          "5c01cc10-f178-441c-b19c-125b850df55f"
+        ]
+      },
+      {
+        "statement": "IPX4 rating resists rainwater, sweat, and splashes.",
+        "source_ids": [
+          "54aca767-3663-4a70-a1a9-b7f6a44a4fc1"
+        ],
+        "evidence_node_ids": [
+          "5886ea42-48e0-4852-8c1e-a00ceefbf915"
+        ]
+      },
+      {
+        "statement": "Price is very affordable (e.g., 139–169 AED, 399 MAD) and offers good value.",
+        "source_ids": [
+          "d21aa150-ef9d-4f87-8698-985511094f5a",
+          "34d0451a-f05d-4169-9ca6-e12b5daebde9"
+        ],
+        "evidence_node_ids": [
+          "5e483e87-96cd-4a7d-b72f-dceafb49a7cc",
+          "e1b727cd-e458-4a5f-a6e7-f6f71039b7ef",
+          "3133de8f-5412-4e0c-9e9f-bdd8dcf1af50"
+        ]
+      }
+    ],
+    "who_should_buy": [
+      "Gamers playing titles other than Free Fire who want low latency (source 2bb277ef).",
+      "Users who prefer semi-in-ear fit and don't need noise isolation (source 2bb277ef).",
+      "Buyers looking for a budget-friendly option with RGB aesthetics (source 2bb277ef).",
+      "Users who value lightweight design and unique aesthetics (slide cover, RGB) (source 54aca767).",
+      "Gamers looking for a low-latency mode (stated, not tested) (source 54aca767).",
+      "Gamers looking for low-latency wireless earbuds (source d21aa150).",
+      "Users who value unique packaging and RGB effects (source d21aa150).",
+      "Buyers on a budget (around 139-169 AED) (source d21aa150)."
+    ],
+    "who_should_avoid": [
+      "Free Fire players who require low-latency audio (source 2bb277ef).",
+      "Users who prefer strong noise isolation from earbuds (source 2bb277ef).",
+      "Users needing water resistance or ANC (source d21aa150).",
+      "Those who prefer minimalistic design without RGB (source d21aa150).",
+      "Buyers who want verified real-world battery life or latency numbers (source 54aca767).",
+      "Users who prioritize microphone call quality over stated features (source 54aca767)."
+    ],
+    "longest_usage_period": "Several days (besh kichudin dhore)",
+    "product_display_name": "blackshark t11",
+    "product_canonical_name": "Black Shark T11",
+    "longest_usage_source_id": "2c91f666-4ec6-4e6a-97eb-8a5c0eef0c2e"
+  },
+  "empty_correction": {
+    "summary": "The Black Shark T11 is a budget gaming-oriented TWS earbud. One reviewer (source 2c91f666) reports solid build but a loose sliding mechanism, good sound with clean bass, clear directional audio in gaming mode, battery life of ~5 hours per charge (25-30 total), and a non-responsive single-tap touch sensor with no volume control. Another reviewer (source 2bb277ef) notes a ~0.1-second audio delay in Free Fire, bass described as 'good but not great', and poor noise isolation due to the semi-in-ear design. A third source (54aca767) lists manufacturer specs: 3.2 g weight, 30-hour total battery, Bluetooth 5.3, 13 mm driver, gaming mode, ENC call noise reduction, and IPX4 rating, but provides no verified testing. A fourth source (d21aa150) confirms ultra-low latency in PUBG, solid build, great sound, and a very cheap price (169 AED). A fifth source (34d0451a) reports light and comfortable fit, immersive sound, poor microphone quality, battery life exceeding 30 hours, and excellent value at 399 MAD. Key disagreements exist: build quality is called solid by some but the sliding mechanism is described as loose by one; latency is reported as non-existent by two sources but a 0.1-second delay is noted in Free Fire by another; sound quality is praised as immersive and great by some but only 'good not great' by another; and battery life claims vary from 25-30 hours tested to over 30 hours. The product lacks a companion app and volume controls, and has no ANC.",
+    "limitations": [],
+    "disagreements": [],
+    "consensus_cons": [],
+    "consensus_pros": [],
+    "who_should_buy": [],
+    "who_should_avoid": [],
+    "longest_usage_period": null,
+    "product_display_name": "blackshark t11",
+    "product_canonical_name": "Black Shark T11",
+    "longest_usage_source_id": null
+  }
+}

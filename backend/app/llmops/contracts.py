@@ -187,6 +187,7 @@ class ChatInvocation(StrictModel):
     estimated_prompt_tokens: int = Field(ge=0)
     estimated_cost_microusd: int = Field(ge=0)
     max_network_attempts: int | None = Field(default=None, ge=1, le=5)
+    optional_output_fields: tuple[str, ...] = ()
 
 
 class EmbeddingInvocation(StrictModel):

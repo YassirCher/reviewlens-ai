@@ -18,11 +18,13 @@ test("live admin login protects private routes and exposes operational health", 
   await expect(page.getByRole("heading", { name: "System overview" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Operational alerts" })).toBeVisible();
 
-  const response = await page.request.get("http://localhost:8000/api/v2/admin/system/health");
-  expect(response.status()).toBe(200);
-  expect(response.headers()["content-security-policy"]).toContain("default-src 'none'");
-  const health = await response.json();
-  expect(Array.isArray(health.operations.alerts)).toBe(true);
+  await expect(async () => {
+    const response = await page.request.get("http://localhost:8000/api/v2/admin/system/health");
+    expect(response.status()).toBe(200);
+    expect(response.headers()["content-security-policy"]).toContain("default-src 'none'");
+    const health = await response.json();
+    expect(Array.isArray(health.operations.alerts)).toBe(true);
+  }).toPass({ timeout: 30_000 });
 
   await page.getByRole("link", { name: "Models" }).click();
   await expect(page.getByRole("heading", { name: "Models and providers" })).toBeVisible();

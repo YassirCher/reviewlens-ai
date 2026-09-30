@@ -539,6 +539,55 @@ def rank_candidates(
     return tuple(ranked + excluded)
 
 
+def balance_curated_order(
+    ordered_ids: list[str], candidates: dict[str, dict], classifications: dict[str, str], requested: int,
+    cached_video_ids: frozenset[str] = frozenset(),
+) -> list[str]:
+    """Prefer complementary eligible reviews without fetching more candidates."""
+    remaining = [video_id for video_id in ordered_ids if video_id in candidates]
+    original_rank = {video_id: index for index, video_id in enumerate(remaining)}
+    selected: list[str] = []
+    channels: set[str] = set()
+    has_long_term = False
+    has_comparison = False
+    while remaining:
+        def priority(video_id: str) -> tuple[bool, float, int]:
+            item = candidates[video_id]
+            kind = classifications.get(video_id, "")
+            title = str(item.get("title", "")).casefold()
+            long_term = kind == "long_term" or any(term in title for term in ("long term", "long-term", "months", "years"))
+            comparison = kind == "comparison" or "comparison" in title or " vs " in title
+            channel = str(item.get("channel_id") or item.get("channel_title") or video_id)
+            score = float(item.get("deterministic_score") or 0)
+            score -= 0.35 if channel in channels else 0
+            score += 0.12 if long_term and not has_long_term else 0
+            score += 0.08 if comparison and not has_comparison else 0
+            score -= 0.02 * original_rank[video_id]
+            return video_id in cached_video_ids, score, -original_rank[video_id]
+
+        chosen = max(remaining, key=priority) if len(selected) < requested else remaining[0]
+        remaining.remove(chosen)
+        selected.append(chosen)
+        item = candidates[chosen]
+        channels.add(str(item.get("channel_id") or item.get("channel_title") or chosen))
+        kind = classifications.get(chosen, "")
+        title = str(item.get("title", "")).casefold()
+        has_long_term |= kind == "long_term" or any(term in title for term in ("long term", "long-term", "months", "years"))
+        has_comparison |= kind == "comparison" or "comparison" in title or " vs " in title
+    return selected
+
+
+def source_slot_queues(ordered_ids: list[str], candidates: dict[str, dict], decisions: list[dict],
+                       requested: int, cached_video_ids: frozenset[str] = frozenset()) -> list[list[str]]:
+    """Hard exclusions govern both primaries and disjoint reserve queues."""
+    eligible = {item["video_id"] for item in decisions if item.get("eligible")}
+    allowed = list(dict.fromkeys(video_id for video_id in ordered_ids if video_id in eligible
+        and video_id in candidates and not candidates[video_id].get("deterministic_exclusion")))
+    ordered = balance_curated_order(allowed, candidates,
+        {item["video_id"]: item["classification"] for item in decisions}, requested, cached_video_ids)
+    return [ordered[index:index + 1] + ordered[requested + index::requested] for index in range(requested)]
+
+
 def _comment_is_usable(text: str) -> bool:
     if len(text) < 4 or len(text) > 10000:
         return False
