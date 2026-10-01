@@ -114,8 +114,8 @@ def test_repair_and_reaudit_cannot_spend_an_extra_schema_retry():
 
 def test_auditor_protocol_and_scoring_scale_are_explicit():
     prompt = AGENT_REGISTRY["quality_auditor"].role_prompt
-    assert "Null duration and empty optional lists" in prompt
-    assert "Combine supporting excerpts" in prompt
-    assert "compare translations" in prompt.casefold()
+    assert "Empty lists/null assert nothing" in prompt
+    assert "Combine an owner's cited excerpts" in prompt
+    assert "judge support by meaning, including translations" in prompt
     assert "battery runtime" in prompt
-    assert "Scores and confidence are integer 0-100 points" in AGENT_REGISTRY["review_analyst"].role_prompt
+    assert "Scores/confidence: integer 0-100" in AGENT_REGISTRY["review_analyst"].role_prompt

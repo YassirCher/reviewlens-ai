@@ -123,7 +123,8 @@ def test_invalid_optional_reference_keeps_a_precise_diagnostic(field):
     with pytest.raises(SynthesisBindingError) as error:
         EvidenceBoundBuyingSynthesis.model_validate(response).as_report(
             fixture["product_name"], fixture["product_name"], fixture["source_analyses"])
-    assert error.value.issue == {"type": "unknown_reference", "loc": path}
+    assert error.value.issue == {"type": "unknown_reference", "loc": path,
+                                 "reference_category": "citation", "ownership": "unknown"}
 
 
 def test_duplicate_disagreement_citations_normalize_but_foreign_assertion_ownership_still_fails():

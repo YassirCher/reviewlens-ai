@@ -427,3 +427,18 @@ def test_strict_correction_gate_includes_repairs_and_requires_fact_retention() -
     assert not compare(baseline, candidate, strict_correction=True)["checks"]["product_facts"]
     candidate["0"]["model_call_count"] = 10
     assert not compare(baseline, candidate, strict_correction=True)["checks"]["normal_calls"]
+
+
+@pytest.mark.skipif(not _BUDGET_SCRIPT.is_file(), reason="host-only staging script is outside the backend test image")
+def test_strict_audit_gate_counts_five_audience_calls_and_rejects_invalid_allowances():
+    compare = runpy.run_path(str(_BUDGET_SCRIPT))["compare"]
+    baseline = {str(index): {"total_tokens": 100, "model_call_count": 14, "completion_ms": 1000,
+        "quote_valid_rate": 1, "unsupported_claim_rate": 0, "buyer_coverage_rate": 1,
+        "source_count_requested": 5, "source_count_analyzed": 5, "audience_model_calls": 5}
+        for index in range(20)}
+    candidate = {key: dict(value) for key, value in baseline.items()}
+    assert compare(baseline, candidate, strict_audit=True)["passed"]
+    for invalid in [True, -1, 6, "5"]:
+        candidate["0"]["audience_model_calls"] = invalid
+        with pytest.raises(ValueError, match="audience_model_calls"):
+            compare(baseline, candidate, strict_audit=True)

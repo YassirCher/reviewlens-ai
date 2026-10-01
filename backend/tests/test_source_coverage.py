@@ -155,7 +155,8 @@ def test_compact_output_rejects_more_than_six_claims_and_identity_keys():
 
 def test_snapshot_contracts_accept_legacy_and_combined_review():
     assert snapshot_output_model("review_analyst", LEGACY_REVIEW_SPEC.output_model.model_json_schema()) is SourceAnalysisDraft
-    assert snapshot_output_model("review_analyst", AGENT_REGISTRY["review_analyst"].output_model.model_json_schema()) is VideoExtraction
+    assert snapshot_output_model("review_analyst", AGENT_REGISTRY["review_analyst"].output_model.model_json_schema()) is AGENT_REGISTRY["review_analyst"].output_model
+    assert snapshot_output_model("review_analyst", VideoExtraction.model_json_schema()) is VideoExtraction
     with pytest.raises(ValueError):
         snapshot_output_model("review_analyst", {"type": "object"})
 

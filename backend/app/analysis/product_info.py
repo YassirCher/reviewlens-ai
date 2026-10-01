@@ -342,9 +342,9 @@ def merge_product_info(outputs: list[dict]) -> ProductInfo | None:
                 item = ProductFact.model_validate(raw)
             except ValueError:
                 continue
-            fact_key = (_normalized(item.group), _normalized(item.label), _compact(item.value), _normalized(item.scope or ""))
+            fact_key = (*_property_key(item.group, item.label), _compact(item.value), _normalized(item.scope or ""))
             prior = facts.get(fact_key)
-            facts[fact_key] = item.model_copy(update={"evidence": prior.evidence + item.evidence}) if prior else item
+            facts[fact_key] = prior.model_copy(update={"evidence": _distinct_evidence(prior.evidence + item.evidence)}) if prior else item.model_copy(update={"evidence": _distinct_evidence(item.evidence)})
         for raw in output.get("variants", []):
             try:
                 item = ProductVariant.model_validate(raw)
@@ -352,14 +352,29 @@ def merge_product_info(outputs: list[dict]) -> ProductInfo | None:
                 continue
             variant_key = (_normalized(item.dimension), _compact(item.value), _normalized(item.scope or ""))
             prior = variants.get(variant_key)
-            variants[variant_key] = item.model_copy(update={"evidence": prior.evidence + item.evidence}) if prior else item
+            variants[variant_key] = prior.model_copy(update={"evidence": _distinct_evidence(prior.evidence + item.evidence)}) if prior else item.model_copy(update={"evidence": _distinct_evidence(item.evidence)})
     if not facts and not variants:
         return None
     by_label: dict[tuple[str, str, str], set[str]] = {}
     for item in facts.values():
-        by_label.setdefault((_normalized(item.group), _normalized(item.label), _normalized(item.scope or "")), set()).add(_normalized(item.value))
+        by_label.setdefault((*_property_key(item.group, item.label), _normalized(item.scope or "")), set()).add(_normalized(item.value))
     merged_facts = tuple(
-        item.model_copy(update={"conflicting": len(by_label[(_normalized(item.group), _normalized(item.label), _normalized(item.scope or ""))]) > 1})
+        item.model_copy(update={"conflicting": len(by_label[(*_property_key(item.group, item.label), _normalized(item.scope or ""))]) > 1})
         for item in facts.values()
     )
     return ProductInfo(facts=merged_facts, variants=tuple(variants.values()))
+
+
+def _property_key(group: str, label: str) -> tuple[str, str]:
+    group_key = _normalized(group).replace("_", " ").replace("-", " ")
+    label_key = _normalized(label).replace("_", " ").replace("-", " ")
+    if group_key in {"chip", "chipset", "processor", "soc"} and label_key in {
+        "processor", "processor name", "chipset name", "soc", "soc name",
+    }:
+        return "processing", "processor model"
+    return group_key, label_key
+
+
+def _distinct_evidence(items: tuple[ProductEvidence, ...]) -> tuple[ProductEvidence, ...]:
+    return tuple({(item.video_id, item.source_part, item.timestamp_seconds, _normalized(item.excerpt)): item
+                  for item in items}.values())

@@ -7,6 +7,7 @@ from fractions import Fraction
 from typing import Any
 
 from app.analysis.contracts import AuditIssue, AuditResult, ConsensusItem, FinalReportDraft
+from app.analysis.quantities import decimal, explicit_quantities, without_product_identity
 
 
 _NUMBER = re.compile(r"(?<![\w.])\d+(?:[.,]\d+)?")
@@ -14,7 +15,7 @@ _MIXED_FRACTION = re.compile(r"(?<![\w.])(\d+)\s+(?:and\s+)?(\d+)\s*/\s*(\d+)(?!
 _MODEL_CODE = re.compile(r"\b[a-z][a-z0-9-]*\d[a-z0-9-]*\b", re.I)
 _DURATION = re.compile(
     r"(?<![\w.])(?P<amount>\d+\s+(?:and\s+)?\d+\s*/\s*\d+|\d+(?:[.,]\d+)?|(?P<verbal>half(?:\s+an?)?|an?|one))"
-    r"(?(verbal)[\s-]+|[\s-]*)(?P<unit>hours?|hrs?|h|minutes?|mins?|seconds?|secs?|s)\b", re.I,
+    r"(?(verbal)[\s-]+|[\s-]*)(?P<unit>milliseconds?|msecs?|ms|microseconds?|usecs?|us|µs|μs|hours?|hrs?|h|minutes?|mins?|seconds?|secs?|s)\b", re.I,
 )
 _GROUNDING_CODES = {
     "unsupported_claim", "unsupported_finding", "unsupported_disagreement",
@@ -39,25 +40,36 @@ def _quantities(text: str) -> set[Fraction]:
         return match[0]
 
     remaining = _MIXED_FRACTION.sub(mixed, text)
-    values.update(Fraction(item.replace(",", "")) for item in _NUMBER.findall(remaining))
+    values.update(decimal(item) for item in _NUMBER.findall(remaining))
     return values
 
 
 def _statement_matches(statement: str, claim: str, excerpt: str, product_name: str) -> bool:
+    return not statement_mismatches(statement, excerpt, product_name)
+
+
+def statement_mismatches(statement: str, excerpt: str, product_name: str) -> list[str]:
+    statement = without_product_identity(statement, product_name)
     statement_times, remaining_statement = _durations(statement)
     excerpt_times, remaining_excerpt = _durations(excerpt)
+    issues = []
     if not statement_times <= excerpt_times:
-        return False
-    numbers = _quantities(remaining_statement) - _quantities(product_name)
-    if not numbers <= _quantities(remaining_excerpt):
-        return False
+        issues.append("duration_not_cited")
+    measured, plain_statement = explicit_quantities(remaining_statement)
+    quoted, plain_excerpt = explicit_quantities(remaining_excerpt)
+    if not measured <= quoted:
+        issues.append("quantity_or_unit_not_cited")
+    # Plain numeric prose can cite a measured value, but an explicit unit must match.
+    quoted_numbers = _quantities(plain_excerpt) | {value for _, value in quoted}
+    if not _quantities(plain_statement) <= quoted_numbers:
+        issues.append("number_not_cited")
     # Polarity is semantic: 'no lag' supports a positive latency observation.
     # The existing auditor checks negation, conditions, and meaning per clause.
-    scoped = set(_MODEL_CODE.findall(statement.casefold())) - set(_MODEL_CODE.findall(product_name.casefold()))
-    support_codes = set(_MODEL_CODE.findall(excerpt.casefold()))
+    scoped = set(_MODEL_CODE.findall(plain_statement.casefold())) - set(_MODEL_CODE.findall(product_name.casefold()))
+    support_codes = set(_MODEL_CODE.findall(plain_excerpt.casefold()))
     if not scoped <= support_codes:
-        return False
-    return True
+        issues.append("model_code_not_cited")
+    return issues
 
 
 def _durations(text: str) -> tuple[set[Fraction], str]:
@@ -74,10 +86,12 @@ def _durations(text: str) -> tuple[set[Fraction], str]:
             amount = Fraction(whole) + Fraction(numerator, denominator)
         else:
             amount = Fraction(1, 2) if raw.startswith("half") else (
-                Fraction(1) if raw in {"a", "an", "one"} else Fraction(raw.replace(",", "")))
+                Fraction(1) if raw in {"a", "an", "one"} else decimal(raw))
         unit = match["unit"].casefold()
-        multiplier = Fraction(60) if unit.startswith(("h", "hr")) else (
-            Fraction(1, 60) if unit.startswith("s") else Fraction(1))
+        multiplier = (Fraction(1, 60000) if unit.startswith(("millisecond", "msec")) or unit == "ms" else
+                      Fraction(1, 60000000) if unit.startswith(("microsecond", "usec")) or unit in {"us", "µs", "μs"} else
+                      Fraction(60) if unit.startswith(("h", "hr")) else
+                      Fraction(1, 60) if unit.startswith("s") else Fraction(1))
         values.add(amount * multiplier)
         return ""
 
@@ -101,6 +115,7 @@ def ground_report(
     model_audit: AuditResult,
     *,
     strict_grounding: bool = False,
+    diagnostics: list[dict[str, Any]] | None = None,
 ) -> tuple[FinalReportDraft, AuditResult, bool]:
     """Remove unsupported material, retain non-grounding audit failures."""
     evidence: dict[str, tuple[str, str, str, str]] = {}
@@ -134,6 +149,14 @@ def ground_report(
             else:
                 return True
         removed.append(AuditIssue(code=code, field_path=f"report_draft.{field}[{index}]", retryable=False))
+        if diagnostics is not None and len(diagnostics) < 96:
+            checks = []
+            for source_id in source_ids:
+                owned = [evidence.get(str(eid)) for eid in item.evidence_node_ids]
+                excerpts = " ".join(ref[2] for ref in owned if ref and ref[0] == source_id and ref[3] == "supports")
+                checks.extend(statement_mismatches(item.statement, excerpts, draft.product_canonical_name))
+            diagnostics.append({"field_path": f"report_draft.{field}[{index}]", "code": code,
+                                "reasons": sorted(set(checks))})
         return False
 
     def source_supports(source_id: str, statement: str,

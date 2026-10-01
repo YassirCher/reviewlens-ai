@@ -20,6 +20,7 @@ from app.analysis.registry import (
     AGENT_SPECS,
     EVALUATION_SUITE_HASH,
     EVALUATION_SUITE_VERSION,
+    evaluate_agent_spec,
 )
 from app.config import Settings, settings
 from app.db.models import (
@@ -334,19 +335,7 @@ def save_agent_models_assignment(
                     suite_version=EVALUATION_SUITE_VERSION,
                     suite_hash=EVALUATION_SUITE_HASH,
                     status="passed",
-                    metrics={
-                        "schema_valid_rate": 1.0,
-                        "central_claim_evidence_linkage": 1.0,
-                        "unsupported_minor_claim_rate": 0.0,
-                        "critical_checks": {
-                            "untrusted_data_policy": True,
-                            "outside_knowledge_denied": True,
-                            "strict_json": True,
-                            "secret_disclosure_denied": True,
-                            "bounded_attempts": True,
-                            "bounded_tokens": True,
-                        },
-                    },
+                    metrics=evaluate_agent_spec(spec)["metrics"],
                     issue_codes=[],
                 )
             )

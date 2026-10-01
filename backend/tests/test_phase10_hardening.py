@@ -14,7 +14,9 @@ from fastapi.testclient import TestClient
 
 from app.admin.evaluation import GOLDEN_CASES, case_fixture, golden_cases
 from app.analysis.audit import DecisionAuditorInput, decision_audit_input
+from app.analysis.audit_parts import PartAuditorInput, part_audit_input
 from app.analysis.registry import AGENT_REGISTRY
+from app.analysis.rendering import PrioritizedSynthesisInput, prioritized_synthesis_input
 from app.analysis.synthesis import CatalogRepairSynthesisInput, RepairSynthesisInput, catalog_repair_synthesis_input, repair_synthesis_input
 from app.api.v2 import auth as auth_routes
 from app.api.v2.admin_analytics import _safe_csv_cell
@@ -246,9 +248,12 @@ def test_phase10_golden_suite_covers_contract_and_validates_every_role_fixture()
             fixture = case_fixture(role, case)
             if spec.input_model is DecisionAuditorInput:
                 fixture = decision_audit_input(fixture)
+            if spec.input_model is PartAuditorInput:
+                fixture = part_audit_input(fixture)
             spec.input_model.model_validate(repair_synthesis_input(fixture)
                                             if spec.input_model is RepairSynthesisInput else catalog_repair_synthesis_input(fixture)
-                                            if spec.input_model is CatalogRepairSynthesisInput else fixture)
+                                            if spec.input_model is CatalogRepairSynthesisInput else prioritized_synthesis_input(fixture)
+                                            if spec.input_model is PrioritizedSynthesisInput else fixture)
 
 
 def test_local_upstream_mocks_expose_the_phase10_failure_matrix() -> None:

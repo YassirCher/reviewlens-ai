@@ -1,0 +1,1108 @@
+{
+  "run_id": "f793c4b7-f0ad-407c-bce0-c73315f3819b",
+  "label_source": "human review of stored quotations and section placement",
+  "draft": {
+    "summary": "The iPhone 18 Pro Max receives strong praise for battery life, with multiple owners reporting exceptional endurance, though one reviewer noted rapid drain under heavy use. The camera system is lauded for natural bokeh and variable aperture, but complexity may lead to worse photos for inexperienced users. Build material quality is a drawback, with aluminum feeling less premium than previous titanium or stainless steel models. Weight is a compromise for battery and cooling, though one owner did not notice it. Siri and Face ID improvements are noted. The price increased by $100 over the previous model, but is still considered worth it by one owner. Upgrading from iPhone 17 Pro is not recommended by one reviewer.",
+    "limitations": [
+      "Review period is only 2 weeks; long-term durability not assessed.",
+      "Only one reviewer's experience; no comparative testing with other devices in this transcript.",
+      "Modem comparison is based on reviewer's claim of efficiency, not measured data.",
+      "Single day test, not long-term",
+      "Reviewer did not use low power mode consistently",
+      "Review is a single-day, real-world test, not a long-term evaluation",
+      "Battery test performed under specific usage pattern; results may vary",
+      "No direct comparison to iPhone 17 Pro or 16 Pro battery life under identical conditions"
+    ],
+    "disagreements": [
+      {
+        "topic": "battery_life",
+        "side_a": "the cited excerpt, the cited excerpt, the cited excerpt, the cited excerpt, the cited excerpt, the cited excerpt, the cited excerpt",
+        "side_b": "the cited excerpt, the cited excerpt",
+        "side_a_source_ids": [
+          "02fcc5e8-f904-44c1-83a9-25e00224b628",
+          "483e2475-7f9d-4963-bd62-d3c8370d1d10",
+          "541d4064-5c67-4691-bdf7-1d5a9f551384",
+          "7f6345e4-ff0b-420e-80e8-1cc4ed54b221",
+          "89f109a5-0d4f-4045-8bea-d808099d1f7b"
+        ],
+        "side_b_source_ids": [
+          "483e2475-7f9d-4963-bd62-d3c8370d1d10"
+        ]
+      }
+    ],
+    "consensus_cons": [
+      {
+        "statement": "build material quality: The reviewer states: \u201cit doesn't feel as nice as titanium iPhones before it or stainless steel\u201d",
+        "source_ids": [
+          "7f6345e4-ff0b-420e-80e8-1cc4ed54b221"
+        ],
+        "evidence_node_ids": [
+          "fd747788-c706-4a78-ae53-6a2c4982bfa7"
+        ]
+      },
+      {
+        "statement": "camera complexity: The reviewer states: \u201cif you don't know what you're doing, you probably will get worse photos with this than you would um just leaving it on auto\u201d",
+        "source_ids": [
+          "7f6345e4-ff0b-420e-80e8-1cc4ed54b221"
+        ],
+        "evidence_node_ids": [
+          "badee934-9cfc-4b86-9ebc-881c8ced32a1"
+        ]
+      },
+      {
+        "statement": "Heaviest iPhone but not noticeably heavy: The reviewer states: \u201cheaviest iPhone ever, I didn't really notice its heaviness\u201d",
+        "source_ids": [
+          "483e2475-7f9d-4963-bd62-d3c8370d1d10"
+        ],
+        "evidence_node_ids": [
+          "a10233e2-c81d-4c0d-971f-ee20d9f60d0f"
+        ]
+      },
+      {
+        "statement": "weight_and_ergonomics: The reviewer states: \u201cApple chose maximum battery and cooling over featherweight ergonomics, and that is a compromise you will have to accept every single day\u201d",
+        "source_ids": [
+          "02fcc5e8-f904-44c1-83a9-25e00224b628"
+        ],
+        "evidence_node_ids": [
+          "f53fd7a0-29d7-4e0e-b58f-478eb003abd6"
+        ]
+      }
+    ],
+    "consensus_pros": [
+      {
+        "statement": "battery_life: Owner reports easily a day and a half, and for light users 2 days of battery life.",
+        "source_ids": [
+          "02fcc5e8-f904-44c1-83a9-25e00224b628"
+        ],
+        "evidence_node_ids": [
+          "8b8dad5f-d2e4-4c4f-80ba-e6fe3538e91f"
+        ]
+      },
+      {
+        "statement": "battery_life: Owner consistently ends days with 45% battery remaining.",
+        "source_ids": [
+          "02fcc5e8-f904-44c1-83a9-25e00224b628"
+        ],
+        "evidence_node_ids": [
+          "a14fb93a-37ae-480b-b32b-6e98d066905b"
+        ]
+      },
+      {
+        "statement": "battery_life: Owner notes battery did go down quite a bit.",
+        "source_ids": [
+          "483e2475-7f9d-4963-bd62-d3c8370d1d10"
+        ],
+        "evidence_node_ids": [
+          "95faa9aa-09e9-43a9-9a70-3091cc07f21f"
+        ]
+      },
+      {
+        "statement": "battery_life: Owner reports battery was dying pretty quickly.",
+        "source_ids": [
+          "483e2475-7f9d-4963-bd62-d3c8370d1d10"
+        ],
+        "evidence_node_ids": [
+          "f94f38d0-83db-4e2f-ae74-9ee3f384bbc9"
+        ]
+      },
+      {
+        "statement": "battery_life: Owner found at 10:30 PM battery at 3%, which they found impressive.",
+        "source_ids": [
+          "483e2475-7f9d-4963-bd62-d3c8370d1d10"
+        ],
+        "evidence_node_ids": [
+          "ddbcc393-24d6-4312-aef5-19999efb0d3d"
+        ]
+      },
+      {
+        "statement": "battery_life: Owner still had 63% battery left after heavy Siri use, video shooting, and editing.",
+        "source_ids": [
+          "541d4064-5c67-4691-bdf7-1d5a9f551384"
+        ],
+        "evidence_node_ids": [
+          "9d514f03-eb5c-4d40-855c-2ec4eebca3e9"
+        ]
+      },
+      {
+        "statement": "battery_life: Active use rating of nearly 19.5 hours with great scores across the board.",
+        "source_ids": [
+          "89f109a5-0d4f-4045-8bea-d808099d1f7b"
+        ],
+        "evidence_node_ids": [
+          "1535f67f-6d7e-4715-879d-5dc7cc3c9f7f"
+        ]
+      },
+      {
+        "statement": "weight_and_ergonomics: Owner notes Apple chose maximum battery and cooling over featherweight ergonomics, a compromise you accept every day.",
+        "source_ids": [
+          "02fcc5e8-f904-44c1-83a9-25e00224b628"
+        ],
+        "evidence_node_ids": [
+          "f53fd7a0-29d7-4e0e-b58f-478eb003abd6"
+        ]
+      }
+    ],
+    "who_should_buy": [],
+    "who_should_avoid": [],
+    "longest_usage_period": null,
+    "product_display_name": "iphone 18 pro max",
+    "product_canonical_name": "iPhone 18 Pro Max",
+    "longest_usage_source_id": null
+  },
+  "original_claim_catalog": [
+    {
+      "kind": "strength",
+      "topic": "Battery life improvement",
+      "central": true,
+      "source_id": "89f109a5-0d4f-4045-8bea-d808099d1f7b",
+      "evidence_node_ids": [
+        "1535f67f-6d7e-4715-879d-5dc7cc3c9f7f"
+      ]
+    },
+    {
+      "kind": "strength",
+      "topic": "Battery drains quickly under heavy use",
+      "central": true,
+      "source_id": "483e2475-7f9d-4963-bd62-d3c8370d1d10",
+      "evidence_node_ids": [
+        "95faa9aa-09e9-43a9-9a70-3091cc07f21f",
+        "f94f38d0-83db-4e2f-ae74-9ee3f384bbc9"
+      ]
+    },
+    {
+      "kind": "strength",
+      "topic": "Camera produces natural, impressive boke",
+      "central": true,
+      "source_id": "483e2475-7f9d-4963-bd62-d3c8370d1d10",
+      "evidence_node_ids": [
+        "63beee97-5633-4ab2-9639-42ea0661a2b2",
+        "cd3378e0-ca14-4829-ae04-11bfd086a6da"
+      ]
+    },
+    {
+      "kind": "strength",
+      "topic": "Video zoom and natural look are strong",
+      "central": true,
+      "source_id": "483e2475-7f9d-4963-bd62-d3c8370d1d10",
+      "evidence_node_ids": [
+        "e6336558-6f24-43c8-949b-446d07daeb95",
+        "96636c12-e789-4ffc-a59c-f64a4bd12cce"
+      ]
+    },
+    {
+      "kind": "strength",
+      "topic": "Face ID works almost perfectly",
+      "central": true,
+      "source_id": "483e2475-7f9d-4963-bd62-d3c8370d1d10",
+      "evidence_node_ids": [
+        "c725bd37-a8cc-4e92-b55f-001e3b173dd1"
+      ]
+    },
+    {
+      "kind": "caveat",
+      "topic": "Heaviest iPhone but not noticeably heavy",
+      "central": true,
+      "source_id": "483e2475-7f9d-4963-bd62-d3c8370d1d10",
+      "evidence_node_ids": [
+        "a10233e2-c81d-4c0d-971f-ee20d9f60d0f"
+      ]
+    },
+    {
+      "kind": "strength",
+      "topic": "Battery lasts impressively long at low %",
+      "central": true,
+      "source_id": "483e2475-7f9d-4963-bd62-d3c8370d1d10",
+      "evidence_node_ids": [
+        "ddbcc393-24d6-4312-aef5-19999efb0d3d"
+      ]
+    },
+    {
+      "kind": "strength",
+      "topic": "Battery endurance",
+      "central": true,
+      "source_id": "541d4064-5c67-4691-bdf7-1d5a9f551384",
+      "evidence_node_ids": [
+        "9d514f03-eb5c-4d40-855c-2ec4eebca3e9"
+      ]
+    },
+    {
+      "kind": "strength",
+      "topic": "Siri AI reliability",
+      "central": true,
+      "source_id": "541d4064-5c67-4691-bdf7-1d5a9f551384",
+      "evidence_node_ids": [
+        "8cedc9a8-cc7b-4ed2-bcc8-89c4f9e9ce3a",
+        "f3a9a569-d63a-46cb-a216-72d8bcc1ca14"
+      ]
+    },
+    {
+      "kind": "strength",
+      "topic": "Pro camera features",
+      "central": true,
+      "source_id": "541d4064-5c67-4691-bdf7-1d5a9f551384",
+      "evidence_node_ids": [
+        "48f8871f-a66a-4597-a665-d611e19eaeff",
+        "16018c18-619f-4cbf-a0dc-6b321ad5e865"
+      ]
+    },
+    {
+      "kind": "strength",
+      "topic": "Sustained performance",
+      "central": false,
+      "source_id": "541d4064-5c67-4691-bdf7-1d5a9f551384",
+      "evidence_node_ids": [
+        "53fe73fe-50db-40b0-ba9f-94edc170d100",
+        "c9b65323-1c2c-4614-99c2-ec27dceaaa09"
+      ]
+    },
+    {
+      "kind": "caveat",
+      "topic": "Upgrade value for 17 Pro owners",
+      "central": false,
+      "source_id": "541d4064-5c67-4691-bdf7-1d5a9f551384",
+      "evidence_node_ids": [
+        "728a3d37-8700-4ac3-abcb-59fe2254bb55",
+        "8e8827c0-2cad-45ea-a55f-f312f25da23a"
+      ]
+    },
+    {
+      "kind": "caveat",
+      "topic": "Siri AI limitations",
+      "central": false,
+      "source_id": "541d4064-5c67-4691-bdf7-1d5a9f551384",
+      "evidence_node_ids": [
+        "2e79f72e-f983-4270-8143-0acee0421725"
+      ]
+    },
+    {
+      "kind": "strength",
+      "topic": "value proposition",
+      "central": true,
+      "source_id": "7f6345e4-ff0b-420e-80e8-1cc4ed54b221",
+      "evidence_node_ids": [
+        "780cc305-8d1b-4c79-b358-fb017ef6e6c1"
+      ]
+    },
+    {
+      "kind": "caveat",
+      "topic": "build material quality",
+      "central": true,
+      "source_id": "7f6345e4-ff0b-420e-80e8-1cc4ed54b221",
+      "evidence_node_ids": [
+        "fd747788-c706-4a78-ae53-6a2c4982bfa7",
+        "ee1a8341-5bb2-4478-812a-6178e6a31763"
+      ]
+    },
+    {
+      "kind": "strength",
+      "topic": "battery endurance",
+      "central": true,
+      "source_id": "7f6345e4-ff0b-420e-80e8-1cc4ed54b221",
+      "evidence_node_ids": [
+        "99b74d3e-ed55-4d58-a163-97e5cccb5925",
+        "7106e45a-3c31-4d0b-bce3-09acebf9a26c"
+      ]
+    },
+    {
+      "kind": "context",
+      "topic": "real-world performance",
+      "central": true,
+      "source_id": "7f6345e4-ff0b-420e-80e8-1cc4ed54b221",
+      "evidence_node_ids": [
+        "681ba30d-0c9f-4ff0-b85a-5b338b6da3ed",
+        "35bce4e3-d43d-4a31-bedf-78e9cd506775"
+      ]
+    },
+    {
+      "kind": "caveat",
+      "topic": "camera complexity",
+      "central": true,
+      "source_id": "7f6345e4-ff0b-420e-80e8-1cc4ed54b221",
+      "evidence_node_ids": [
+        "badee934-9cfc-4b86-9ebc-881c8ced32a1",
+        "26018709-15e2-4920-829f-875effa3c556"
+      ]
+    },
+    {
+      "kind": "strength",
+      "topic": "charging speed",
+      "central": true,
+      "source_id": "7f6345e4-ff0b-420e-80e8-1cc4ed54b221",
+      "evidence_node_ids": [
+        "7ffd16a8-6783-4085-a688-ae768e310c7a",
+        "1c721bac-efa1-467d-9aa2-19f2806d1254"
+      ]
+    },
+    {
+      "kind": "strength",
+      "topic": "battery_endurance",
+      "central": true,
+      "source_id": "02fcc5e8-f904-44c1-83a9-25e00224b628",
+      "evidence_node_ids": [
+        "8b8dad5f-d2e4-4c4f-80ba-e6fe3538e91f",
+        "a14fb93a-37ae-480b-b32b-6e98d066905b"
+      ]
+    },
+    {
+      "kind": "caveat",
+      "topic": "weight_and_ergonomics",
+      "central": true,
+      "source_id": "02fcc5e8-f904-44c1-83a9-25e00224b628",
+      "evidence_node_ids": [
+        "f53fd7a0-29d7-4e0e-b58f-478eb003abd6"
+      ]
+    },
+    {
+      "kind": "strength",
+      "topic": "camera_quality",
+      "central": true,
+      "source_id": "02fcc5e8-f904-44c1-83a9-25e00224b628",
+      "evidence_node_ids": [
+        "212d1a11-76ff-439d-94c3-155f728a30e4",
+        "93f7419a-bcd2-407a-8489-a3a488131fc2"
+      ]
+    },
+    {
+      "kind": "strength",
+      "topic": "apple_intelligence",
+      "central": true,
+      "source_id": "02fcc5e8-f904-44c1-83a9-25e00224b628",
+      "evidence_node_ids": [
+        "3e2f010d-fef7-47ab-975f-70a7b22dd683",
+        "b7e76dcd-6ec1-4023-9064-d098806cc57c"
+      ]
+    },
+    {
+      "kind": "strength",
+      "topic": "mobile_reception",
+      "central": false,
+      "source_id": "02fcc5e8-f904-44c1-83a9-25e00224b628",
+      "evidence_node_ids": [
+        "70b4878a-01cb-47ce-9ef5-e5bd00df69d1"
+      ]
+    },
+    {
+      "kind": "caveat",
+      "topic": "modem_efficiency",
+      "central": false,
+      "source_id": "02fcc5e8-f904-44c1-83a9-25e00224b628",
+      "evidence_node_ids": [
+        "d6fb1da7-fad9-45ba-81d7-9fa863f61502"
+      ]
+    }
+  ],
+  "expected_rejected_pro_paths": [
+    "report_draft.consensus_pros[2]",
+    "report_draft.consensus_pros[3]"
+  ],
+  "note": "Actual run published; two negative battery observations were placed in pros. The first report is immutable; no second iPhone live run was authorized.",
+  "source_analyses": [
+    {
+      "cons": [
+        "Variable aperture provides minimal benefit for photos due to small sensor size",
+        "Telephoto 4x zoom detail could be crisper",
+        "Night mode required for best results on telephoto and ultrawide; without it shots can be soft/grainy"
+      ],
+      "pros": [
+        "Improved battery life (nearly 19.5 hours active use)",
+        "Faster wired charging (0-81% in 30 min, full in 55 min)",
+        "Powerful A20 Pro chipset with significant CPU/GPU gains"
+      ],
+      "claims": [
+        {
+          "claim": "supports",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 90,
+              "support_type": "supports",
+              "evidence_text": "the 18 Pro Max earned an active use rating of nearly 19 1/2 hours with great scores across the board",
+              "source_node_id": "89f109a5-0d4f-4045-8bea-d808099d1f7b",
+              "evidence_node_id": "1535f67f-6d7e-4715-879d-5dc7cc3c9f7f",
+              "timestamp_end_seconds": 111.92,
+              "timestamp_start_seconds": 105.76
+            }
+          ]
+        }
+      ],
+      "source_id": "89f109a5-0d4f-4045-8bea-d808099d1f7b",
+      "channel_id": "UCbLq9tsbo8peV22VxbDAfXA",
+      "translated": false,
+      "limitations": [
+        "Review based on a single unit; individual units may vary",
+        "Battery test uses active use score methodology which may not reflect all usage patterns"
+      ],
+      "review_type": "unknown",
+      "caption_kind": "manual",
+      "major_issues": [
+        "Variable aperture offers little practical benefit for still photography",
+        "Internal lens reflections in night video remain unaddressed"
+      ],
+      "source_score": 66,
+      "recommended_for": [
+        "Users seeking the latest Apple flagship with best battery life",
+        "Users who want faster charging and a more powerful chipset"
+      ],
+      "purchase_verdict": "mixed",
+      "usage_period_raw": null,
+      "ownership_context": "review_unit",
+      "not_recommended_for": [
+        "Users expecting a major design overhaul",
+        "Users who prioritize under-display fingerprint reader"
+      ],
+      "transcript_language": "en",
+      "evidence_quality_score": 85,
+      "recommendation_summary": "The iPhone 18 Pro Max offers incremental but meaningful improvements in battery, charging, and performance, but the variable aperture and camera upgrades are underwhelming. It is a solid choice for new buyers or those upgrading from much older models, but 17 Pro Max owners may find little reason to ",
+      "usage_period_mentioned": false,
+      "source_analysis_node_id": "b23caf0e-d830-419e-b319-3f1bf62e8888",
+      "reviewer_sentiment_score": 60,
+      "usage_period_days_estimate": null,
+      "purchase_recommendation_score": 70
+    },
+    {
+      "cons": [
+        "Battery drains quickly during heavy camera/video use",
+        "Heaviest iPhone ever (though not noticed by reviewer)"
+      ],
+      "pros": [
+        "Camera produces natural, impressive bokeh",
+        "Video zoom (8x) looks really good",
+        "Face ID works almost perfectly"
+      ],
+      "claims": [
+        {
+          "claim": "battery_life",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 90,
+              "support_type": "supports",
+              "evidence_text": "battery did go down quite a bit",
+              "source_node_id": "483e2475-7f9d-4963-bd62-d3c8370d1d10",
+              "evidence_node_id": "95faa9aa-09e9-43a9-9a70-3091cc07f21f",
+              "timestamp_end_seconds": 314.72,
+              "timestamp_start_seconds": 310.72
+            },
+            {
+              "confidence": 90,
+              "support_type": "supports",
+              "evidence_text": "battery was dying pretty quickly",
+              "source_node_id": "483e2475-7f9d-4963-bd62-d3c8370d1d10",
+              "evidence_node_id": "f94f38d0-83db-4e2f-ae74-9ee3f384bbc9",
+              "timestamp_end_seconds": 616.32,
+              "timestamp_start_seconds": 610.0
+            }
+          ]
+        },
+        {
+          "claim": "camera_quality",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 95,
+              "support_type": "supports",
+              "evidence_text": "iPhone's camera this year is incredible",
+              "source_node_id": "483e2475-7f9d-4963-bd62-d3c8370d1d10",
+              "evidence_node_id": "63beee97-5633-4ab2-9639-42ea0661a2b2",
+              "timestamp_end_seconds": 352.32,
+              "timestamp_start_seconds": 348.72
+            },
+            {
+              "confidence": 95,
+              "support_type": "supports",
+              "evidence_text": "natural bokeh is just incredible",
+              "source_node_id": "483e2475-7f9d-4963-bd62-d3c8370d1d10",
+              "evidence_node_id": "cd3378e0-ca14-4829-ae04-11bfd086a6da",
+              "timestamp_end_seconds": 415.84,
+              "timestamp_start_seconds": 412.4
+            }
+          ]
+        },
+        {
+          "claim": "video_quality",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 90,
+              "support_type": "supports",
+              "evidence_text": "8x zoom for video. I think it looks really good",
+              "source_node_id": "483e2475-7f9d-4963-bd62-d3c8370d1d10",
+              "evidence_node_id": "e6336558-6f24-43c8-949b-446d07daeb95",
+              "timestamp_end_seconds": 358.56,
+              "timestamp_start_seconds": 352.32
+            },
+            {
+              "confidence": 90,
+              "support_type": "supports",
+              "evidence_text": "everything looks a little bit more natural",
+              "source_node_id": "483e2475-7f9d-4963-bd62-d3c8370d1d10",
+              "evidence_node_id": "96636c12-e789-4ffc-a59c-f64a4bd12cce",
+              "timestamp_end_seconds": 410.16,
+              "timestamp_start_seconds": 406.32
+            }
+          ]
+        },
+        {
+          "claim": "face_id",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 95,
+              "support_type": "supports",
+              "evidence_text": "new Face ID, for me at least, has been almost perfect",
+              "source_node_id": "483e2475-7f9d-4963-bd62-d3c8370d1d10",
+              "evidence_node_id": "c725bd37-a8cc-4e92-b55f-001e3b173dd1",
+              "timestamp_end_seconds": 474.64,
+              "timestamp_start_seconds": 466.32
+            }
+          ]
+        },
+        {
+          "claim": "weight",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 85,
+              "support_type": "supports",
+              "evidence_text": "heaviest iPhone ever, I didn't really notice its heaviness",
+              "source_node_id": "483e2475-7f9d-4963-bd62-d3c8370d1d10",
+              "evidence_node_id": "a10233e2-c81d-4c0d-971f-ee20d9f60d0f",
+              "timestamp_end_seconds": 562.0,
+              "timestamp_start_seconds": 555.68
+            }
+          ]
+        },
+        {
+          "claim": "battery_endurance",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 90,
+              "support_type": "supports",
+              "evidence_text": "at 10:30, my iPhone was at 3% battery, which is pretty impressive",
+              "source_node_id": "483e2475-7f9d-4963-bd62-d3c8370d1d10",
+              "evidence_node_id": "ddbcc393-24d6-4312-aef5-19999efb0d3d",
+              "timestamp_end_seconds": 925.12,
+              "timestamp_start_seconds": 918.64
+            }
+          ]
+        }
+      ],
+      "source_id": "483e2475-7f9d-4963-bd62-d3c8370d1d10",
+      "channel_id": "UCK7xdFCloKoUGFMGAxRhjCA",
+      "translated": false,
+      "limitations": [
+        "Single day test, not long-term",
+        "Reviewer did not use low power mode consistently"
+      ],
+      "review_type": "first_impressions",
+      "caption_kind": "automatic",
+      "major_issues": [],
+      "source_score": 70,
+      "recommended_for": [
+        "Photography enthusiasts",
+        "Video creators"
+      ],
+      "purchase_verdict": "mixed",
+      "usage_period_raw": null,
+      "ownership_context": "review_unit",
+      "not_recommended_for": [],
+      "transcript_language": "en",
+      "evidence_quality_score": 85,
+      "recommendation_summary": "Good camera and Face ID, but battery life may be a concern for heavy users",
+      "usage_period_mentioned": false,
+      "source_analysis_node_id": "0ae535cb-e7f1-488a-b174-d4a98ad123df",
+      "reviewer_sentiment_score": 70,
+      "usage_period_days_estimate": null,
+      "purchase_recommendation_score": 70
+    },
+    {
+      "cons": [],
+      "pros": [],
+      "claims": [
+        {
+          "claim": "Battery life is significantly improved and lasts a full day of heavy use.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 85,
+              "support_type": "supports",
+              "evidence_text": "I still had 63% battery left, which is impressive to me because I was using Siri a ton, shooting videos all day, and even making that quick edit",
+              "source_node_id": "541d4064-5c67-4691-bdf7-1d5a9f551384",
+              "evidence_node_id": "9d514f03-eb5c-4d40-855c-2ec4eebca3e9",
+              "timestamp_end_seconds": 598.04,
+              "timestamp_start_seconds": 589.12
+            }
+          ]
+        },
+        {
+          "claim": "Siri AI is genuinely helpful and more reliable than before.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 80,
+              "support_type": "supports",
+              "evidence_text": "I've been leaning on it way more than I've ever relied on Siri in the past",
+              "source_node_id": "541d4064-5c67-4691-bdf7-1d5a9f551384",
+              "evidence_node_id": "8cedc9a8-cc7b-4ed2-bcc8-89c4f9e9ce3a",
+              "timestamp_end_seconds": 161.24,
+              "timestamp_start_seconds": 156.32
+            },
+            {
+              "confidence": 75,
+              "support_type": "supports",
+              "evidence_text": "I kind of trust what it tells me now",
+              "source_node_id": "541d4064-5c67-4691-bdf7-1d5a9f551384",
+              "evidence_node_id": "f3a9a569-d63a-46cb-a216-72d8bcc1ca14",
+              "timestamp_end_seconds": 170.84,
+              "timestamp_start_seconds": 164.76
+            }
+          ]
+        },
+        {
+          "claim": "Camera gains pro controls including variable aperture, focus peaking, and subject tracking.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 85,
+              "support_type": "supports",
+              "evidence_text": "We finally have pro camera features on the 18 Pro, which is something we've been dying for for ages",
+              "source_node_id": "541d4064-5c67-4691-bdf7-1d5a9f551384",
+              "evidence_node_id": "48f8871f-a66a-4597-a665-d611e19eaeff",
+              "timestamp_end_seconds": 179.6,
+              "timestamp_start_seconds": 173.48
+            },
+            {
+              "confidence": 80,
+              "support_type": "supports",
+              "evidence_text": "the new feature with the camera called variable aperture, it's the one everyone's talking about, is such a welcomed addition",
+              "source_node_id": "541d4064-5c67-4691-bdf7-1d5a9f551384",
+              "evidence_node_id": "16018c18-619f-4cbf-a0dc-6b321ad5e865",
+              "timestamp_end_seconds": 372.4,
+              "timestamp_start_seconds": 365.28
+            }
+          ]
+        },
+        {
+          "claim": "Performance is smooth; chip and thermal design sustain high performance without throttling.",
+          "central": false,
+          "evidence": [
+            {
+              "confidence": 80,
+              "support_type": "supports",
+              "evidence_text": "gaming is really smooth",
+              "source_node_id": "541d4064-5c67-4691-bdf7-1d5a9f551384",
+              "evidence_node_id": "53fe73fe-50db-40b0-ba9f-94edc170d100",
+              "timestamp_end_seconds": 560.48,
+              "timestamp_start_seconds": 556.08
+            },
+            {
+              "confidence": 75,
+              "support_type": "supports",
+              "evidence_text": "I haven't been able to make this phone heat up or slow down",
+              "source_node_id": "541d4064-5c67-4691-bdf7-1d5a9f551384",
+              "evidence_node_id": "c9b65323-1c2c-4614-99c2-ec27dceaaa09",
+              "timestamp_end_seconds": 587.08,
+              "timestamp_start_seconds": 583.48
+            }
+          ]
+        },
+        {
+          "claim": "Design is nearly identical to iPhone 17 Pro; upgrade not compelling for 17 Pro owners.",
+          "central": false,
+          "evidence": [
+            {
+              "confidence": 85,
+              "support_type": "supports",
+              "evidence_text": "the phone itself looking exactly like last year, with of course with some new colors",
+              "source_node_id": "541d4064-5c67-4691-bdf7-1d5a9f551384",
+              "evidence_node_id": "728a3d37-8700-4ac3-abcb-59fe2254bb55",
+              "timestamp_end_seconds": 149.08,
+              "timestamp_start_seconds": 145.84
+            },
+            {
+              "confidence": 80,
+              "support_type": "supports",
+              "evidence_text": "If you do have a 17 Pro, though, I don't know if this is the year you want to upgrade",
+              "source_node_id": "541d4064-5c67-4691-bdf7-1d5a9f551384",
+              "evidence_node_id": "8e8827c0-2cad-45ea-a55f-f312f25da23a",
+              "timestamp_end_seconds": 752.72,
+              "timestamp_start_seconds": 748.12
+            }
+          ]
+        },
+        {
+          "claim": "Siri AI cannot perform agentic tasks like booking a reservation directly.",
+          "central": false,
+          "evidence": [
+            {
+              "confidence": 85,
+              "support_type": "supports",
+              "evidence_text": "it might not necessarily be able to do agentic stuff, like go ahead and book a a reservation for me",
+              "source_node_id": "541d4064-5c67-4691-bdf7-1d5a9f551384",
+              "evidence_node_id": "2e79f72e-f983-4270-8143-0acee0421725",
+              "timestamp_end_seconds": 342.04,
+              "timestamp_start_seconds": 335.36
+            }
+          ]
+        }
+      ],
+      "source_id": "541d4064-5c67-4691-bdf7-1d5a9f551384",
+      "channel_id": "UC9fSZHEh6XsRpX-xJc6lT3A",
+      "translated": false,
+      "limitations": [
+        "Review is a single-day, real-world test, not a long-term evaluation",
+        "Battery test performed under specific usage pattern; results may vary",
+        "No direct comparison to iPhone 17 Pro or 16 Pro battery life under identical conditions"
+      ],
+      "review_type": "unknown",
+      "caption_kind": "automatic",
+      "major_issues": [],
+      "source_score": 72,
+      "recommended_for": [],
+      "purchase_verdict": "mixed",
+      "usage_period_raw": null,
+      "ownership_context": "review_unit",
+      "not_recommended_for": [],
+      "transcript_language": "en",
+      "evidence_quality_score": 75,
+      "recommendation_summary": "Some source details could not be verified; inspect the cited claims.",
+      "usage_period_mentioned": false,
+      "source_analysis_node_id": "60a336f6-422c-4838-96ae-afe7eff4aa7b",
+      "reviewer_sentiment_score": 75,
+      "usage_period_days_estimate": null,
+      "purchase_recommendation_score": 70
+    },
+    {
+      "cons": [
+        "aluminum build feels less premium than titanium/stainless steel and is prone to dents and chips",
+        "dark colors show chips exposing bare aluminum",
+        "phone is a fingerprint magnet (darker colors)"
+      ],
+      "pros": [
+        "exceptional battery life, possibly best iPhone ever",
+        "very fast performance with 2nm chip",
+        "significantly faster charging than previous iPhones"
+      ],
+      "claims": [
+        {
+          "claim": "price increase of $100 is acceptable for the overall product",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 70,
+              "support_type": "supports",
+              "evidence_text": "the price went up over last year's Orange Boy over here by $100. And if you're asking if it's uh worth it still, I'd say yes, because it's still an amazing product overall",
+              "source_node_id": "7f6345e4-ff0b-420e-80e8-1cc4ed54b221",
+              "evidence_node_id": "780cc305-8d1b-4c79-b358-fb017ef6e6c1",
+              "timestamp_end_seconds": 43.12,
+              "timestamp_start_seconds": 29.679
+            }
+          ]
+        },
+        {
+          "claim": "aluminum build feels less premium than titanium/stainless steel and is prone to dents and chips",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 80,
+              "support_type": "supports",
+              "evidence_text": "it doesn't feel as nice as titanium iPhones before it or stainless steel",
+              "source_node_id": "7f6345e4-ff0b-420e-80e8-1cc4ed54b221",
+              "evidence_node_id": "fd747788-c706-4a78-ae53-6a2c4982bfa7",
+              "timestamp_end_seconds": 244.72,
+              "timestamp_start_seconds": 238.72
+            },
+            {
+              "confidence": 80,
+              "support_type": "supports",
+              "evidence_text": "aluminum can dent. You've probably seen online some people's phones getting dense already. And they can chip, too",
+              "source_node_id": "7f6345e4-ff0b-420e-80e8-1cc4ed54b221",
+              "evidence_node_id": "ee1a8341-5bb2-4478-812a-6178e6a31763",
+              "timestamp_end_seconds": 290.16,
+              "timestamp_start_seconds": 284.16
+            }
+          ]
+        },
+        {
+          "claim": "battery life is exceptional, possibly the best iPhone battery ever",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 85,
+              "support_type": "supports",
+              "evidence_text": "this might be the goat of all time when it comes to the uh iPhone batteries",
+              "source_node_id": "7f6345e4-ff0b-420e-80e8-1cc4ed54b221",
+              "evidence_node_id": "99b74d3e-ed55-4d58-a163-97e5cccb5925",
+              "timestamp_end_seconds": 731.44,
+              "timestamp_start_seconds": 726.0
+            },
+            {
+              "confidence": 85,
+              "support_type": "supports",
+              "evidence_text": "I'm finishing the days with like 60%",
+              "source_node_id": "7f6345e4-ff0b-420e-80e8-1cc4ed54b221",
+              "evidence_node_id": "7106e45a-3c31-4d0b-bce3-09acebf9a26c",
+              "timestamp_end_seconds": 772.24,
+              "timestamp_start_seconds": 768.8
+            }
+          ]
+        },
+        {
+          "claim": "performance is extremely fast due to 2nm chip and high clock speed, but not noticeably different in everyday use unless multitasking",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 75,
+              "support_type": "supports",
+              "evidence_text": "4.93 GHz clock speed on the CPU",
+              "source_node_id": "7f6345e4-ff0b-420e-80e8-1cc4ed54b221",
+              "evidence_node_id": "681ba30d-0c9f-4ff0-b85a-5b338b6da3ed",
+              "timestamp_end_seconds": 490.479,
+              "timestamp_start_seconds": 485.759
+            },
+            {
+              "confidence": 75,
+              "support_type": "supports",
+              "evidence_text": "does it feel different than a previous iPhone? The answer is not really until you start opening a lot of apps",
+              "source_node_id": "7f6345e4-ff0b-420e-80e8-1cc4ed54b221",
+              "evidence_node_id": "35bce4e3-d43d-4a31-bedf-78e9cd506775",
+              "timestamp_end_seconds": 548.32,
+              "timestamp_start_seconds": 541.36
+            }
+          ]
+        },
+        {
+          "claim": "camera system is a safe iterative upgrade with pro mode and variable aperture, but may produce worse photos if used incorrectly",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 70,
+              "support_type": "supports",
+              "evidence_text": "if you don't know what you're doing, you probably will get worse photos with this than you would um just leaving it on auto",
+              "source_node_id": "7f6345e4-ff0b-420e-80e8-1cc4ed54b221",
+              "evidence_node_id": "badee934-9cfc-4b86-9ebc-881c8ced32a1",
+              "timestamp_end_seconds": 594.48,
+              "timestamp_start_seconds": 588.16
+            },
+            {
+              "confidence": 70,
+              "support_type": "supports",
+              "evidence_text": "it's a safe bet. Again, it's not like they went and put a whole massive huge like big massive change to it",
+              "source_node_id": "7f6345e4-ff0b-420e-80e8-1cc4ed54b221",
+              "evidence_node_id": "26018709-15e2-4920-829f-875effa3c556",
+              "timestamp_end_seconds": 715.12,
+              "timestamp_start_seconds": 710.0
+            }
+          ]
+        },
+        {
+          "claim": "charging is significantly faster than previous iPhones",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 75,
+              "support_type": "supports",
+              "evidence_text": "the charging is way faster than previous iPhones",
+              "source_node_id": "7f6345e4-ff0b-420e-80e8-1cc4ed54b221",
+              "evidence_node_id": "7ffd16a8-6783-4085-a688-ae768e310c7a",
+              "timestamp_end_seconds": 895.92,
+              "timestamp_start_seconds": 892.8
+            },
+            {
+              "confidence": 75,
+              "support_type": "supports",
+              "evidence_text": "This thing will charge like a good, you know, 40 50% pretty quickly",
+              "source_node_id": "7f6345e4-ff0b-420e-80e8-1cc4ed54b221",
+              "evidence_node_id": "1c721bac-efa1-467d-9aa2-19f2806d1254",
+              "timestamp_end_seconds": 907.92,
+              "timestamp_start_seconds": 902.72
+            }
+          ]
+        }
+      ],
+      "source_id": "7f6345e4-ff0b-420e-80e8-1cc4ed54b221",
+      "channel_id": "UCWsEZ9v1KC8b5VYjYbEewJA",
+      "translated": false,
+      "limitations": [
+        "reviewer is still in honeymoon phase after one week",
+        "not a full comparison review",
+        "battery cycle counts kept artificially low by reviewer's charging habits"
+      ],
+      "review_type": "first_impressions",
+      "caption_kind": "automatic",
+      "major_issues": [
+        "build material downgrade from titanium to aluminum may disappoint users expecting premium feel"
+      ],
+      "source_score": 70,
+      "recommended_for": [
+        "users upgrading from iPhone 14 Pro Max or older",
+        "users who prioritize battery life above all else",
+        "users who want the fastest iPhone performance"
+      ],
+      "purchase_verdict": "buy",
+      "usage_period_raw": null,
+      "ownership_context": "review_unit",
+      "not_recommended_for": [
+        "users who want a premium-feeling metal frame",
+        "users who dislike high-maintenance phones (fingerprints, potential chips)"
+      ],
+      "transcript_language": "en",
+      "evidence_quality_score": 70,
+      "recommendation_summary": "Recommended for users seeking best-in-class battery life and performance, but be aware of the less premium aluminum build and potential for scratches/chips.",
+      "usage_period_mentioned": false,
+      "source_analysis_node_id": "09497632-0cff-488d-85c1-fc4604b1f8fc",
+      "reviewer_sentiment_score": 70,
+      "usage_period_days_estimate": null,
+      "purchase_recommendation_score": 70
+    },
+    {
+      "cons": [],
+      "pros": [],
+      "claims": [
+        {
+          "claim": "Battery life is exceptional, delivering 1.5\u20132 days of endurance.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 90,
+              "support_type": "supports",
+              "evidence_text": "easily a day and a half, and if you're a light user, 2 days of battery life",
+              "source_node_id": "02fcc5e8-f904-44c1-83a9-25e00224b628",
+              "evidence_node_id": "8b8dad5f-d2e4-4c4f-80ba-e6fe3538e91f",
+              "timestamp_end_seconds": 121.4,
+              "timestamp_start_seconds": 112.6
+            },
+            {
+              "confidence": 85,
+              "support_type": "supports",
+              "evidence_text": "I'm consistently ending my days with like 45% battery remaining",
+              "source_node_id": "02fcc5e8-f904-44c1-83a9-25e00224b628",
+              "evidence_node_id": "a14fb93a-37ae-480b-b32b-6e98d066905b",
+              "timestamp_end_seconds": 134.4,
+              "timestamp_start_seconds": 126.76
+            }
+          ]
+        },
+        {
+          "claim": "The phone is heavy and bulky, a compromise for maximum battery and cooling.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 90,
+              "support_type": "supports",
+              "evidence_text": "Apple chose maximum battery and cooling over featherweight ergonomics, and that is a compromise you will have to accept every single day",
+              "source_node_id": "02fcc5e8-f904-44c1-83a9-25e00224b628",
+              "evidence_node_id": "f53fd7a0-29d7-4e0e-b58f-478eb003abd6",
+              "timestamp_end_seconds": 84.2,
+              "timestamp_start_seconds": 75.16
+            }
+          ]
+        },
+        {
+          "claim": "Mechanical variable aperture camera system is fantastic, fixing close-up edge softness and providing natural bokeh.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 90,
+              "support_type": "supports",
+              "evidence_text": "Having the physical aperture step down to F4 has completely fixed the close-up edge softness that used to kind of ruin desk shots and document scans",
+              "source_node_id": "02fcc5e8-f904-44c1-83a9-25e00224b628",
+              "evidence_node_id": "212d1a11-76ff-439d-94c3-155f728a30e4",
+              "timestamp_end_seconds": 233.56,
+              "timestamp_start_seconds": 222.76
+            },
+            {
+              "confidence": 85,
+              "support_type": "supports",
+              "evidence_text": "The natural optical bokeh roll-off is gorgeous, giving everyday portraits a genuine depth that software just simply cannot replicate",
+              "source_node_id": "02fcc5e8-f904-44c1-83a9-25e00224b628",
+              "evidence_node_id": "93f7419a-bcd2-407a-8489-a3a488131fc2",
+              "timestamp_end_seconds": 240.96,
+              "timestamp_start_seconds": 233.56
+            }
+          ]
+        },
+        {
+          "claim": "Apple Intelligence features, especially Clean Up tool and Siri shortcuts, are genuinely useful.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 85,
+              "support_type": "supports",
+              "evidence_text": "Apple has refined cleanup to the point where it is scary good",
+              "source_node_id": "02fcc5e8-f904-44c1-83a9-25e00224b628",
+              "evidence_node_id": "3e2f010d-fef7-47ab-975f-70a7b22dd683",
+              "timestamp_end_seconds": 303.76,
+              "timestamp_start_seconds": 298.52
+            },
+            {
+              "confidence": 80,
+              "support_type": "supports",
+              "evidence_text": "Siri has also become like the best assistant for just for understanding natural language",
+              "source_node_id": "02fcc5e8-f904-44c1-83a9-25e00224b628",
+              "evidence_node_id": "b7e76dcd-6ec1-4023-9064-d098806cc57c",
+              "timestamp_end_seconds": 345.64,
+              "timestamp_start_seconds": 340.919
+            }
+          ]
+        },
+        {
+          "claim": "Mobile reception and data performance are excellent with Qualcomm modem in the US.",
+          "central": false,
+          "evidence": [
+            {
+              "confidence": 80,
+              "support_type": "supports",
+              "evidence_text": "I haven't had a single issue. In fact, using T-Mobile, I've been having the same insane service all over the city",
+              "source_node_id": "02fcc5e8-f904-44c1-83a9-25e00224b628",
+              "evidence_node_id": "70b4878a-01cb-47ce-9ef5-e5bd00df69d1",
+              "timestamp_end_seconds": 464.04,
+              "timestamp_start_seconds": 457.2
+            }
+          ]
+        },
+        {
+          "claim": "Apple C2 modem is more efficient than Qualcomm's modem.",
+          "central": false,
+          "evidence": [
+            {
+              "confidence": 70,
+              "support_type": "supports",
+              "evidence_text": "the Apple C2 modem is more efficient than Qualcomm's modem",
+              "source_node_id": "02fcc5e8-f904-44c1-83a9-25e00224b628",
+              "evidence_node_id": "d6fb1da7-fad9-45ba-81d7-9fa863f61502",
+              "timestamp_end_seconds": 478.04,
+              "timestamp_start_seconds": 474.0
+            }
+          ]
+        }
+      ],
+      "source_id": "02fcc5e8-f904-44c1-83a9-25e00224b628",
+      "channel_id": "UCZFJqMf_h9F3yfjLtrl0frA",
+      "translated": false,
+      "limitations": [
+        "Review period is only 2 weeks; long-term durability not assessed.",
+        "Only one reviewer's experience; no comparative testing with other devices in this transcript.",
+        "Modem comparison is based on reviewer's claim of efficiency, not measured data."
+      ],
+      "review_type": "unknown",
+      "caption_kind": "automatic",
+      "major_issues": [],
+      "source_score": 80,
+      "recommended_for": [],
+      "purchase_verdict": "mixed",
+      "usage_period_raw": null,
+      "ownership_context": "review_unit",
+      "not_recommended_for": [],
+      "transcript_language": "en",
+      "evidence_quality_score": 85,
+      "recommendation_summary": "Some source details could not be verified; inspect the cited claims.",
+      "usage_period_mentioned": false,
+      "source_analysis_node_id": "c5be6c8e-3d84-4582-bd19-47f4e0fa629c",
+      "reviewer_sentiment_score": 80,
+      "usage_period_days_estimate": null,
+      "purchase_recommendation_score": 80
+    }
+  ]
+}

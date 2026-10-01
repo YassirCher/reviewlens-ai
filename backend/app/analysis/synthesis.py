@@ -183,6 +183,8 @@ class SynthesisBindingError(ValueError):
         if reference_field:
             path.append(reference_field)
         self.issue = {"type": code, "loc": path}
+        if code in {"unknown_reference", "assertion_source_mismatch"}:
+            self.issue.update(reference_category="citation", ownership="unknown" if code == "unknown_reference" else "mixed")
 
 
 class SourceBoundBuyingSynthesis(AtomicBuyingSynthesis):

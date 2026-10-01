@@ -104,16 +104,23 @@ def compare(baseline: dict[str, dict], candidate: dict[str, dict], min_pairs: in
             for key in baseline
         ) and (strict_correction or strict_audit or sum(row["source_count_analyzed"] for row in changed) > sum(row["source_count_analyzed"] for row in base))
     if strict_audit:
+        for row in [*base, *changed]:
+            audience = row.get("audience_model_calls", 0)
+            if type(audience) is not int or not 0 <= audience <= row["source_count_analyzed"]:
+                raise ValueError("audience_model_calls must be an integer within analyzed source count")
         checks["normal_calls"] = all(candidate[key]["model_call_count"] - repairs[key]
-                                    <= candidate[key]["source_count_analyzed"] + 4 for key in baseline)
+                                    <= candidate[key]["source_count_analyzed"] + 4 + candidate[key].get("audience_model_calls", 0) for key in baseline)
     if strict_correction:
         for row in [*base, *changed]:
+            audience = row.get("audience_model_calls", 0)
+            if type(audience) is not int or not 0 <= audience <= row["source_count_analyzed"]:
+                raise ValueError("audience_model_calls must be an integer within analyzed source count")
             if type(row.get("product_fact_count")) is not int or row["product_fact_count"] < 0:
                 raise ValueError("strict correction requires valid product fact counts")
         checks["product_facts"] = all(candidate[key]["product_fact_count"] >= baseline[key]["product_fact_count"]
                                       for key in baseline) and sum(row["product_fact_count"] for row in changed) > sum(row["product_fact_count"] for row in base)
         checks["normal_calls"] = all(candidate[key]["model_call_count"] - repairs[key]
-                                    <= candidate[key]["source_count_analyzed"] + 4 for key in baseline)
+                                    <= candidate[key]["source_count_analyzed"] + 4 + candidate[key].get("audience_model_calls", 0) for key in baseline)
     return {
         "passed": all(checks.values()), "paired_runs": len(base),
         "repair_cases": sum(bool(calls) for calls in repairs.values()), "checks": checks,

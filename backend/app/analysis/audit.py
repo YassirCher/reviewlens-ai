@@ -187,10 +187,12 @@ def _normalized(value: str) -> str:
 
 class AuditDecisionError(ValueError):
     def __init__(self, message: str, *, missing_paths: tuple[str, ...] = (), unknown_count: int = 0,
-                 duplicate_count: int = 0) -> None:
+                 duplicate_count: int = 0, issues: tuple[dict[str, Any], ...] = ()) -> None:
         super().__init__(message)
         self.diagnostics = {"missing_paths": list(missing_paths), "unknown_path_count": unknown_count,
                             "duplicate_path_count": duplicate_count}
+        if issues:
+            self.diagnostics["issues"] = list(issues[:96])
 
 
 class FindingAuditResult(StrictModel):
@@ -239,13 +241,19 @@ class FindingAuditResult(StrictModel):
             narrative[prefix + ".side_b"] = disagreement.side_b
             allowed_quotes.update(quote.evidence_ref for quote in (*disagreement.side_a_citations, *disagreement.side_b_citations))
         seen = set()
-        for issue in self.other_issues:
+        for issue_index, issue in enumerate(self.other_issues):
             text = narrative.get(issue.field_path)
             is_disagreement = issue.field_path.startswith("report_draft.disagreements[")
             if text is None or (issue.code == "unsupported_disagreement") != is_disagreement:
                 raise ValueError("unknown or mismatched narrative audit path")
-            if issue.field_path in seen or _normalized(issue.unsupported_clause) not in _normalized(text):
-                raise ValueError("duplicate narrative rejection or invalid rejection span")
+            if issue.field_path in seen:
+                raise AuditDecisionError("duplicate narrative rejection", issues=({
+                    "loc": ["other_issues", issue_index, "field_path"], "field_path": issue.field_path,
+                    "type": "duplicate_narrative_rejection"},))
+            if _normalized(issue.unsupported_clause) not in _normalized(text):
+                raise AuditDecisionError("invalid narrative rejection span", issues=({
+                    "loc": ["other_issues", issue_index, "unsupported_clause"], "field_path": issue.field_path,
+                    "type": "invalid_rejection_span"},))
             scoped_quotes = allowed_quotes
             if is_disagreement:
                 scoped_quotes = set()

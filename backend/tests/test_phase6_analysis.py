@@ -129,12 +129,12 @@ def test_registry_contains_target_roles_and_product_information_analyst() -> Non
     assert {spec.key: spec.content_hash for spec in AGENT_SPECS} == {
         "research_coordinator": "29a6c7d8d25d2416ae95b1fe30f221ea72fb61e43696e19298ec73d83271144c",
         "source_curator": "cbc52537bf25dc14f98e8e8f9f852beb10e73e7c537be5d518dc90176df5af8a",
-        "review_analyst": "f9f005c756efba323b1d6f7b335af6261b08e0da057d1179d130100eec03add3",
+        "review_analyst": "fab56a6a0fbf9162858e6b9b78e5e765bd52a90c6b32d7658c8fff372dba1deb",
         "product_information_analyst": "7adccc849d5cf36b4aad7faefafb616ecc12564830be5c4d7ab2100625cc5935",
         "audience_analyst": "228b832c0b0a9ea0c2a6019580425f41ae5163868398e1405256eba2ea0e18d5",
         "knowledge_curator": "441fcf10754f4aad5063797b572543879e96407f489611e9ab4ef2152ade666d",
-        "consensus_analyst": "2d705e094a22e3a582e5a8b86ba0b5f15c309c19a39206559874d3ea829333a0",
-        "quality_auditor": "93c99ef44c1d5b43bb24aca9a90e7cce97e5eae928af0cfc9a7c034148654de1",
+        "consensus_analyst": "3d4d9eb2c01e38b13d409bb4f6bc517fcdfba7e8c242a224c2e181175cc97555",
+        "quality_auditor": "172f6d02be43a7c23e9e0992b88ede05fb050e3aa50c98335ab958a33c51d5ca",
     }
     assert all(evaluate_agent_spec(spec)["status"] == "passed" for spec in AGENT_SPECS)
 

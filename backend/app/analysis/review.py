@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import uuid
-from functools import cache
+import re
 from typing import Annotated, Literal
 
 from pydantic import Field, ValidationError, model_validator
@@ -70,28 +70,73 @@ class VideoExtraction(StrictModel):
     product_information: ProductExtractionDraft | None = None
 
 
-@cache
-def video_extraction_schema() -> dict:
+class ClassifiedClaim(ReviewClaim):
+    kind: Literal["strength", "caveat", "context"]
+    topic: str = Field(min_length=1, max_length=40)
+
+
+class ClassifiedReview(CompactReview):
+    claims: tuple[ClassifiedClaim, ...] = Field(min_length=1, max_length=6)
+
+
+class ClassifiedVideoExtraction(VideoExtraction):
+    review: ClassifiedReview
+
+
+_SCHEMA_CACHE: dict[type[VideoExtraction], dict] = {}
+
+
+def video_extraction_schema(model: type[VideoExtraction] = VideoExtraction) -> dict:
     """Reuse the immutable compiled contract during concurrent per-video calls."""
-    return VideoExtraction.model_json_schema()
+    if model not in _SCHEMA_CACHE:
+        _SCHEMA_CACHE[model] = model.model_json_schema()
+    return _SCHEMA_CACHE[model]
 
 
-def parse_video_extraction(payload: dict) -> VideoExtraction:
+def parse_video_extraction(payload: dict, model: type[VideoExtraction] = VideoExtraction) -> VideoExtraction:
     """Product details are optional even when a provider violates that subsection's schema."""
     if not isinstance(payload, dict) or set(payload) - {"review", "product_information"}:
-        return VideoExtraction.model_validate(payload)
-    review = CompactReview.model_validate(payload.get("review"))
+        return model.model_validate(payload)
+    review_model = model.model_fields["review"].annotation
+    assert review_model is not None
+    review = review_model.model_validate(payload.get("review"))
     try:
         details = ProductExtractionDraft.model_validate(payload.get("product_information"))
     except ValidationError:
         details = None
-    return VideoExtraction(review=review, product_information=details)
+    return model(review=review, product_information=details)
 
 
 def bind_review(review: CompactReview, source_id: uuid.UUID) -> SourceAnalysisDraft:
     payload = review.model_dump(mode="json")
     payload["source_id"] = str(source_id)
     for claim in payload["claims"]:
+        claim.pop("kind", None)
+        claim.pop("topic", None)
         for quote in claim["evidence"]:
             quote["source_node_id"] = str(source_id)
     return SourceAnalysisDraft.model_validate(payload)
+
+
+def normalize_usage(review: SourceAnalysisDraft, transcript: str) -> tuple[SourceAnalysisDraft, dict]:
+    """An explicit ownership/use phrase must support extended-use classification."""
+    raw = review.usage_period_raw or ""
+    spoken = re.sub(r"^\[[^\]]+\]\s*", "", transcript, flags=re.M)
+    words = lambda value: " ".join(re.findall(r"\w+", value.casefold()))
+    text, phrase = words(spoken), words(raw)
+    start = text.find(phrase) if phrase else -1
+    nearby = text[max(0, start - 100):start + len(phrase)] if start >= 0 else ""
+    supported = bool(review.usage_period_mentioned and start >= 0 and re.search(
+        r"\b(?:using|used|owned|ownership|testing|tested|reviewing|living|spent)\b", nearby))
+    # Estimate alone is never proof of an ownership duration.
+    duration = re.search(r"\b(\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|full)\s+(days?|weeks?|months?|years?)\b", phrase)
+    days = None
+    if supported and duration:
+        named = dict(zip(("one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"), range(1, 13)))
+        amount = int(duration[1]) if duration[1].isdigit() else named.get(duration[1], 1)
+        days = amount * {"d": 1, "w": 7, "m": 30, "y": 365}[duration[2][0]]
+    updates = {"usage_period_mentioned": supported, "usage_period_raw": raw if supported else None,
+               "usage_period_days_estimate": days}
+    if review.review_type in {ReviewType.LONG_TERM, ReviewType.RETROSPECTIVE} and (days is None or days < 30):
+        updates["review_type"] = ReviewType.SHORT_TERM if days is not None else ReviewType.UNKNOWN
+    return review.model_copy(update=updates), {"usage_supported": supported, "extended_use_supported": days is not None and days >= 30}

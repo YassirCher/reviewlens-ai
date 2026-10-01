@@ -14,8 +14,10 @@ from sqlalchemy import select
 from app.admin.configuration import validate_payload, version_payload
 from app.analysis.registry import AGENT_REGISTRY, snapshot_input_model, snapshot_output_model
 from app.analysis.review import VideoExtraction, bind_review, parse_video_extraction
+from app.analysis.rendering import PrioritizedSynthesisInput, prioritized_synthesis_input
 from app.analysis.synthesis import AtomicBuyingSynthesis, AtomicSynthesisInput, BuyingSynthesis, CatalogRepairSynthesisInput, EvidenceBoundBuyingSynthesis, QuoteSynthesisInput, RepairSynthesisInput, catalog_repair_synthesis_input, compact_synthesis_input, evidence_bound_synthesis_schema, quote_synthesis_input, repair_synthesis_input
 from app.analysis.audit import CatalogAuditorInput, CitedAuditorInput, DecisionAuditorInput, FindingAuditResult, cited_audit_input, compact_audit_input, decision_audit_input, finding_audit_schema
+from app.analysis.audit_parts import PartAuditorInput, ReferencedAuditResult, part_audit_input, referenced_audit_schema
 from app.db.models import (
     ActiveConfiguration, AgentDefinition, AgentEvaluationResult, AgentVersion, AnalysisRun,
     BudgetPolicyVersion, ConfigurationSnapshot, ModelPolicyVersion, RunBudgetState,
@@ -464,16 +466,22 @@ def evaluate_agent_version(version_id: uuid.UUID, job_id: uuid.UUID) -> dict:
             fixture_input = repair_synthesis_input(original_fixture)
         if spec.input_model is CatalogRepairSynthesisInput:
             fixture_input = catalog_repair_synthesis_input(original_fixture)
+        if spec.input_model is PrioritizedSynthesisInput:
+            fixture_input = prioritized_synthesis_input(original_fixture)
         if spec.input_model is CatalogAuditorInput:
             fixture_input = compact_audit_input(original_fixture)
         if spec.input_model is CitedAuditorInput:
             fixture_input = cited_audit_input(original_fixture)
         if spec.input_model is DecisionAuditorInput:
             fixture_input = decision_audit_input(original_fixture)
+        if spec.input_model is PartAuditorInput:
+            fixture_input = part_audit_input(original_fixture)
         fixture = spec.input_model.model_validate(fixture_input).model_dump(mode="json")
-        if spec.output_model is FindingAuditResult:
+        if spec.output_model is ReferencedAuditResult:
+            schema = referenced_audit_schema(PartAuditorInput.model_validate(fixture))
+        elif spec.output_model is FindingAuditResult:
             schema = finding_audit_schema(DecisionAuditorInput.model_validate(fixture))
-        elif spec.output_model is EvidenceBoundBuyingSynthesis:
+        elif issubclass(spec.output_model, EvidenceBoundBuyingSynthesis):
             schema = evidence_bound_synthesis_schema(spec.input_model.model_validate(fixture))
         trusted_task = json.dumps({
             "evaluation_case": case.key,
@@ -529,12 +537,12 @@ def evaluate_agent_version(version_id: uuid.UUID, job_id: uuid.UUID) -> dict:
                 estimated_prompt_tokens=prompt_tokens + (64 if correction else 0),
                 estimated_cost_microusd=correction_estimate if correction else estimate,
                 max_network_attempts=1,
-                optional_output_fields=("product_information",) if spec.output_model is VideoExtraction else (),
+                optional_output_fields=("product_information",) if issubclass(spec.output_model, VideoExtraction) else (),
             )
             try:
                 response = asyncio.run(OpenRouterGateway().chat(invocation))
-                if spec.output_model is VideoExtraction:
-                    extracted = parse_video_extraction(response.content)
+                if issubclass(spec.output_model, VideoExtraction):
+                    extracted = parse_video_extraction(response.content, spec.output_model)
                     output = bind_review(extracted.review, uuid.UUID(fixture["source_id"])).model_dump(mode="json")
                 elif issubclass(spec.output_model, AtomicBuyingSynthesis):
                     output = spec.output_model.model_validate(response.content).as_report(
@@ -543,6 +551,9 @@ def evaluate_agent_version(version_id: uuid.UUID, job_id: uuid.UUID) -> dict:
                 elif spec.output_model is BuyingSynthesis:
                     output = BuyingSynthesis.model_validate(response.content).as_report(
                         fixture["product_display_name"], fixture["product_canonical_name"]).model_dump(mode="json")
+                elif spec.output_model is ReferencedAuditResult:
+                    output = ReferencedAuditResult.model_validate(response.content).as_audit(
+                        PartAuditorInput.model_validate(fixture))[0].model_dump(mode="json")
                 elif spec.output_model is FindingAuditResult:
                     output = FindingAuditResult.model_validate(response.content).as_audit(
                         DecisionAuditorInput.model_validate(fixture))[0].model_dump(mode="json")

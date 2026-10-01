@@ -1,0 +1,796 @@
+{
+  "capture_kind": "sanitized actual draft and validated quotes; audit outputs unavailable",
+  "run_id": "24317c66-c7da-4223-901b-fefaa6a5a133",
+  "source_analyses": [
+    {
+      "source_id": "664c0c27-a5b2-4154-8d0e-189ce8d48cc1",
+      "channel_id": "UC8v1oT1rnCVqqrkgKDkrCzQ",
+      "pros": [],
+      "cons": [],
+      "major_issues": [],
+      "limitations": [
+        "The review is based on a single reviewer's experience; fit issues may vary per user.",
+        "Long-term durability is only speculated, not tested over an extended period.",
+        "No IP rating information was found, but the reviewer notes the case has gaps."
+      ],
+      "claims": [
+        {
+          "claim": "Sound quality is good with a clean, punchy bass thanks to the 13 mm driver, and the overall music experience is enjoyable.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 90,
+              "support_type": "supports",
+              "evidence_text": "বেসটা একদম ক্লিন এন্ড অনেক ফাংসি একটা বেইস দেয়। মিউজিক এক্সপেরিয়েন্স একচুয়ালি আমার অনেক ভালো ছিল",
+              "source_node_id": "664c0c27-a5b2-4154-8d0e-189ce8d48cc1",
+              "evidence_node_id": "92b227b2-d24c-4040-8bc0-fc4ad95170c8",
+              "timestamp_end_seconds": 92.72,
+              "timestamp_start_seconds": 84.96
+            }
+          ]
+        },
+        {
+          "claim": "Gaming mode provides directional sound that clearly indicates enemy direction, and Bluetooth 5.3 ensures stable connection without disconnections or lag during gaming.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 90,
+              "support_type": "supports",
+              "evidence_text": "এটার ডিরেকশনাল সাউন্ড এবং এনিমি কোন দিক থেকে আসছে সেটা খুব ক্লিয়ারলি বোঝা যায়",
+              "source_node_id": "664c0c27-a5b2-4154-8d0e-189ce8d48cc1",
+              "evidence_node_id": "0eb1e44b-6c97-430c-bed5-99059611477b",
+              "timestamp_end_seconds": 109.12,
+              "timestamp_start_seconds": 103.12
+            }
+          ]
+        },
+        {
+          "claim": "The earbuds are not user-friendly for the reviewer; they do not fit securely in his ears and feel like they might fall out, though others who use similar earbuds found them perfectly fitting.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 90,
+              "support_type": "supports",
+              "evidence_text": "আমি কয়েকজনকে দিয়ে টেস্ট করেছি যারা হচ্ছে এই ধরনের বার্ডস ইউজ করে তারা বলল যে না ভাই কানে একদম পারফেক্টলি থাকে",
+              "source_node_id": "664c0c27-a5b2-4154-8d0e-189ce8d48cc1",
+              "evidence_node_id": "a49f5e71-2982-4f0a-b149-8c3ace233082",
+              "timestamp_end_seconds": 232.96,
+              "timestamp_start_seconds": 224.96
+            }
+          ]
+        },
+        {
+          "claim": "The sliding mechanism of the case feels loose, raising concerns about long-term durability; the reviewer worries it may break if pulled.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 85,
+              "support_type": "supports",
+              "evidence_text": "এটার বিল্ড কোয়ালিটি ঠিক আছে কিন্তু যে জিনিসটা স্লাইড করে না ভাই এটাই যে দেখেন এভাবে একটু ফাঁকা থাকে যেটা এভাবে নাড়াচাড়া করে তাই একচুি এটার লং লাস্টিং নিয়ে একটু প্রশ্ন আমার মনে জাগে",
+              "source_node_id": "664c0c27-a5b2-4154-8d0e-189ce8d48cc1",
+              "evidence_node_id": "44ca4880-352e-4d4f-8a19-3ec966ad6798",
+              "timestamp_end_seconds": 244.72,
+              "timestamp_start_seconds": 234.96
+            }
+          ]
+        },
+        {
+          "claim": "At a price of 3000 taka, the Black Shark T11 is a solid choice for gaming and music with good bass, and the reviewer recommends it.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 90,
+              "support_type": "supports",
+              "evidence_text": "যদি আপনার বাজেট 3000 টাকা হয়ে থাকে আপনি এমন একটা এয়ারবাডস খুঁজছেন যেটা দেখতে বেশ স্টাইলিশ গেমিং প্লাস মিউজিকও ভালো পারফর্ম করবে। ভালো বেস পছন্দ আপনার। তবে ব্ল্যাকশার্টি 11 আপনার জন্য একটা সলিড চয়েস। 3000 টাকায় অবশ্যই রিকমেন্ড করার মত একটা জিনিস এটা",
+              "source_node_id": "664c0c27-a5b2-4154-8d0e-189ce8d48cc1",
+              "evidence_node_id": "49851623-6801-4649-aa9f-33bd935a6015",
+              "timestamp_end_seconds": 282.16,
+              "timestamp_start_seconds": 266.16
+            }
+          ]
+        }
+      ],
+      "recommendation_summary": "Some source details could not be verified; inspect the cited claims.",
+      "review_type": "unknown"
+    },
+    {
+      "source_id": "37d6e480-3f1c-48d7-a505-dc5c51201d1c",
+      "channel_id": "UC64T7SgnKibx4bVGZJxesoA",
+      "pros": [],
+      "cons": [],
+      "major_issues": [],
+      "limitations": [
+        "Only one reviewer's experience",
+        "Translated from Spanish",
+        "Automatic captions may have errors"
+      ],
+      "claims": [
+        {
+          "claim": "The earbuds are comfortable, lightweight, and fit perfectly in the ear.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 85,
+              "support_type": "supports",
+              "evidence_text": "very practical, weigh next to nothing, and fit perfectly in the ear",
+              "source_node_id": "37d6e480-3f1c-48d7-a505-dc5c51201d1c",
+              "evidence_node_id": "bd2228c1-e329-4f2a-83f1-39a3d8b0f2b8",
+              "timestamp_end_seconds": 116.56,
+              "timestamp_start_seconds": 108.32
+            }
+          ]
+        },
+        {
+          "claim": "The T11 has no companion app; resetting is done by pressing both earbuds simultaneously.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 90,
+              "support_type": "supports",
+              "evidence_text": "No, it doesn't have any app. Simply, if you want to reset it, well, you can press both earbuds here at the same time",
+              "source_node_id": "37d6e480-3f1c-48d7-a505-dc5c51201d1c",
+              "evidence_node_id": "32cf2a17-f36e-40ff-8911-e092a143e237",
+              "timestamp_end_seconds": 225.239,
+              "timestamp_start_seconds": 210.28
+            }
+          ]
+        },
+        {
+          "claim": "The T11 supports simultaneous connection to multiple devices.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 85,
+              "support_type": "supports",
+              "evidence_text": "you can use them with simultaneous devices",
+              "source_node_id": "37d6e480-3f1c-48d7-a505-dc5c51201d1c",
+              "evidence_node_id": "306ed800-42e7-498f-b806-8424cd3ffd7a",
+              "timestamp_end_seconds": 246.04,
+              "timestamp_start_seconds": 239.439
+            }
+          ]
+        },
+        {
+          "claim": "The reviewer prefers the Lucifer T6 over the T11 due to its rubber tips and LED lights.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 80,
+              "support_type": "supports",
+              "evidence_text": "I'd say these. These are Sensa, but I do like the Ad Geek with LED lights and how cool they look in my ears. I would choose these.",
+              "source_node_id": "37d6e480-3f1c-48d7-a505-dc5c51201d1c",
+              "evidence_node_id": "ad4044ea-d986-4a4c-8b52-8243361efefe",
+              "timestamp_end_seconds": 406.759,
+              "timestamp_start_seconds": 386.16
+            }
+          ]
+        }
+      ],
+      "recommendation_summary": "Some source details could not be verified; inspect the cited claims.",
+      "review_type": "unknown"
+    },
+    {
+      "source_id": "7b8f0377-9340-40b6-bfa5-066847b1993d",
+      "channel_id": "UCctSoWwSkdpttuUWN0NlUSA",
+      "pros": [
+        "Unique slide cover design with premium feel",
+        "Lightweight and comfortable for extended wear",
+        "RGB lighting doubles as battery indicator (red <10%)"
+      ],
+      "cons": [],
+      "major_issues": [],
+      "limitations": [
+        "No drawbacks or negative observations are mentioned in the transcript.",
+        "The review is entirely promotional with no critical assessment.",
+        "No usage period or long-term experience is stated."
+      ],
+      "claims": [
+        {
+          "claim": "The slide cover design with a satisfying shing sound adds to the premium feel.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 90,
+              "support_type": "supports",
+              "evidence_text": "satisfying shing sound as the case opens",
+              "source_node_id": "7b8f0377-9340-40b6-bfa5-066847b1993d",
+              "evidence_node_id": "7e77f502-43ad-42e4-95dd-1fc1d92d1afd",
+              "timestamp_end_seconds": 27.359,
+              "timestamp_start_seconds": 22.56
+            }
+          ]
+        },
+        {
+          "claim": "The earbuds are lightweight at 3.2 g and have a semi-in-ear ergonomic design for a comfortable fit during extended use.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 95,
+              "support_type": "supports",
+              "evidence_text": "incredibly lightweight, weighing only 3.2 g",
+              "source_node_id": "7b8f0377-9340-40b6-bfa5-066847b1993d",
+              "evidence_node_id": "2ec74aa4-3930-4f3f-a24f-84d9550059d5",
+              "timestamp_end_seconds": 53.76,
+              "timestamp_start_seconds": 42.399
+            },
+            {
+              "confidence": 90,
+              "support_type": "supports",
+              "evidence_text": "semianer ergonomic design, ensuring a snug and secure fit",
+              "source_node_id": "7b8f0377-9340-40b6-bfa5-066847b1993d",
+              "evidence_node_id": "1664eeb7-337a-4851-8965-6ea0a5edabf2",
+              "timestamp_end_seconds": 45.2,
+              "timestamp_start_seconds": 33.52
+            }
+          ]
+        },
+        {
+          "claim": "RGB lighting on the earbuds indicates battery level, with flashing red for less than 10% battery.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 85,
+              "support_type": "supports",
+              "evidence_text": "flashing red lights for instance signaling that the battery is less than 10%",
+              "source_node_id": "7b8f0377-9340-40b6-bfa5-066847b1993d",
+              "evidence_node_id": "06dce7fa-dea5-4ea1-bac0-31b111a8d78d",
+              "timestamp_end_seconds": 86.64,
+              "timestamp_start_seconds": 78.32
+            }
+          ]
+        },
+        {
+          "claim": "Total battery life is up to 30 hours with the 500 mAh charging case.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 90,
+              "support_type": "supports",
+              "evidence_text": "total battery life of up to 30 hours",
+              "source_node_id": "7b8f0377-9340-40b6-bfa5-066847b1993d",
+              "evidence_node_id": "12af5c7c-011c-4a18-813f-4fbfb3af186a",
+              "timestamp_end_seconds": 106.64,
+              "timestamp_start_seconds": 100.079
+            }
+          ]
+        },
+        {
+          "claim": "Gaming mode offers ultra-low latency for synchronized audio and visuals.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 85,
+              "support_type": "supports",
+              "evidence_text": "dedicated gaming mode that boasts ultra- low latency",
+              "source_node_id": "7b8f0377-9340-40b6-bfa5-066847b1993d",
+              "evidence_node_id": "4bad74a9-773f-409a-a420-f22679951151",
+              "timestamp_end_seconds": 137.04,
+              "timestamp_start_seconds": 129.679
+            }
+          ]
+        },
+        {
+          "claim": "ENC call noise reduction and IPX4 rating make them suitable for calls and outdoor use.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 80,
+              "support_type": "supports",
+              "evidence_text": "ENC call noise reduction function",
+              "source_node_id": "7b8f0377-9340-40b6-bfa5-066847b1993d",
+              "evidence_node_id": "e0547568-8023-4b2e-a385-3f8691a70dc8",
+              "timestamp_end_seconds": 149.44,
+              "timestamp_start_seconds": 142.16
+            },
+            {
+              "confidence": 85,
+              "support_type": "supports",
+              "evidence_text": "IPX4 protection rating",
+              "source_node_id": "7b8f0377-9340-40b6-bfa5-066847b1993d",
+              "evidence_node_id": "5967ce1e-b1ac-407a-bd35-e2e8a4cb78b0",
+              "timestamp_end_seconds": 161.44,
+              "timestamp_start_seconds": 153.68
+            }
+          ]
+        }
+      ],
+      "recommendation_summary": "The Black Shark T11 earbuds are recommended for users seeking stylish, comfortable true wireless earbuds with good battery life and gaming-friendly low latency. However, the review lacks any critical evaluation or comparison.",
+      "review_type": "unknown"
+    },
+    {
+      "source_id": "73bef859-0f2a-4c73-8a34-9b61ef204477",
+      "channel_id": "UCJpeXG9i5ttjyoqnwWmfJdw",
+      "pros": [
+        "Ultra-low latency ideal for gaming",
+        "Solid build quality and attractive packaging",
+        "Good sound quality with Hi-Fi stereo and 13mm drivers"
+      ],
+      "cons": [],
+      "major_issues": [],
+      "limitations": [
+        "The review is based on a single unboxing and brief gaming test; no long-term usage is reported.",
+        "The transcript is auto-generated and may contain inaccuracies.",
+        "Battery life claim of 30 hours is stated by the company, not tested."
+      ],
+      "claims": [
+        {
+          "claim": "The earbuds have ultra-low latency, making them excellent for gaming.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 90,
+              "support_type": "supports",
+              "evidence_text": "there is absolutely no lag",
+              "source_node_id": "73bef859-0f2a-4c73-8a34-9b61ef204477",
+              "evidence_node_id": "7f787542-a645-4ca6-8e12-e14d8ab00014",
+              "timestamp_end_seconds": 237.112,
+              "timestamp_start_seconds": 234.144
+            },
+            {
+              "confidence": 85,
+              "support_type": "supports",
+              "evidence_text": "the latency is quite good",
+              "source_node_id": "73bef859-0f2a-4c73-8a34-9b61ef204477",
+              "evidence_node_id": "ca30f337-18f3-4354-a666-5629681dcd34",
+              "timestamp_end_seconds": 262.419,
+              "timestamp_start_seconds": 259.606
+            }
+          ]
+        },
+        {
+          "claim": "The build quality and packaging are solid and gaming-oriented.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 85,
+              "support_type": "supports",
+              "evidence_text": "build quality felt quite solid",
+              "source_node_id": "73bef859-0f2a-4c73-8a34-9b61ef204477",
+              "evidence_node_id": "179ea976-77b1-4d01-a458-4530275c2ed9",
+              "timestamp_end_seconds": 39.572,
+              "timestamp_start_seconds": 36.656
+            },
+            {
+              "confidence": 80,
+              "support_type": "supports",
+              "evidence_text": "build quality is made very sturdy",
+              "source_node_id": "73bef859-0f2a-4c73-8a34-9b61ef204477",
+              "evidence_node_id": "393fd4f5-23fd-422d-82bd-8697d26d96bb",
+              "timestamp_end_seconds": 103.238,
+              "timestamp_start_seconds": 99.883
+            }
+          ]
+        },
+        {
+          "claim": "The sound quality is good, with Hi-Fi stereo and 13mm dynamic drivers.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 80,
+              "support_type": "supports",
+              "evidence_text": "13mm dynamic drivers, which produce great sound",
+              "source_node_id": "73bef859-0f2a-4c73-8a34-9b61ef204477",
+              "evidence_node_id": "1ab1bb4a-8e9f-4302-9ef4-0c739047788e",
+              "timestamp_end_seconds": 194.51,
+              "timestamp_start_seconds": 186.373
+            },
+            {
+              "confidence": 75,
+              "support_type": "supports",
+              "evidence_text": "You get Hi-Fi stereo",
+              "source_node_id": "73bef859-0f2a-4c73-8a34-9b61ef204477",
+              "evidence_node_id": "94dabd3a-6b6f-4d82-a51a-9b2179db1e96",
+              "timestamp_end_seconds": 199.187,
+              "timestamp_start_seconds": 195.426
+            }
+          ]
+        },
+        {
+          "claim": "The price is very cheap and excellent value for the specs.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 85,
+              "support_type": "supports",
+              "evidence_text": "price is 1699, which I found very cheap",
+              "source_node_id": "73bef859-0f2a-4c73-8a34-9b61ef204477",
+              "evidence_node_id": "01b7e5bd-a453-4a16-af91-3092e0d4260d",
+              "timestamp_end_seconds": 276.52,
+              "timestamp_start_seconds": 270.512
+            },
+            {
+              "confidence": 80,
+              "support_type": "supports",
+              "evidence_text": "price is excellent",
+              "source_node_id": "73bef859-0f2a-4c73-8a34-9b61ef204477",
+              "evidence_node_id": "ec308b20-f615-4ef8-891f-e4dbc1201d2b",
+              "timestamp_end_seconds": 291.065,
+              "timestamp_start_seconds": 288.27
+            }
+          ]
+        },
+        {
+          "claim": "The earbuds are easy to connect and use, with basic touch controls.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 80,
+              "support_type": "supports",
+              "evidence_text": "Connecting it is very easy",
+              "source_node_id": "73bef859-0f2a-4c73-8a34-9b61ef204477",
+              "evidence_node_id": "75672854-45c2-4ae2-9dc9-c0bd30fefdf6",
+              "timestamp_end_seconds": 134.794,
+              "timestamp_start_seconds": 131.651
+            },
+            {
+              "confidence": 70,
+              "support_type": "supports",
+              "evidence_text": "basic features. Can't say they are very special, but they are okay",
+              "source_node_id": "73bef859-0f2a-4c73-8a34-9b61ef204477",
+              "evidence_node_id": "d30af50a-af1f-4d1a-916b-b6706179cd77",
+              "timestamp_end_seconds": 187.306,
+              "timestamp_start_seconds": 182.816
+            }
+          ]
+        },
+        {
+          "claim": "The earbuds are perfect for gamers but also suitable for normal use.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 85,
+              "support_type": "supports",
+              "evidence_text": "you can call them perfect earbuds for gamers",
+              "source_node_id": "73bef859-0f2a-4c73-8a34-9b61ef204477",
+              "evidence_node_id": "e4e1b952-eeca-458c-8502-8016ed4c9eb7",
+              "timestamp_end_seconds": 250.063,
+              "timestamp_start_seconds": 247.032
+            },
+            {
+              "confidence": 75,
+              "support_type": "supports",
+              "evidence_text": "A normal person can also use them",
+              "source_node_id": "73bef859-0f2a-4c73-8a34-9b61ef204477",
+              "evidence_node_id": "354b6ab3-b75e-4634-a8fa-00aa474b3d22",
+              "timestamp_end_seconds": 251.949,
+              "timestamp_start_seconds": 249.102
+            }
+          ]
+        }
+      ],
+      "recommendation_summary": "Strongly recommended for gamers seeking low-latency wireless earbuds at an affordable price; also suitable for general use.",
+      "review_type": "unknown"
+    },
+    {
+      "source_id": "1b2a6ea8-f785-4e23-af34-7afe13da35ff",
+      "channel_id": "UCdNF8Mh7F69h595BpVMPFOA",
+      "pros": [
+        "good sound quality for price",
+        "high volume without distortion",
+        "effective game mode for low latency"
+      ],
+      "cons": [
+        "sound leakage at high volume",
+        "limited app support"
+      ],
+      "major_issues": [
+        "sound leakage due to silicone-free design"
+      ],
+      "limitations": [
+        "review is a paid collaboration with Molo Bilişim",
+        "battery test only performed on T9 model at maximum volume",
+        "no long-term usage period stated"
+      ],
+      "claims": [
+        {
+          "claim": "Both models offer satisfying sound quality for the price, with clear vocals, treble, and noticeable bass despite silicone-free design.",
+          "central": true,
+          "evidence": [
+            {
+              "confidence": 85,
+              "support_type": "supports",
+              "evidence_text": "quite satisfying sound quality for their price range",
+              "source_node_id": "1b2a6ea8-f785-4e23-af34-7afe13da35ff",
+              "evidence_node_id": "77f061d1-164c-44d4-a241-339e8f58b152",
+              "timestamp_end_seconds": 363.68,
+              "timestamp_start_seconds": 358.96
+            },
+            {
+              "confidence": 80,
+              "support_type": "supports",
+              "evidence_text": "clear and crisp, and despite not having silicone tips, you can still feel the bass notes",
+              "source_node_id": "1b2a6ea8-f785-4e23-af34-7afe13da35ff",
+              "evidence_node_id": "54f909a6-9383-4e4e-b2d6-3e33e92e25a3",
+              "timestamp_end_seconds": 327.76,
+              "timestamp_start_seconds": 321.56
+            }
+          ]
+        },
+        {
+          "claim": "The silicone-free design causes sound leakage; at high volume people nearby can hear what you are listening to.",
+          "central": false,
+          "evidence": [
+            {
+              "confidence": 90,
+              "support_type": "supports",
+              "evidence_text": "people next to you can hear what you're listening to – that was the negative aspect",
+              "source_node_id": "1b2a6ea8-f785-4e23-af34-7afe13da35ff",
+              "evidence_node_id": "38be89b3-05af-4248-bb45-8a8e0ab56c66",
+              "timestamp_end_seconds": 227.64,
+              "timestamp_start_seconds": 222.76
+            }
+          ]
+        },
+        {
+          "claim": "The T9 model achieved 6 hours 27 minutes of music playback at maximum volume in the reviewer's battery test.",
+          "central": false,
+          "evidence": [
+            {
+              "confidence": 90,
+              "support_type": "supports",
+              "evidence_text": "When I performed a battery test with the T9 model at maximum volume, it played music for 6 hours and 27 minutes",
+              "source_node_id": "1b2a6ea8-f785-4e23-af34-7afe13da35ff",
+              "evidence_node_id": "d44f6919-25ef-4710-854f-54151c2192b4",
+              "timestamp_end_seconds": 205.2,
+              "timestamp_start_seconds": 198.56
+            }
+          ]
+        },
+        {
+          "claim": "Both models have high maximum volume without distortion, which is noted as a plus since many headphones do not offer such high volume.",
+          "central": false,
+          "evidence": [
+            {
+              "confidence": 85,
+              "support_type": "supports",
+              "evidence_text": "despite the high maximum volume, there's no distortion at the top",
+              "source_node_id": "1b2a6ea8-f785-4e23-af34-7afe13da35ff",
+              "evidence_node_id": "b055f4c1-943b-42a1-b897-841dca704515",
+              "timestamp_end_seconds": 336.32,
+              "timestamp_start_seconds": 329.8
+            },
+            {
+              "confidence": 80,
+              "support_type": "supports",
+              "evidence_text": "I think the high volume is a plus",
+              "source_node_id": "1b2a6ea8-f785-4e23-af34-7afe13da35ff",
+              "evidence_node_id": "a206ef20-5bbd-41aa-a58b-efefee2304be",
+              "timestamp_end_seconds": 353.44,
+              "timestamp_start_seconds": 348.56
+            }
+          ]
+        },
+        {
+          "claim": "The only downside mentioned is the lack of more apps; otherwise both are suitable for daily use, music, and calls.",
+          "central": false,
+          "evidence": [
+            {
+              "confidence": 85,
+              "support_type": "supports",
+              "evidence_text": "the only downside is that it would be nice if they had more apps",
+              "source_node_id": "1b2a6ea8-f785-4e23-af34-7afe13da35ff",
+              "evidence_node_id": "89f3f2b9-3be9-4f63-98fd-2ae408ef7b24",
+              "timestamp_end_seconds": 524.64,
+              "timestamp_start_seconds": 518.2
+            },
+            {
+              "confidence": 80,
+              "support_type": "supports",
+              "evidence_text": "Both are suitable for daily use, for music and calls",
+              "source_node_id": "1b2a6ea8-f785-4e23-af34-7afe13da35ff",
+              "evidence_node_id": "60b4e5ed-4782-4b01-9ea8-4f34e46ef9f0",
+              "timestamp_end_seconds": 533.48,
+              "timestamp_start_seconds": 526.56
+            }
+          ]
+        },
+        {
+          "claim": "Game mode significantly reduces latency (T9: 143 ms, T11: 142 ms) making them suitable for gaming.",
+          "central": false,
+          "evidence": [
+            {
+              "confidence": 90,
+              "support_type": "supports",
+              "evidence_text": "game mode minimizes latency with both earbuds",
+              "source_node_id": "1b2a6ea8-f785-4e23-af34-7afe13da35ff",
+              "evidence_node_id": "6829beec-a67b-4755-a16f-0fcaa3f551ec",
+              "timestamp_end_seconds": 516.6,
+              "timestamp_start_seconds": 510.64
+            }
+          ]
+        }
+      ],
+      "recommendation_summary": "Both models are recommended for daily use, music, and calls, especially for users who value high volume and low latency gaming. The main drawback is sound leakage at high volume due to the silicone-free design.",
+      "review_type": "unknown"
+    }
+  ],
+  "draft": {
+    "summary": "The Black Shark T11 earbuds are praised for their sound quality, low latency gaming mode, and affordable price. However, they lack silicone ear tips, have no dedicated app, and exhibit sound leakage. Fit and build quality concerns are noted by some reviewers. The product is recommended for budget-conscious gamers who prioritize audio performance and low latency over app support and isolation.",
+    "limitations": [
+      "Only one reviewer's experience per source; no long-term usage reported in most sources.",
+      "Battery test performed only on T9 model at maximum volume, not on T11.",
+      "Comments from the reviewer and the reviewer are from single YouTube videos in Spanish and Hindi/Urdu/Punjabi, limiting generalizability.",
+      "the reviewer review is entirely promotional with no critical assessment.",
+      "No IP rating information was found, but the reviewer notes the case has gaps."
+    ],
+    "disagreements": [],
+    "consensus_cons": [
+      {
+        "statement": "Build quality and durability concerns: The reviewer states: “এটার বিল্ড কোয়ালিটি ঠিক আছে কিন্তু যে জিনিসটা স্লাইড করে না ভাই এটাই যে দেখেন এভাবে একটু ফাঁকা থাকে যেটা এভাবে নাড়াচাড়া করে তাই একচুি এটার লং লাস্টিং নিয়ে একটু প্রশ্ন আমার মনে জাগে”",
+        "source_ids": [
+          "664c0c27-a5b2-4154-8d0e-189ce8d48cc1"
+        ],
+        "evidence_node_ids": [
+          "44ca4880-352e-4d4f-8a19-3ec966ad6798"
+        ]
+      },
+      {
+        "statement": "Fit and comfort: The reviewer states: “আমি কয়েকজনকে দিয়ে টেস্ট করেছি যারা হচ্ছে এই ধরনের বার্ডস ইউজ করে তারা বলল যে না ভাই কানে একদম পারফেক্টলি থাকে”",
+        "source_ids": [
+          "664c0c27-a5b2-4154-8d0e-189ce8d48cc1"
+        ],
+        "evidence_node_ids": [
+          "a49f5e71-2982-4f0a-b149-8c3ace233082"
+        ]
+      },
+      {
+        "statement": "app ecosystem: The reviewer states: “the only downside is that it would be nice if they had more apps”",
+        "source_ids": [
+          "1b2a6ea8-f785-4e23-af34-7afe13da35ff"
+        ],
+        "evidence_node_ids": [
+          "89f3f2b9-3be9-4f63-98fd-2ae408ef7b24"
+        ]
+      },
+      {
+        "statement": "sound isolation: The reviewer states: “people next to you can hear what you're listening to – that was the negative aspect”",
+        "source_ids": [
+          "1b2a6ea8-f785-4e23-af34-7afe13da35ff"
+        ],
+        "evidence_node_ids": [
+          "38be89b3-05af-4248-bb45-8a8e0ab56c66"
+        ]
+      }
+    ],
+    "consensus_pros": [
+      {
+        "statement": "Sound quality: Reviewers report satisfying sound quality for the price range, with clear and crisp audio and noticeable bass despite the lack of silicone tips, and no audible",
+        "source_ids": [
+          "1b2a6ea8-f785-4e23-af34-7afe13da35ff"
+        ],
+        "evidence_node_ids": [
+          "77f061d1-164c-44d4-a241-339e8f58b152",
+          "54f909a6-9383-4e4e-b2d6-3e33e92e25a3",
+          "38be89b3-05af-4248-bb45-8a8e0ab56c66",
+          "b055f4c1-943b-42a1-b897-841dca704515",
+          "a206ef20-5bbd-41aa-a58b-efefee2304be",
+          "60b4e5ed-4782-4b01-9ea8-4f34e46ef9f0",
+          "6829beec-a67b-4755-a16f-0fcaa3f551ec",
+          "d44f6919-25ef-4710-854f-54151c2192b4"
+        ]
+      },
+      {
+        "statement": "Sound quality: Reviewers report satisfying sound quality for the price range, with clear and crisp audio and noticeable bass despite the lack of silicone tips, and no audible",
+        "source_ids": [
+          "1b2a6ea8-f785-4e23-af34-7afe13da35ff"
+        ],
+        "evidence_node_ids": [
+          "77f061d1-164c-44d4-a241-339e8f58b152",
+          "54f909a6-9383-4e4e-b2d6-3e33e92e25a3",
+          "38be89b3-05af-4248-bb45-8a8e0ab56c66",
+          "b055f4c1-943b-42a1-b897-841dca704515",
+          "a206ef20-5bbd-41aa-a58b-efefee2304be",
+          "60b4e5ed-4782-4b01-9ea8-4f34e46ef9f0",
+          "6829beec-a67b-4755-a16f-0fcaa3f551ec",
+          "d44f6919-25ef-4710-854f-54151c2192b4"
+        ]
+      },
+      {
+        "statement": "Sound quality: Reviewers report satisfying sound quality for the price range, with clear and crisp audio and noticeable bass despite the lack of silicone tips, and no audible",
+        "source_ids": [
+          "1b2a6ea8-f785-4e23-af34-7afe13da35ff"
+        ],
+        "evidence_node_ids": [
+          "77f061d1-164c-44d4-a241-339e8f58b152",
+          "54f909a6-9383-4e4e-b2d6-3e33e92e25a3",
+          "38be89b3-05af-4248-bb45-8a8e0ab56c66",
+          "b055f4c1-943b-42a1-b897-841dca704515",
+          "a206ef20-5bbd-41aa-a58b-efefee2304be",
+          "60b4e5ed-4782-4b01-9ea8-4f34e46ef9f0",
+          "6829beec-a67b-4755-a16f-0fcaa3f551ec",
+          "d44f6919-25ef-4710-854f-54151c2192b4"
+        ]
+      },
+      {
+        "statement": "Sound quality: Reviewers report satisfying sound quality for the price range, with clear and crisp audio and noticeable bass despite the lack of silicone tips, and no audible",
+        "source_ids": [
+          "1b2a6ea8-f785-4e23-af34-7afe13da35ff"
+        ],
+        "evidence_node_ids": [
+          "77f061d1-164c-44d4-a241-339e8f58b152",
+          "54f909a6-9383-4e4e-b2d6-3e33e92e25a3",
+          "38be89b3-05af-4248-bb45-8a8e0ab56c66",
+          "b055f4c1-943b-42a1-b897-841dca704515",
+          "a206ef20-5bbd-41aa-a58b-efefee2304be",
+          "60b4e5ed-4782-4b01-9ea8-4f34e46ef9f0",
+          "6829beec-a67b-4755-a16f-0fcaa3f551ec",
+          "d44f6919-25ef-4710-854f-54151c2192b4"
+        ]
+      },
+      {
+        "statement": "Sound quality: Reviewers report satisfying sound quality for the price range, with clear and crisp audio and noticeable bass despite the lack of silicone tips, and no audible",
+        "source_ids": [
+          "1b2a6ea8-f785-4e23-af34-7afe13da35ff"
+        ],
+        "evidence_node_ids": [
+          "77f061d1-164c-44d4-a241-339e8f58b152",
+          "54f909a6-9383-4e4e-b2d6-3e33e92e25a3",
+          "38be89b3-05af-4248-bb45-8a8e0ab56c66",
+          "b055f4c1-943b-42a1-b897-841dca704515",
+          "a206ef20-5bbd-41aa-a58b-efefee2304be",
+          "60b4e5ed-4782-4b01-9ea8-4f34e46ef9f0",
+          "6829beec-a67b-4755-a16f-0fcaa3f551ec",
+          "d44f6919-25ef-4710-854f-54151c2192b4"
+        ]
+      },
+      {
+        "statement": "Sound quality: Reviewers report satisfying sound quality for the price range, with clear and crisp audio and noticeable bass despite the lack of silicone tips, and no audible",
+        "source_ids": [
+          "1b2a6ea8-f785-4e23-af34-7afe13da35ff"
+        ],
+        "evidence_node_ids": [
+          "77f061d1-164c-44d4-a241-339e8f58b152",
+          "54f909a6-9383-4e4e-b2d6-3e33e92e25a3",
+          "38be89b3-05af-4248-bb45-8a8e0ab56c66",
+          "b055f4c1-943b-42a1-b897-841dca704515",
+          "a206ef20-5bbd-41aa-a58b-efefee2304be",
+          "60b4e5ed-4782-4b01-9ea8-4f34e46ef9f0",
+          "6829beec-a67b-4755-a16f-0fcaa3f551ec",
+          "d44f6919-25ef-4710-854f-54151c2192b4"
+        ]
+      },
+      {
+        "statement": "Sound quality: Reviewers report satisfying sound quality for the price range, with clear and crisp audio and noticeable bass despite the lack of silicone tips, and no audible",
+        "source_ids": [
+          "1b2a6ea8-f785-4e23-af34-7afe13da35ff"
+        ],
+        "evidence_node_ids": [
+          "77f061d1-164c-44d4-a241-339e8f58b152",
+          "54f909a6-9383-4e4e-b2d6-3e33e92e25a3",
+          "38be89b3-05af-4248-bb45-8a8e0ab56c66",
+          "b055f4c1-943b-42a1-b897-841dca704515",
+          "a206ef20-5bbd-41aa-a58b-efefee2304be",
+          "60b4e5ed-4782-4b01-9ea8-4f34e46ef9f0",
+          "6829beec-a67b-4755-a16f-0fcaa3f551ec",
+          "d44f6919-25ef-4710-854f-54151c2192b4"
+        ]
+      },
+      {
+        "statement": "Sound quality: Reviewers report satisfying sound quality for the price range, with clear and crisp audio and noticeable bass despite the lack of silicone tips, and no audible",
+        "source_ids": [
+          "1b2a6ea8-f785-4e23-af34-7afe13da35ff"
+        ],
+        "evidence_node_ids": [
+          "77f061d1-164c-44d4-a241-339e8f58b152",
+          "54f909a6-9383-4e4e-b2d6-3e33e92e25a3",
+          "38be89b3-05af-4248-bb45-8a8e0ab56c66",
+          "b055f4c1-943b-42a1-b897-841dca704515",
+          "a206ef20-5bbd-41aa-a58b-efefee2304be",
+          "60b4e5ed-4782-4b01-9ea8-4f34e46ef9f0",
+          "6829beec-a67b-4755-a16f-0fcaa3f551ec",
+          "d44f6919-25ef-4710-854f-54151c2192b4"
+        ]
+      }
+    ],
+    "who_should_buy": [],
+    "who_should_avoid": [],
+    "longest_usage_period": null,
+    "product_display_name": "blackshark t11",
+    "product_canonical_name": "Black Shark T11",
+    "longest_usage_source_id": null
+  },
+  "synthesis_output_hash": "e11b3685c554cfa21cc1593ab1ff7f40a046272efb022197ebef8e653a81cecb",
+  "audit_failure": "audit_decisions_invalid: rejection clause did not match finding",
+  "known_duplicate_strength_count": 8,
+  "limits": "Review type normalized to unknown; no raw rejected audit response or audience bodies retained."
+}

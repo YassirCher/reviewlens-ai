@@ -128,7 +128,7 @@ def test_catalog_has_no_uuid_citations_and_rejects_unknown_references():
     assert snapshot_input_model("consensus_analyst", SynthesisInput.model_json_schema()) is SynthesisInput
     assert snapshot_output_model("consensus_analyst", BuyingSynthesis.model_json_schema()) is BuyingSynthesis
     assert snapshot_output_model("consensus_analyst", FinalReportDraft.model_json_schema()) is FinalReportDraft
-    assert AGENT_REGISTRY["consensus_analyst"].output_model is EvidenceBoundBuyingSynthesis
+    assert issubclass(AGENT_REGISTRY["consensus_analyst"].output_model, EvidenceBoundBuyingSynthesis)
     assert snapshot_output_model("consensus_analyst", AtomicBuyingSynthesis.model_json_schema()) is AtomicBuyingSynthesis
     with pytest.raises(ValidationError):
         AtomicBuyingSynthesis.model_validate({"summary": "Narrative only", "assertions": []})
@@ -204,7 +204,8 @@ def test_source_bound_successor_rejects_mixed_citations_and_internal_labels():
     mixed["assertions"][0]["evidence_refs"].append(payload["assertions"][1]["evidence_refs"][0])
     with pytest.raises(SynthesisBindingError) as error:
         SourceBoundBuyingSynthesis.model_validate(mixed).as_report("T11", "T11", reviews)
-    assert error.value.issue == {"type": "assertion_source_mismatch", "loc": ["assertions", 0]}
+    assert error.value.issue == {"type": "assertion_source_mismatch", "loc": ["assertions", 0],
+                                 "reference_category": "citation", "ownership": "mixed"}
     label = copy.deepcopy(payload)
     label["assertions"][0]["observation"] = "s1 states 3.2 g"
     with pytest.raises(SynthesisBindingError, match="catalog_label_in_prose"):

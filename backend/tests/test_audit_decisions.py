@@ -181,6 +181,22 @@ def test_incomplete_decisions_expose_bounded_structural_diagnostics():
         "unknown_path_count": 1, "duplicate_path_count": 0}
 
 
+@pytest.mark.parametrize("duplicate", [False, True])
+def test_narrative_retry_identifies_the_exact_field_and_reason(duplicate):
+    supplied = audit_input(captured())
+    response = supported_decisions(supplied)
+    issue = {"code": "unsupported_narrative", "field_path": "report_draft.summary", "evidence_refs": [],
+        "unsupported_clause": supplied.report_draft.summary[:20] if duplicate else "An invented missing clause",
+        "explanation": "This clause lacks support."}
+    response["other_issues"] = [issue, copy.deepcopy(issue)] if duplicate else [issue]
+    with pytest.raises(AuditDecisionError) as caught:
+        FindingAuditResult.model_validate(response).as_audit(supplied)
+    assert caught.value.diagnostics["issues"] == [{
+        "loc": ["other_issues", 1 if duplicate else 0, "field_path" if duplicate else "unsupported_clause"],
+        "field_path": "report_draft.summary",
+        "type": "duplicate_narrative_rejection" if duplicate else "invalid_rejection_span"}]
+
+
 def test_live_audit_schema_rejects_unavailable_or_mismatched_narrative_paths():
     supplied = audit_input(captured())
     validator = Draft202012Validator(strictify_json_schema(finding_audit_schema(supplied)))

@@ -16,6 +16,7 @@ from app.analysis.contracts import (
     AudienceAnalysis,
     AudienceAnalysisDraft,
     AuditResult,
+    AuditIssue,
     CandidateContext,
     FinalReport,
     FinalReportDraft,
@@ -37,9 +38,11 @@ from app.analysis.product_info import (
     validate_extraction,
 )
 from app.analysis.registry import AGENT_REGISTRY, AgentSpec, UNIVERSAL_POLICY, snapshot_input_model, snapshot_output_model
-from app.analysis.review import VideoExtraction, bind_review, parse_video_extraction, video_extraction_schema
+from app.analysis.review import ClassifiedVideoExtraction, VideoExtraction, bind_review, normalize_usage, parse_video_extraction, video_extraction_schema
+from app.analysis.rendering import NormalizedBuyingSynthesis, PrioritizedSynthesisInput, prioritized_synthesis_input
 from app.analysis.synthesis import AtomicBuyingSynthesis, AtomicSynthesisInput, BuyingSynthesis, CatalogRepairSynthesisInput, EvidenceBoundBuyingSynthesis, QuoteSynthesisInput, RepairSynthesisInput, SynthesisBindingError, catalog_repair_synthesis_input, compact_synthesis_input, evidence_bound_synthesis_schema, quote_synthesis_input, repair_synthesis_input, unchanged_rejected_findings
 from app.analysis.audit import AuditDecisionError, CatalogAuditorInput, CitedAuditorInput, DecisionAuditorInput, FindingAuditResult, cited_audit_input, compact_audit_input, decision_audit_input, finding_audit_schema
+from app.analysis.audit_parts import PartAuditorInput, ReferencedAuditResult, part_audit_input, referenced_audit_schema
 from app.config import Settings, settings
 from app.db.models import (
     AgentDefinition,
@@ -768,6 +771,8 @@ def _agent_task_input(spec: AgentSpec, task: TaskRun, run: AnalysisRun) -> tuple
             "correction_issues": issues,
             "report_under_repair": report_under_repair,
             "audit_diagnostics": audit.get("audit_diagnostics", {}) if task.input_payload.get("correction_stage") else {},
+            "claim_catalog": [entry for output in _outputs_with_prefix(run.id, "analyze_review.source_")
+                              for entry in output.get("claim_catalog", [])],
         }, ()
     if spec.key == "quality_auditor":
         if task.input_payload.get("reaudit_stage"):
@@ -777,6 +782,15 @@ def _agent_task_input(spec: AgentSpec, task: TaskRun, run: AnalysisRun) -> tuple
             consensus = _task_output(run.id, "correct_consensus") or {}
         else:
             consensus = _task_output(run.id, "build_consensus") or {}
+        draft = consensus.get("draft", {})
+        if draft and not draft.get("consensus_pros") and not draft.get("consensus_cons"):
+            central = any(claim.get("central") and any(ref["support_type"] == "supports" for ref in claim["evidence"])
+                          for review in reviews for claim in review["claims"])
+            return {"_shortcut": {"audit": {"verdict": "fail", "issues": [{"code": "grounded_conclusion_missing",
+                    "field_path": "report_draft", "retryable": central}]}, "safe_draft": draft,
+                    "consensus_task": "correct_consensus" if task.input_payload.get("reaudit_stage") else "build_consensus",
+                    "grounding_terminal": not central, "audit_diagnostics": {"finding_checks": [],
+                    "deterministic_empty_draft": True, "synthesis": consensus.get("synthesis_diagnostics", [])}}}, ()
         return {
             "report_draft": consensus.get("draft", {}),
             "source_analyses": reviews,
@@ -938,12 +952,17 @@ async def _call_agent(
             input_payload = repair_synthesis_input(input_payload)
         if spec.input_model is CatalogRepairSynthesisInput:
             input_payload = catalog_repair_synthesis_input(input_payload)
+        if spec.input_model is PrioritizedSynthesisInput:
+            input_payload = prioritized_synthesis_input(input_payload)
+        input_payload.pop("claim_catalog", None)
         if spec.input_model is CatalogAuditorInput:
             input_payload = compact_audit_input(input_payload)
         if spec.input_model is CitedAuditorInput:
             input_payload = cited_audit_input(input_payload)
         if spec.input_model is DecisionAuditorInput:
             input_payload = decision_audit_input(input_payload)
+        if spec.input_model is PartAuditorInput:
+            input_payload = part_audit_input(input_payload)
         input_payload.pop("audit_diagnostics", None)
         if spec.key == "consensus_analyst" and "report_under_repair" not in spec.input_model.model_fields:
             input_payload.pop("report_under_repair", None)
@@ -961,7 +980,7 @@ async def _call_agent(
     # Reserve tokens for system prompt (~600 tokens), task wrapper (~300 tokens), and safety margin (400 tokens)
     available_context = max(0, spec.max_input_tokens - task_input_tokens - 1300)
     budget_override = min(spec.retrieval_policy.input_token_budget, available_context) if available_context > 0 else 0
-    if (spec.key == "product_information_analyst" or spec.output_model is VideoExtraction) and budget_override >= 200:
+    if (spec.key == "product_information_analyst" or issubclass(spec.output_model, VideoExtraction)) and budget_override >= 200:
         seeds = _product_context_seeds(
             run, task, config=config, token_budget=budget_override,
             max_nodes_per_source=spec.retrieval_policy.maximum_nodes_per_source,
@@ -1047,16 +1066,18 @@ async def _call_agent(
             ChatMessage(role="system", content=envelope.system),
             ChatMessage(role="user", content=envelope.user),
         ),
-        response_schema=(video_extraction_schema() if spec.output_model is VideoExtraction else
+        response_schema=(video_extraction_schema(spec.output_model) if issubclass(spec.output_model, VideoExtraction) else
+                         referenced_audit_schema(PartAuditorInput.model_validate(task_input_data))
+                         if spec.output_model is ReferencedAuditResult else
                          finding_audit_schema(DecisionAuditorInput.model_validate(task_input_data))
                          if spec.output_model is FindingAuditResult else
                          evidence_bound_synthesis_schema(spec.input_model.model_validate(task_input_data))
-                         if spec.output_model is EvidenceBoundBuyingSynthesis else spec.output_model.model_json_schema()),
+                         if issubclass(spec.output_model, EvidenceBoundBuyingSynthesis) else spec.output_model.model_json_schema()),
         schema_name=spec.output_model.__name__,
         estimated_prompt_tokens=max(prompt_tokens, context_tokens),
         estimated_cost_microusd=estimated_cost,
         max_network_attempts=1,
-        optional_output_fields=("product_information",) if spec.output_model is VideoExtraction else (),
+        optional_output_fields=("product_information",) if issubclass(spec.output_model, VideoExtraction) else (),
     )
     try:
         result = await OpenRouterGateway(config=config).chat(invocation)
@@ -1087,7 +1108,7 @@ async def _call_agent(
             },
         ) from exc
     try:
-        return (parse_video_extraction(result.content) if spec.output_model is VideoExtraction
+        return (parse_video_extraction(result.content, spec.output_model) if issubclass(spec.output_model, VideoExtraction)
                 else spec.output_model.model_validate(result.content))
     except ValidationError as exc:
         raise RuntimeTaskError(
@@ -1105,6 +1126,7 @@ async def _postprocess_review(
     draft: SourceAnalysisDraft,
     *,
     config: Settings,
+    normalize_extended_use: bool = False,
 ) -> dict[str, Any]:
     source = next(
         (
@@ -1141,6 +1163,8 @@ async def _postprocess_review(
         ):
             raise RuntimeTaskError("review_source_lineage_invalid", category="validation", retryable=False)
         transcript_body = read_version_body(workspace, transcript_version, config=config)[1]
+        if normalize_extended_use:
+            draft, _ = normalize_usage(draft, transcript_body)
         validated_claims = []
         invalid_evidence = 0
         wrong_source_ids = 0
@@ -1596,7 +1620,15 @@ async def _execute_agent(
             source_index = int(task.input_payload.get("source_index", 0) or 0)
             source = _task_output(run.id, f"fetch_transcript.source_{source_index}") or {}
             draft = bind_review(result.review, uuid.UUID(source["source_id"]))
-            output = await _postprocess_review(attempt_id, run, draft, config=config)
+            output = await _postprocess_review(attempt_id, run, draft, config=config,
+                                              normalize_extended_use=isinstance(result, ClassifiedVideoExtraction))
+            if isinstance(result, ClassifiedVideoExtraction) and output.get("analysis"):
+                kinds = {" ".join(claim.claim.casefold().split()): claim for claim in result.review.claims}
+                output["claim_catalog"] = [{"source_id": output["analysis"]["source_id"], "kind": metadata.kind,
+                    "topic": metadata.topic, "central": claim["central"],
+                    "evidence_node_ids": [ref["evidence_node_id"] for ref in claim["evidence"]]}
+                    for claim in output["analysis"]["claims"]
+                    for metadata in [kinds[" ".join(claim["claim"].casefold().split())]]]
             output["product_information"] = _postprocess_product_information(
                 run, source, result.product_information, config=config)
             return output
@@ -1616,8 +1648,12 @@ async def _execute_agent(
     if spec.key == "consensus_analyst":
         reviews = [item["analysis"] for item in _outputs_with_prefix(run.id, "analyze_review.source_") if item.get("analysis")]
         audiences = [item["analysis"] for item in _outputs_with_prefix(run.id, "analyze_audience.source_") if item.get("analysis")]
+        synthesis_diagnostics: list[dict[str, Any]] = []
         try:
-            if isinstance(result, AtomicBuyingSynthesis):
+            if isinstance(result, NormalizedBuyingSynthesis):
+                report_draft, synthesis_diagnostics = result.compile_report(payload["product_display_name"],
+                    payload["product_canonical_name"], reviews, payload.get("claim_catalog", []))
+            elif isinstance(result, AtomicBuyingSynthesis):
                 report_draft = result.as_report(payload["product_display_name"], payload["product_canonical_name"], reviews)
             elif isinstance(result, BuyingSynthesis):
                 report_draft = result.as_report(payload["product_display_name"], payload["product_canonical_name"])
@@ -1625,6 +1661,7 @@ async def _execute_agent(
                 report_draft = FinalReportDraft.model_validate(result)
         except ValueError as exc:
             raise RuntimeTaskError("synthesis_reference_invalid", category="validation", retryable=True,
+                                   invalid_output_hash=canonical_json_hash(result.model_dump(mode="json")),
                                    validator_results={"status": "failed", "issues": [
                                        exc.issue if isinstance(exc, SynthesisBindingError) else {"type": "reference_invalid"}
                                    ]}) from exc
@@ -1641,6 +1678,8 @@ async def _execute_agent(
             "scoring": scoring,
             "source_analyses": reviews,
             "audience_analyses": audiences,
+            "synthesis_diagnostics": synthesis_diagnostics,
+            "synthesis_output_hash": canonical_json_hash(result.model_dump(mode="json")),
         }
     if spec.key == "quality_auditor":
         consensus_key = "correct_consensus" if task.input_payload.get("reaudit_stage") else "build_consensus"
@@ -1648,25 +1687,36 @@ async def _execute_agent(
         reviews = consensus.get("source_analyses", [])
         with session_scope() as db:
             auditor_version = db.get(AgentVersion, task.agent_version_id)
-            strict_grounding = isinstance(result, FindingAuditResult) or bool(
+            strict_grounding = isinstance(result, (FindingAuditResult, ReferencedAuditResult)) or bool(
                 auditor_version and "unsupported_narrative" in auditor_version.system_prompt)
         diagnostics: dict[str, Any] = {}
-        if isinstance(result, FindingAuditResult):
+        if isinstance(result, (FindingAuditResult, ReferencedAuditResult)):
             try:
-                model_audit, diagnostics = result.as_audit(DecisionAuditorInput.model_validate(decision_audit_input(payload)))
+                if isinstance(result, ReferencedAuditResult):
+                    model_audit, diagnostics = result.as_audit(PartAuditorInput.model_validate(part_audit_input(payload)))
+                else:
+                    model_audit, diagnostics = result.as_audit(DecisionAuditorInput.model_validate(decision_audit_input(payload)))
             except ValueError as exc:
                 raise RuntimeTaskError("audit_decisions_invalid", category="validation", retryable=True,
                     validator_results={"status": "failed", "issues": [
                         {"path": "finding_checks", "type": str(exc)[:180]}],
-                        **(exc.diagnostics if isinstance(exc, AuditDecisionError) else {})}) from exc
+                        **(exc.diagnostics if isinstance(exc, AuditDecisionError) else {})},
+                    invalid_output_hash=canonical_json_hash(result.model_dump(mode="json"))) from exc
         else:
             model_audit = AuditResult.model_validate(result)
+        deterministic_rejections: list[dict[str, Any]] = []
         safe_draft, audit, grounding_terminal = ground_report(
             FinalReportDraft.model_validate(consensus.get("draft", {})),
             reviews,
             model_audit,
             strict_grounding=strict_grounding,
+            diagnostics=deterministic_rejections,
         )
+        diagnostics["deterministic_rejections"] = deterministic_rejections
+        diagnostics["synthesis"] = consensus.get("synthesis_diagnostics", [])
+        if audit.verdict != "fail" and any(item.get("action") == "omitted" for item in diagnostics["synthesis"]):
+            audit = audit.model_copy(update={"verdict": "pass_with_warnings", "issues": (*audit.issues,
+                AuditIssue(code="synthesis_finding_omitted", field_path="report_draft"))})
         scoring = _score(reviews, consensus.get("audience_analyses", []),
                          int(run.requested_options.get("source_count", 5)), safe_draft)
         return {

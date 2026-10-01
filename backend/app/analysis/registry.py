@@ -7,6 +7,7 @@ from jsonschema import Draft202012Validator
 from pydantic import BaseModel
 
 from app.analysis.audit import CatalogAuditorInput, CitedAuditorInput, DecisionAuditorInput, FindingAuditResult
+from app.analysis.audit_parts import PartAuditorInput, ReferencedAuditResult
 from app.analysis.contracts import (
     AudienceAnalysisDraft,
     AudienceAnalystInput,
@@ -24,7 +25,8 @@ from app.analysis.contracts import (
     SourceCuratorInput,
 )
 from app.analysis.product_info import ProductAnalystInput, ProductExtractionDraft
-from app.analysis.review import VideoExtraction
+from app.analysis.review import ClassifiedVideoExtraction, VideoExtraction
+from app.analysis.rendering import DistinctBuyingSynthesis, NormalizedBuyingSynthesis, PrioritizedSynthesisInput
 from app.analysis.synthesis import AtomicBuyingSynthesis, AtomicSynthesisInput, BuyingSynthesis, CatalogRepairSynthesisInput, EvidenceBoundBuyingSynthesis, QuoteSynthesisInput, RepairSynthesisInput, SourceBoundBuyingSynthesis, SynthesisInput
 from app.knowledge.contracts import NodeType, RelationType, RetrievalPolicy, TrustLevel
 from app.runtime.contracts import canonical_json_hash
@@ -428,7 +430,9 @@ AGENT_SPECS = tuple(replace(item,
         "Copy each field_path exactly, including report_draft. and its original index; never renumber. "
         "Each finding includes its authorized, verbatim-validated citations and server-bound owners; no lookup "
         "or additional context is needed. Judge semantic support, not external verification. "
-        "Check every material clause, quantity, condition, attribution, scope and polarity. Combine supporting "
+        "Check every material clause, quantity, condition, attribution, scope and polarity. "
+        "Polarity includes section placement: pros are benefits, cons drawbacks. A matching negative quote "
+        "does not make a pro valid. Combine supporting "
         "excerpts from the same source. Single-source reviewer observations are valid. "
         "For example, 'battery life itself has been superb' supports 'The reviewer reports superb battery life'; "
         "'about 6 hours of screen on time' supports a reviewer-reported six-hour screen-on observation. "
@@ -444,6 +448,58 @@ AGENT_SPECS = tuple(replace(item,
         "assert nothing. Usage duration uses source metadata, never battery runtime. Return only the schema."
     ),
 ) if item.key == "quality_auditor" else item for item in AGENT_SPECS)
+AGENT_SPECS = tuple(replace(item,
+    output_model=ClassifiedVideoExtraction,
+    role_prompt=(
+        "Analyze assigned metadata/timed captions only. Return review plus optional product_information. "
+        "Up to six distinct claims: strength=benefit, caveat=drawback, context=neutral; supported negatives are caveats. "
+        "Include brief topics and exact 3+ word quotes with nearby timestamps. Retain drawbacks, conditions, buyer fit. "
+        "Buying conclusions are central; supports means agreement, including negative observations. "
+        "No UUIDs. usage_period_raw copies an exact ownership/use phrase, not battery runtime; long_term requires "
+        "30 stated days. Unknown duration null. Scores/confidence: integer 0-100. "
+        "Sentiment/recommendation: 0 negative, 50 mixed, 100 positive; "
+        "evidence quality/confidence measure support. Brief prose. Product values/units require exact excerpts, "
+        "including adjacent captions. Omit sibling facts, inferences, unknowns; scope null unless stated. "
+        "Specs are stated, not tested. No source_score."
+    ),
+) if item.key == "review_analyst" else replace(item,
+    input_model=PrioritizedSynthesisInput, output_model=DistinctBuyingSynthesis,
+    role_prompt=(
+        "Write 1-12 atomic buying assertions from verified excerpts only, citing ONE owner's evidence_refs per "
+        "assertion. Benefits use strength; drawbacks use caveat. Cover distinct buying topics. Each "
+        "has a natural attribute, a complete short sentence (aim under 120 characters) and optional cited conditions. "
+        "Never fill slots by repeating a finding. Attribute "
+        "experiences to the reviewer. Every clause, quantity, cause and condition requires cited support; "
+        "comparisons cite both results. Split distinct attributes. Specs are stated, not measured. "
+        "Drawback priorities guide selection, not truth. Retain up to four distinct available drawback topics, "
+        "buyer fit and contrary observations. Comments are secondary, never quotation evidence. "
+        "Catalog labels belong in reference fields; code renders attribution. Summary/guidance synthesize "
+        "findings. Usage duration copies usage_period_raw, not battery runtime. Disagreements cite actual "
+        "opposing observations, not different workloads. Repair every repair_target by narrowing, replacing "
+        "or removing its rejected material; unchanged findings fail. Unknown optional fields null/empty. "
+        "No inferred drop causes, variants, measurements or uncited conditions. No scores/verdict/confidence."
+    ),
+) if item.key == "consensus_analyst" else item for item in AGENT_SPECS)
+AGENT_SPECS = tuple(replace(item,
+    input_model=PartAuditorInput, output_model=ReferencedAuditResult,
+    role_prompt=(
+        "CITATION AUDIT: Exactly one finding_check per supplied field_path, copying original indices. "
+        "statement/summary/guidance/side text is split into ordered server-owned parts; read them together. "
+        "Each finding carries validated quotations and server-bound owners; judge support by meaning, including translations. "
+        "Check every material clause, quantity, condition, attribution, scope, polarity and section placement. "
+        "Pros must be benefits, cons drawbacks. A direct negative quote does not support a pro. "
+        "Combine an owner's cited excerpts. One reviewer supports an attributed observation, not a claim about "
+        "multiple reviewers. Reject unfinished assertions. Specs are stated, not measured. Comparisons require "
+        "both results. Missing mention is not contradiction. Low scores/limitations do not invalidate quotes. "
+        "For supported=true cite supporting evidence_refs; category, rejected_part_ref, explanation must be null. "
+        "For supported=false cite relevant evidence_refs, select the defect category and copy the p-reference "
+        "of the finding part containing the unsupported material. Explain briefly; never retype the clause. "
+        "Do not reject for missing UUIDs/context. Other_issues address specific unsupported summary, guidance "
+        "or disagreement parts using their own p-reference/path. These synthesize findings without separate "
+        "citations. Disagreement needs actual opposing observations, not different workloads. "
+        "Usage duration uses ownership/use metadata, never battery runtime. Empty lists/null assert nothing."
+    ),
+) if item.key == "quality_auditor" else item for item in AGENT_SPECS)
 AGENT_REGISTRY = {item.key: item for item in AGENT_SPECS}
 
 
@@ -454,6 +510,12 @@ def snapshot_output_model(role: str, schema: dict) -> type[BaseModel]:
         return current
     if role == "review_analyst" and schema == SourceAnalysisDraft.model_json_schema():
         return SourceAnalysisDraft
+    if role == "review_analyst" and schema == VideoExtraction.model_json_schema():
+        return VideoExtraction
+    if role == "consensus_analyst" and schema == EvidenceBoundBuyingSynthesis.model_json_schema():
+        return EvidenceBoundBuyingSynthesis
+    if role == "consensus_analyst" and schema == NormalizedBuyingSynthesis.model_json_schema():
+        return NormalizedBuyingSynthesis
     if role == "consensus_analyst" and schema == FinalReportDraft.model_json_schema():
         return FinalReportDraft
     if role == "consensus_analyst" and schema == BuyingSynthesis.model_json_schema():
@@ -464,6 +526,8 @@ def snapshot_output_model(role: str, schema: dict) -> type[BaseModel]:
         return SourceBoundBuyingSynthesis
     if role == "quality_auditor" and schema == AuditResult.model_json_schema():
         return AuditResult
+    if role == "quality_auditor" and schema == FindingAuditResult.model_json_schema():
+        return FindingAuditResult
     raise ValueError("unsupported snapshotted output contract")
 
 
@@ -483,10 +547,14 @@ def snapshot_input_model(role: str, schema: dict) -> type[BaseModel]:
         return CatalogAuditorInput
     if role == "quality_auditor" and schema == CitedAuditorInput.model_json_schema():
         return CitedAuditorInput
+    if role == "quality_auditor" and schema == DecisionAuditorInput.model_json_schema():
+        return DecisionAuditorInput
     if role == "consensus_analyst" and schema == QuoteSynthesisInput.model_json_schema():
         return QuoteSynthesisInput
     if role == "consensus_analyst" and schema == RepairSynthesisInput.model_json_schema():
         return RepairSynthesisInput
+    if role == "consensus_analyst" and schema == CatalogRepairSynthesisInput.model_json_schema():
+        return CatalogRepairSynthesisInput
     raise ValueError("unsupported snapshotted input contract")
 
 
@@ -506,16 +574,16 @@ def evaluate_agent_spec(spec: AgentSpec) -> dict[str, Any]:
     return {
         "status": "passed" if all(critical.values()) else "failed",
         "metrics": {
-            "schema_valid_rate": 1.0,
-            "central_claim_evidence_linkage": 1.0,
-            "unsupported_minor_claim_rate": 0.0,
+            "validation_kind": "static_contract",
+            "live_accuracy_verified": False,
+            "schemas_compiled": True,
             "critical_checks": critical,
         },
         "issue_codes": [key for key, passed in critical.items() if not passed],
     }
 
 
-EVALUATION_SUITE_VERSION = "phase6-critical-v1"
+EVALUATION_SUITE_VERSION = "static-contract-v2"
 EVALUATION_SUITE_HASH = canonical_json_hash(
     {
         "version": EVALUATION_SUITE_VERSION,

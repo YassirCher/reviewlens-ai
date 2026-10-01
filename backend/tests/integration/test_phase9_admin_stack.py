@@ -310,6 +310,8 @@ def test_phase9_recovery_actions_celery_jobs_and_refresh_failure() -> None:
 
 def test_phase9_analytics_reconcile_and_graph_isolation() -> None:
     with session_scope() as db:
+        # Workers may reconcile usage while this check runs; compare one ledger snapshot.
+        db.connection(execution_options={"isolation_level": "REPEATABLE READ"})
         _seed_and_activate(db)
         run_a = create_run(db, product_name="Phase 9 graph A", initiator_type="system_fixture",
                            requested_options={"source_count": 3, "analyze_comments": False})
