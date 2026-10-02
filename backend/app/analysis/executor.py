@@ -36,6 +36,7 @@ from app.analysis.product_info import (
     select_product_chunk_indexes,
     source_metadata,
     validate_extraction,
+    validate_span_products,
 )
 from app.analysis.registry import AGENT_REGISTRY, AgentSpec, UNIVERSAL_POLICY, snapshot_input_model, snapshot_output_model
 from app.analysis.review import ClassifiedVideoExtraction, VideoExtraction, bind_review, normalize_usage, parse_video_extraction, video_extraction_schema
@@ -43,6 +44,10 @@ from app.analysis.rendering import NormalizedBuyingSynthesis, PrioritizedSynthes
 from app.analysis.synthesis import AtomicBuyingSynthesis, AtomicSynthesisInput, BuyingSynthesis, CatalogRepairSynthesisInput, EvidenceBoundBuyingSynthesis, QuoteSynthesisInput, RepairSynthesisInput, SynthesisBindingError, catalog_repair_synthesis_input, compact_synthesis_input, evidence_bound_synthesis_schema, quote_synthesis_input, repair_synthesis_input, unchanged_rejected_findings
 from app.analysis.audit import AuditDecisionError, CatalogAuditorInput, CitedAuditorInput, DecisionAuditorInput, FindingAuditResult, cited_audit_input, compact_audit_input, decision_audit_input, finding_audit_schema
 from app.analysis.audit_parts import PartAuditorInput, ReferencedAuditResult, part_audit_input, referenced_audit_schema
+from app.analysis.audit_parts import OwnedAuditResult, owned_audit_schema
+from app.analysis.spans import CaptionBindingError, SpanVideoExtraction, SpanReviewInput, caption_spans, span_extraction_schema, bind_span_extraction
+from app.analysis.audience import AudienceBindingError, BoundAudienceDraft, audience_schema, comment_catalog, bind_audience
+from app.analysis.rendering import CompleteBuyingSynthesis
 from app.config import Settings, settings
 from app.db.models import (
     AgentDefinition,
@@ -63,7 +68,8 @@ from app.db.models import (
 from app.db.session import session_scope
 from app.knowledge.contracts import NodeDraft, NodeType, RelationDraft, RelationType, RetrievalPolicy, RetrievalRequest, TrustLevel
 from app.knowledge.retrieval import ContextBudgetExceeded, build_context_packet, estimate_tokens
-from app.knowledge.service import create_node, create_relation, create_workspace, read_version_body
+from app.knowledge.service import KnowledgeGraphError, create_node, create_relation, create_workspace, read_version_body
+from app.knowledge.storage import MarkdownValidationError
 from app.llmops.accounting import BudgetRejected
 from app.llmops.contracts import ChatInvocation, ChatMessage, InvocationContext, ModelPolicyDocument, OpenRouterError
 from app.llmops.gateway import OpenRouterGateway
@@ -744,6 +750,9 @@ def _agent_task_input(spec: AgentSpec, task: TaskRun, run: AnalysisRun) -> tuple
         }, (uuid.UUID(comments["comment_set_node_id"]),)
     reviews = [item["analysis"] for item in _outputs_with_prefix(run.id, "analyze_review.source_") if item.get("analysis")]
     audiences = [item["analysis"] for item in _outputs_with_prefix(run.id, "analyze_audience.source_") if item.get("analysis")]
+    if spec.output_model is CompleteBuyingSynthesis:
+        retained = {review["source_id"] for review in reviews}
+        audiences = [audience for audience in audiences if audience["source_id"] in retained]
     if spec.key == "knowledge_curator":
         if not reviews:
             raise RuntimeTaskError("no_valid_source_analyses", category="quality")
@@ -944,6 +953,8 @@ async def _call_agent(
     try:
         # Legacy snapshots keep their original input contract.
         input_payload = dict(payload)
+        if spec.input_model is SpanReviewInput:
+            input_payload["canonical_product"] = run.canonical_product
         if spec.input_model is AtomicSynthesisInput:
             input_payload = compact_synthesis_input(input_payload)
         if spec.input_model is QuoteSynthesisInput:
@@ -980,7 +991,7 @@ async def _call_agent(
     # Reserve tokens for system prompt (~600 tokens), task wrapper (~300 tokens), and safety margin (400 tokens)
     available_context = max(0, spec.max_input_tokens - task_input_tokens - 1300)
     budget_override = min(spec.retrieval_policy.input_token_budget, available_context) if available_context > 0 else 0
-    if (spec.key == "product_information_analyst" or issubclass(spec.output_model, VideoExtraction)) and budget_override >= 200:
+    if (spec.key == "product_information_analyst" or issubclass(spec.output_model, VideoExtraction) or issubclass(spec.output_model, SpanVideoExtraction)) and budget_override >= 200:
         seeds = _product_context_seeds(
             run, task, config=config, token_budget=budget_override,
             max_nodes_per_source=spec.retrieval_policy.maximum_nodes_per_source,
@@ -995,6 +1006,19 @@ async def _call_agent(
         config=config,
         budget_override=budget_override,
     )
+    spans = ()
+    comment_refs, comment_dates = set(), set()
+    if issubclass(spec.output_model, SpanVideoExtraction):
+        spans = caption_spans(rendered, run.canonical_product)
+        if not spans:
+            raise RuntimeTaskError("caption_span_catalog_empty", category="quality")
+        rendered = '<untrusted-data source="assigned-video-caption-catalog">\n' + "\n".join(
+            json.dumps(span.model_dump(mode="json"), ensure_ascii=False, separators=(",", ":")) for span in spans) + '\n</untrusted-data>'
+        context_tokens = estimate_tokens(rendered)
+    if issubclass(spec.output_model, BoundAudienceDraft):
+        rendered, comment_refs, comment_dates = comment_catalog(rendered, run.created_at)
+        rendered = '<untrusted-data source="retained-audience-comments">\n' + rendered + '\n</untrusted-data>'
+        context_tokens = estimate_tokens(rendered)
     correction = attempt_input.get("correction")
     task_instruction = spec.purpose
     envelope = build_prompt_envelope(
@@ -1066,7 +1090,10 @@ async def _call_agent(
             ChatMessage(role="system", content=envelope.system),
             ChatMessage(role="user", content=envelope.user),
         ),
-        response_schema=(video_extraction_schema(spec.output_model) if issubclass(spec.output_model, VideoExtraction) else
+        response_schema=(span_extraction_schema(spans, spec.output_model) if issubclass(spec.output_model, SpanVideoExtraction) else
+                         audience_schema(spec.output_model) if issubclass(spec.output_model, BoundAudienceDraft) else
+                         owned_audit_schema(PartAuditorInput.model_validate(task_input_data)) if spec.output_model is OwnedAuditResult else
+                         video_extraction_schema(spec.output_model) if issubclass(spec.output_model, VideoExtraction) else
                          referenced_audit_schema(PartAuditorInput.model_validate(task_input_data))
                          if spec.output_model is ReferencedAuditResult else
                          finding_audit_schema(DecisionAuditorInput.model_validate(task_input_data))
@@ -1077,7 +1104,7 @@ async def _call_agent(
         estimated_prompt_tokens=max(prompt_tokens, context_tokens),
         estimated_cost_microusd=estimated_cost,
         max_network_attempts=1,
-        optional_output_fields=("product_information",) if issubclass(spec.output_model, VideoExtraction) else (),
+        optional_output_fields=("product_information",) if issubclass(spec.output_model, VideoExtraction) or issubclass(spec.output_model, SpanVideoExtraction) else (),
     )
     try:
         result = await OpenRouterGateway(config=config).chat(invocation)
@@ -1101,13 +1128,23 @@ async def _call_agent(
             exc.provider_code or exc.category.value,
             category=category,
             retryable=exc.retryable or category == "validation",
-            validator_results={
+            invalid_output_hash=exc.invalid_output_hash,
+            validator_results=exc.validation_diagnostics or {
                 "status": "failed",
                 "provider_category": exc.category.value,
                 "provider_code": exc.provider_code,
             },
         ) from exc
     try:
+        if issubclass(spec.output_model, SpanVideoExtraction):
+            extraction, diagnostics = bind_span_extraction(result.content, spans, run.canonical_product)
+            object.__setattr__(extraction, "_span_diagnostics", diagnostics)
+            return extraction
+        if issubclass(spec.output_model, BoundAudienceDraft):
+            audience, diagnostics = bind_audience(result.content, source_id=uuid.UUID(payload["source_id"]),
+                sampled=payload["comments_sampled"], refs=comment_refs, dates=comment_dates)
+            object.__setattr__(audience, "_binding_diagnostics", diagnostics)
+            return audience
         return (parse_video_extraction(result.content, spec.output_model) if issubclass(spec.output_model, VideoExtraction)
                 else spec.output_model.model_validate(result.content))
     except ValidationError as exc:
@@ -1118,6 +1155,10 @@ async def _call_agent(
             invalid_output_hash=canonical_json_hash(result.content),
             validator_results=_safe_validation(exc),
         ) from exc
+    except ValueError as exc:
+        raise RuntimeTaskError("agent_output_reference_invalid", category="validation", retryable=True,
+            invalid_output_hash=canonical_json_hash(result.content), validator_results={"status": "failed",
+                "issues": [exc.issue if isinstance(exc, (CaptionBindingError, AudienceBindingError)) else {"path": "review.claims.span_refs", "type": str(exc)[:180]}]}) from exc
 
 
 async def _postprocess_review(
@@ -1625,12 +1666,15 @@ async def _execute_agent(
             if isinstance(result, ClassifiedVideoExtraction) and output.get("analysis"):
                 kinds = {" ".join(claim.claim.casefold().split()): claim for claim in result.review.claims}
                 output["claim_catalog"] = [{"source_id": output["analysis"]["source_id"], "kind": metadata.kind,
-                    "topic": metadata.topic, "central": claim["central"],
+                    "topic": metadata.topic, "claim": claim["claim"], "central": claim["central"],
                     "evidence_node_ids": [ref["evidence_node_id"] for ref in claim["evidence"]]}
                     for claim in output["analysis"]["claims"]
                     for metadata in [kinds[" ".join(claim["claim"].casefold().split())]]]
             output["product_information"] = _postprocess_product_information(
-                run, source, result.product_information, config=config)
+                run, source, result.product_information, config=config,
+                span_payload=getattr(result, "_span_product_payload", None), spans=getattr(result, "_caption_spans", None))
+            if hasattr(result, "_span_diagnostics"):
+                output["caption_binding_diagnostics"] = result._span_diagnostics
             return output
         return await _postprocess_review(attempt_id, run, SourceAnalysisDraft.model_validate(result), config=config)
     if spec.key == "product_information_analyst":
@@ -1642,12 +1686,18 @@ async def _execute_agent(
     if spec.key == "source_curator":
         return await _curated_source_queues(run, SourceCuration.model_validate(result), config)
     if spec.key == "audience_analyst":
-        return _postprocess_audience(attempt_id, run, AudienceAnalysisDraft.model_validate(result), config=config)
+        output = _postprocess_audience(attempt_id, run, AudienceAnalysisDraft.model_validate(result), config=config)
+        if hasattr(result, "_binding_diagnostics"):
+            output["binding_diagnostics"] = result._binding_diagnostics
+        return output
     if spec.key == "knowledge_curator":
         return _postprocess_knowledge(attempt_id, run, GraphMutationPlan.model_validate(result), config=config)
     if spec.key == "consensus_analyst":
         reviews = [item["analysis"] for item in _outputs_with_prefix(run.id, "analyze_review.source_") if item.get("analysis")]
         audiences = [item["analysis"] for item in _outputs_with_prefix(run.id, "analyze_audience.source_") if item.get("analysis")]
+        if isinstance(result, CompleteBuyingSynthesis):
+            retained = {review["source_id"] for review in reviews}
+            audiences = [audience for audience in audiences if audience["source_id"] in retained]
         synthesis_diagnostics: list[dict[str, Any]] = []
         try:
             if isinstance(result, NormalizedBuyingSynthesis):
@@ -1687,12 +1737,12 @@ async def _execute_agent(
         reviews = consensus.get("source_analyses", [])
         with session_scope() as db:
             auditor_version = db.get(AgentVersion, task.agent_version_id)
-            strict_grounding = isinstance(result, (FindingAuditResult, ReferencedAuditResult)) or bool(
+            strict_grounding = isinstance(result, (FindingAuditResult, ReferencedAuditResult, OwnedAuditResult)) or bool(
                 auditor_version and "unsupported_narrative" in auditor_version.system_prompt)
         diagnostics: dict[str, Any] = {}
-        if isinstance(result, (FindingAuditResult, ReferencedAuditResult)):
+        if isinstance(result, (FindingAuditResult, ReferencedAuditResult, OwnedAuditResult)):
             try:
-                if isinstance(result, ReferencedAuditResult):
+                if isinstance(result, (ReferencedAuditResult, OwnedAuditResult)):
                     model_audit, diagnostics = result.as_audit(PartAuditorInput.model_validate(part_audit_input(payload)))
                 else:
                     model_audit, diagnostics = result.as_audit(DecisionAuditorInput.model_validate(decision_audit_input(payload)))
@@ -1711,6 +1761,7 @@ async def _execute_agent(
             model_audit,
             strict_grounding=strict_grounding,
             diagnostics=deterministic_rejections,
+            owned_guidance=isinstance(result, OwnedAuditResult),
         )
         diagnostics["deterministic_rejections"] = deterministic_rejections
         diagnostics["synthesis"] = consensus.get("synthesis_diagnostics", [])
@@ -1731,29 +1782,56 @@ async def _execute_agent(
 
 
 def _postprocess_product_information(run: AnalysisRun, source: dict,
-        draft: ProductExtractionDraft | None, *, config: Settings) -> dict:
+        draft: ProductExtractionDraft | None, *, config: Settings, span_payload: dict | None = None, spans: dict | None = None) -> dict:
     if draft is None:
         return {"source_id": source["source_id"], "video_id": source["video_id"], "facts": [],
                 "variants": [], "sample_used": {"units": []},
                 "extraction_diagnostics": {"product_information_invalid_or_missing": True}}
     metadata, transcript_body = _product_source_material(run, source, config)
     rejected: list[dict[str, str]] = []
-    facts, variants, sample = validate_extraction(draft,
-        title=str(metadata.get("title") or ""), description=str(metadata.get("description") or ""),
+    source_args = dict(title=str(metadata.get("title") or ""), description=str(metadata.get("description") or ""),
         transcript_body=transcript_body, video_id=source["video_id"], canonical_product=run.canonical_product,
         diagnostics=rejected)
+    facts, variants, sample = (validate_span_products(span_payload, spans or {}, **source_args) if span_payload is not None
+                              else validate_extraction(draft, **source_args))
     return {"source_id": source["source_id"], "video_id": source["video_id"],
         "facts": [item.model_dump(mode="json") for item in facts],
         "variants": [item.model_dump(mode="json") for item in variants],
         "sample_used": sample.model_dump(mode="json"),
         "extraction_diagnostics": {
-            "proposed_facts": len(draft.facts), "accepted_facts": len(facts),
-            "proposed_variants": len(draft.variants), "accepted_variants": len(variants),
-            "proposed_sample_details": sum(len(unit.details) for unit in draft.sample_units),
+            "proposed_facts": len(span_payload.get("facts", [])) if span_payload is not None else len(draft.facts), "accepted_facts": len(facts),
+            "proposed_variants": len(span_payload.get("variants", [])) if span_payload is not None else len(draft.variants), "accepted_variants": len(variants),
+            "proposed_sample_details": sum(len(unit.get("details", [])) for unit in span_payload.get("sample_units", [])) if span_payload is not None else sum(len(unit.details) for unit in draft.sample_units),
             "accepted_sample_details": sum(len(unit.details) for unit in sample.units),
             "rejected_items": rejected,
             "rejection_counts": {code: sum(item["code"] == code for item in rejected)
                                  for code in sorted({item["code"] for item in rejected})}}}
+
+
+def _verify_report_citations(db, workspace: Workspace, reviews: list[dict], *, config: Settings) -> None:
+    expected: dict[uuid.UUID, tuple[str, str | None]] = {}
+    for review in reviews:
+        expected[uuid.UUID(review['source_id'])] = ('source', None)
+        for claim in review['claims']:
+            for ref in claim['evidence']:
+                expected[uuid.UUID(ref['evidence_node_id'])] = ('evidence', ref['evidence_text'])
+    rows = db.execute(select(ContextNode, ContextNodeVersion).join(ContextNodeVersion,
+        ContextNodeVersion.id == ContextNode.current_version_id).where(ContextNode.id.in_(expected))).all()
+    found = {node.id: (node, version) for node, version in rows}
+    for node_id, (kind, quotation) in expected.items():
+        pair = found.get(node_id)
+        valid = bool(pair and pair[0].workspace_id == workspace.id and pair[0].status == 'active'
+                     and pair[0].node_type == kind)
+        if valid:
+            try:
+                _, body = read_version_body(workspace, pair[1], config=config)
+                valid = quotation is None or body.strip() == quotation.strip()
+            except (KnowledgeGraphError, MarkdownValidationError, OSError):
+                valid = False
+        if not valid:
+            raise RuntimeTaskError('report_evidence_unavailable', category='quality', retryable=False,
+                validator_results={'status': 'failed', 'issues': [{'type': 'citation_storage_invalid',
+                    'node_id': str(node_id), 'node_type': kind}]})
 
 
 def _publish_report(
@@ -1800,12 +1878,13 @@ def _publish_report(
     report_id = uuid.uuid5(run.id, "validated-internal-report")
     with session_scope() as db:
         locked_run = db.get(AnalysisRun, run.id)
-        workspace = db.scalar(select(Workspace).where(Workspace.run_id == run.id))
+        workspace = db.scalar(select(Workspace).where(Workspace.run_id == run.id).with_for_update())
         if not locked_run or not workspace:
             raise RuntimeTaskError("analysis_workspace_missing", category="storage")
         existing = db.scalar(select(Report).where(Report.run_id == run.id))
         if existing:
             return {"report_id": str(existing.id), "status": existing.payload["status"]}
+        _verify_report_citations(db, workspace, reviews, config=config)
         total_tokens = int(
             db.scalar(select(func.coalesce(func.sum(UsageEvent.total_tokens), 0)).where(UsageEvent.run_id == run.id))
             or 0

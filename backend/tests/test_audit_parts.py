@@ -9,6 +9,8 @@ from pydantic import ValidationError
 
 from app.analysis.audit import AuditDecisionError, DecisionAuditorInput, FindingAuditResult, decision_audit_input
 from app.analysis.audit_parts import PartAuditorInput, ReferencedAuditResult, part_audit_input, referenced_audit_schema
+from app.analysis.audit_parts import OwnedAuditResult
+from app.analysis.rendering import CompleteBuyingSynthesis
 from app.analysis.contracts import FinalReportDraft
 from app.analysis.grounding import ground_report
 from app.analysis.registry import AGENT_REGISTRY, snapshot_input_model, snapshot_output_model
@@ -172,8 +174,10 @@ def test_all_rejections_block_publication_and_preserve_bounded_repair():
 
 
 def test_successor_and_legacy_contracts_are_explicit():
-    assert AGENT_REGISTRY['quality_auditor'].output_model is ReferencedAuditResult
-    assert AGENT_REGISTRY['consensus_analyst'].output_model is DistinctBuyingSynthesis
+    assert AGENT_REGISTRY['quality_auditor'].output_model is OwnedAuditResult
+    assert AGENT_REGISTRY['consensus_analyst'].output_model is CompleteBuyingSynthesis
+    assert snapshot_output_model('quality_auditor', ReferencedAuditResult.model_json_schema()) is ReferencedAuditResult
+    assert snapshot_output_model('consensus_analyst', DistinctBuyingSynthesis.model_json_schema()) is DistinctBuyingSynthesis
     assert snapshot_input_model('quality_auditor', DecisionAuditorInput.model_json_schema()) is DecisionAuditorInput
     assert snapshot_output_model('quality_auditor', FindingAuditResult.model_json_schema()) is FindingAuditResult
     assert snapshot_output_model('consensus_analyst', NormalizedBuyingSynthesis.model_json_schema()) is NormalizedBuyingSynthesis

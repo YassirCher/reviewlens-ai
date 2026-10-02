@@ -12,6 +12,7 @@ from app.admin.evaluation import INJECTION_MARKER, _checks, golden_fixture
 from app.analysis.audit import DecisionAuditorInput, decision_audit_input
 from app.analysis.audit_parts import PartAuditorInput, part_audit_input
 from app.analysis.registry import AGENT_REGISTRY
+from app.analysis.spans import SpanReviewInput
 from app.analysis.rendering import PrioritizedSynthesisInput, prioritized_synthesis_input
 from app.analysis.synthesis import CatalogRepairSynthesisInput, RepairSynthesisInput, catalog_repair_synthesis_input, repair_synthesis_input
 from app.errors import V2Error
@@ -41,6 +42,8 @@ def test_admin_cursors_are_signed_and_bound_to_filters() -> None:
 def test_role_fixtures_validate_and_critical_checks_reject_injection_and_missing_evidence() -> None:
     for role, spec in AGENT_REGISTRY.items():
         fixture = golden_fixture(role)
+        if spec.input_model is SpanReviewInput:
+            fixture = {**fixture, "canonical_product": "Aurora Headphones"}
         if spec.input_model is DecisionAuditorInput:
             fixture = decision_audit_input(fixture)
         if spec.input_model is PartAuditorInput:

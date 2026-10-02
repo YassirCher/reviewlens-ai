@@ -246,6 +246,9 @@ def test_phase10_golden_suite_covers_contract_and_validates_every_role_fixture()
         assert cases
         for case in cases:
             fixture = case_fixture(role, case)
+            from app.analysis.spans import SpanReviewInput
+            if spec.input_model is SpanReviewInput:
+                fixture = {**fixture, "canonical_product": "Aurora Headphones"}
             if spec.input_model is DecisionAuditorInput:
                 fixture = decision_audit_input(fixture)
             if spec.input_model is PartAuditorInput:

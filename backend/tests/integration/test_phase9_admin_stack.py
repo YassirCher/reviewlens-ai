@@ -261,7 +261,7 @@ def test_phase9_recovery_actions_celery_jobs_and_refresh_failure() -> None:
         workspace = create_workspace(db, workspace_run.id)
         actor = db.scalar(select(AdminUser).where(AdminUser.identifier == settings.admin_email))
         recovered = create_job(db, actor_id=actor.id, kind="workspace_export",
-                               target_id=str(workspace.id), idempotency_key="phase9-recovered-export-job")
+                               target_id=str(workspace.id), idempotency_key="phase9-recovered-export-" + uuid.uuid4().hex)
         recovered.status = "running"
         recovered.started_at = datetime.now(timezone.utc) - timedelta(minutes=16)
         cancel_id, retry_task_id, recovered_id = cancel_run.id, retry_task.id, recovered.id

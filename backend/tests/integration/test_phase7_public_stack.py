@@ -177,7 +177,7 @@ def test_phase7_concurrent_same_key_creates_one_run() -> None:
     _seed()
     origin = {"Origin": "http://localhost:3000"}
     product = {"product_name": "Phase 6 cancel fixture", "video_count": 3}
-    key = "phase7-concurrent-key-0001"
+    key = "phase7-concurrent-key-" + uuid.uuid4().hex
     test_client = ("phase7-idempotency", 50000)
     with TestClient(app, client=test_client) as bootstrap:
         initial = bootstrap.post("/api/v2/analyses/preflight", json=product, headers=origin)

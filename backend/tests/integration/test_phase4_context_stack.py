@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 import os
 import uuid
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
+from threading import Event
 
 import pytest
 from sqlalchemy import func, select
@@ -109,6 +111,49 @@ def test_atomic_node_version_relation_manifest_export_and_reconciliation() -> No
         exported = export_workspace(db, fixture.workspace_id)
     assert result == {"valid": 5, "missing": 0, "mismatched": 0, "orphaned": 0}
     assert exported.exists() and exported.suffix == ".zip"
+
+
+def test_reconciliation_waits_for_a_node_file_creating_transaction() -> None:
+    with session_scope() as db:
+        fixture = create_context_fixture(db)
+    written, release, reconciling = Event(), Event(), Event()
+
+    def writer():
+        with session_scope() as db:
+            version = create_node(db, fixture.workspace_id, NodeDraft(node_type=NodeType.EVIDENCE,
+                title='Concurrent evidence', body='Battery endurance is supported by this exact quotation.',
+                trust_level=TrustLevel.PRIMARY, source_uri='https://www.youtube.com/watch?v=racefixture',
+                source_language='en', created_by_attempt_id=fixture.task_attempt_id))
+            written.set()
+            if not release.wait(10):
+                raise TimeoutError('concurrent fixture did not release writer')
+            return version.node_id
+
+    def reconciler():
+        with session_scope() as db:
+            reconciling.set()
+            return reconcile_workspace(db, fixture.workspace_id)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        writing = pool.submit(writer)
+        try:
+            if not written.wait(5):
+                writing.result(timeout=1)  # Surface writer validation failures directly.
+                raise AssertionError('writer did not reach the uncommitted file barrier')
+            checking = pool.submit(reconciler)
+            assert reconciling.wait(5)
+            with pytest.raises(TimeoutError):
+                checking.result(timeout=.2)
+        finally:
+            release.set()
+        node_id = writing.result(timeout=5)
+        result = checking.result(timeout=5)
+    assert result == {'valid': 6, 'missing': 0, 'mismatched': 0, 'orphaned': 0}
+    with session_scope() as db:
+        node = db.get(ContextNode, node_id)
+        version = db.get(ContextNodeVersion, node.current_version_id)
+        assert node.status == 'active'
+        assert resolve_body_path(workspace_root(fixture.workspace_id), version.body_path).exists()
 
 
 def test_context_versions_and_manifests_are_database_immutable() -> None:

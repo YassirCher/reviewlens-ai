@@ -51,6 +51,9 @@ class OpenRouterError(RuntimeError):
         provider_code: str | None = None,
         correlation_id: str | None = None,
         retry_after_seconds: float | None = None,
+        validation_diagnostics: dict[str, Any] | None = None,
+        invalid_output_hash: str | None = None,
+        completed_chat: ChatResult | None = None,
     ) -> None:
         super().__init__(category.value)
         self.category = category
@@ -58,6 +61,9 @@ class OpenRouterError(RuntimeError):
         self.provider_code = provider_code
         self.correlation_id = correlation_id
         self.retry_after_seconds = retry_after_seconds
+        self.validation_diagnostics = validation_diagnostics
+        self.invalid_output_hash = invalid_output_hash
+        self.completed_chat = completed_chat
 
     @property
     def retryable(self) -> bool:

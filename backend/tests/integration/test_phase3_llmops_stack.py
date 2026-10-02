@@ -291,6 +291,33 @@ def test_gateway_records_exact_usage_and_actual_fallback_route() -> None:
     assert budget and budget.reserved_tokens == 0 and budget.consumed_tokens == 19
 
 
+def test_truncated_paid_response_fails_but_preserves_actual_usage_and_budget() -> None:
+    reset_account_block()
+    with session_scope() as db:
+        context, policy, _ = create_llmops_fixture_attempt(db)
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        payload = _success_payload(f'gen-{uuid.uuid4().hex}')
+        payload['choices'] = [{'finish_reason': 'length', 'message': {'content': '{"ok":'}}]
+        return httpx.Response(200, json=payload)
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as raw:
+            gateway = OpenRouterGateway(settings, client=OpenRouterClient(settings, client=raw))
+            with pytest.raises(OpenRouterError) as raised:
+                await gateway.chat(_chat_invocation(context, policy))
+            assert raised.value.provider_code == 'chat_content_truncated'
+
+    asyncio.run(run())
+    with session_scope() as db:
+        event = db.scalar(select(UsageEvent).where(UsageEvent.run_id == context.run_id))
+        budget = db.get(RunBudgetState, context.run_id)
+        assert event.status == 'failed' and event.error_code == 'chat_content_truncated'
+        assert event.total_tokens == 15 and event.total_cost_microusd == 200
+        assert event.actual_model == 'deepseek/deepseek-v4-flash-0731'
+        assert budget.reserved_tokens == 0 and budget.consumed_tokens == 15
+
+
 def test_retry_creates_distinct_usage_attempts_and_releases_failed_reservation() -> None:
     reset_account_block()
     with session_scope() as db:

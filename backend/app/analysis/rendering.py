@@ -7,12 +7,19 @@ from typing import Any, ClassVar
 from pydantic import Field
 
 from app.analysis.contracts import ConsensusItem, FinalReportDraft, StrictModel
+from app.analysis.grounding import finding_narrative
 from app.analysis.synthesis import (
     AtomicBuyingSynthesis, CatalogRepairSynthesisInput, EvidenceBoundBuyingSynthesis,
     SynthesisBindingError, catalog_repair_synthesis_input, evidence_catalog,
 )
 
 _ALIAS = re.compile(r"\b(?:s\d+|e\d+)\b", re.I)
+
+
+def topic_key(topic: str) -> str:
+    key = " ".join(topic.casefold().replace("_", " ").replace("-", " ").split())
+    return {"app": "app support", "app compatibility": "app support", "no app": "app support",
+            "application support": "app support", "companion app": "app support", "app availability": "app support"}.get(key, key)
 
 
 class DrawbackPriority(StrictModel):
@@ -35,7 +42,7 @@ def prioritized_synthesis_input(payload: dict[str, Any]) -> dict[str, Any]:
         owner, eid = bindings[quote["evidence_ref"]]
         item = metadata.get(eid)
         if item and str(item["source_id"]) == owner and quote["support_type"] == "supports":
-            topic = " ".join(item["topic"].casefold().split())
+            topic = topic_key(item["topic"])
             current = priorities.get(topic)
             if current is None or confidence[quote["evidence_ref"]] > current["confidence"]:
                 priorities[topic] = {"topic": item["topic"], "evidence_ref": quote["evidence_ref"],
@@ -91,6 +98,7 @@ class NormalizedBuyingSynthesis(EvidenceBoundBuyingSynthesis):
     """Compiled successor; older evidence/source-bound contracts retain their adapters."""
 
     deduplicate_assertions: ClassVar[bool] = False
+    owned_narrative: ClassVar[bool] = False
 
     def as_report(self, display_name: str, canonical_name: str, reviews: list[dict]) -> FinalReportDraft:
         return self.compile_report(display_name, canonical_name, reviews)[0]
@@ -111,6 +119,14 @@ class NormalizedBuyingSynthesis(EvidenceBoundBuyingSynthesis):
                 raise SynthesisBindingError("assertion_source_mismatch", index, reference_field="evidence_refs")
             owner_refs = {key for key, owner in sources.items() if owner in owners}
             updates: dict[str, Any] = {"evidence_refs": refs}
+            if self.owned_narrative:
+                attribute = topic_key(assertion.attribute).capitalize()
+                observation = assertion.observation
+                conditions = assertion.conditions
+                if conditions and re.search(r"\b" + re.escape(" ".join(conditions.casefold().split()).strip(" .")) + r"\b",
+                                            " ".join(observation.casefold().split())):
+                    conditions = None
+                assertion = assertion.model_copy(update={"attribute": attribute, "observation": observation, "conditions": conditions})
             rejected = False
             for field in ("attribute", "observation", "conditions"):
                 value = getattr(assertion, field)
@@ -131,6 +147,8 @@ class NormalizedBuyingSynthesis(EvidenceBoundBuyingSynthesis):
                     diagnostics.append({"loc": ["assertions", index, field], "type": "owned_alias_rendered", "action": "normalized",
                                         "reference_category": "prose", "ownership": "owned"})
             if not rejected:
+                if self.owned_narrative and not re.search(r"\b(?:reviewer|review|reported|claimed|measured|tested|observed)\b", updates["observation"], re.I):
+                    updates["observation"] = "The reviewer reports: " + updates["observation"]
                 normalized_assertion = assertion.model_copy(update=updates)
                 identity = (normalized_assertion.kind, next(iter(owners)), tuple(sorted(refs)),
                     *(" ".join((getattr(normalized_assertion, field) or "").casefold().split())
@@ -194,7 +212,7 @@ class NormalizedBuyingSynthesis(EvidenceBoundBuyingSynthesis):
         reverse = {eid: ref for ref, (_, eid) in bindings.items()}
         topics: set[str] = set()
         for item in sorted(claim_catalog or [], key=lambda row: (not row.get("central", False), row["topic"].casefold(), row["source_id"])):
-            topic = " ".join(item["topic"].casefold().split())
+            topic = topic_key(item["topic"])
             if item["kind"] != "caveat" or topic in topics or len(topics) >= 4:
                 continue
             owned = [reverse[str(eid)] for eid in item["evidence_node_ids"] if str(eid) in reverse
@@ -206,8 +224,10 @@ class NormalizedBuyingSynthesis(EvidenceBoundBuyingSynthesis):
             if any(bindings[ref][1] in covered for ref in owned):
                 continue
             quote = max((quotes[ref] for ref in owned), key=lambda q: q["confidence"])
-            candidate = ConsensusItem(statement=f'{item["topic"]}: The reviewer states: “{quote["excerpt"]}”',
-                source_ids=(item["source_id"],), evidence_node_ids=(bindings[quote["evidence_ref"]][1],))
+            english = item.get("claim") if self.owned_narrative else None
+            candidate = ConsensusItem(statement=(f'{topic.capitalize()}: The reviewer reports {english}' if english else
+                f'{item["topic"]}: The reviewer states: “{quote["excerpt"]}”'),
+                source_ids=(item["source_id"],), evidence_node_ids=tuple(bindings[ref][1] for ref in owned) if english else (bindings[quote["evidence_ref"]][1],))
             quoted_id = bindings[quote["evidence_ref"]][1]
             misplaced = [i for i, pro in enumerate(pros) if {str(eid) for eid in pro.evidence_node_ids} == {quoted_id}]
             if misplaced:
@@ -227,6 +247,8 @@ class NormalizedBuyingSynthesis(EvidenceBoundBuyingSynthesis):
         if pros != list(draft.consensus_pros) or cons != list(draft.consensus_cons):
             draft = draft.model_copy(update={"consensus_pros": tuple(pros), "consensus_cons": tuple(cons),
                                             "who_should_buy": (), "who_should_avoid": ()})
+        if self.owned_narrative:
+            draft = finding_narrative(draft, len(reviews))
         return draft, diagnostics[:96]
 
 
@@ -234,3 +256,9 @@ class DistinctBuyingSynthesis(NormalizedBuyingSynthesis):
     """Successor removes exact repeated findings without merging source ownership."""
 
     deduplicate_assertions: ClassVar[bool] = True
+
+
+class CompleteBuyingSynthesis(DistinctBuyingSynthesis):
+    """English claim fallbacks and narrative generated from owned assertions."""
+
+    owned_narrative: ClassVar[bool] = True

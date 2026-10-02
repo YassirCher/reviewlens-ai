@@ -91,7 +91,7 @@ def test_captured_cross_segment_facts_survive_and_bad_details_are_independent():
     assert [fact.value for fact in facts] == ["3.2 g", "10%", "30 hours", "5.3"]
     assert variants == () and sample.units == ()
     assert len(diagnostics) == 4 and diagnostics[0]["code"] == "value_not_supported"
-    assert set(diagnostics[0]) == {"path", "code"}
+    assert {"path", "code", "label", "value", "scope", "reference_ids"} <= diagnostics[0].keys()
 
 
 def test_short_catalog_binds_split_observations_without_borrowing_quantities():
@@ -234,7 +234,7 @@ def test_comparison_identity_is_not_a_product_detail_with_missing_scope():
     facts, _, _ = validate_extraction(draft, title=title, description="", transcript_body="",
         video_id="E_nBOaQA_qQ", canonical_product="Black Shark T11", diagnostics=diagnostics)
     assert [fact.value for fact in facts] == ["Black Shark T11"]
-    assert diagnostics == [{"path": "facts[1]", "code": "sibling_model"}]
+    assert [{key: item[key] for key in ("path", "code")} for item in diagnostics] == [{"path": "facts[1]", "code": "sibling_model"}]
 
 
 def test_compact_audit_preserves_original_indices_and_citation_ownership():

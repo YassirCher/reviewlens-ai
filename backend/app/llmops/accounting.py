@@ -372,6 +372,7 @@ def finalize_successful_request(
     finish_reason: str | None = None,
     service_tier: str | None = None,
     result_valid: bool = True,
+    invalid_error_code: str = "schema_validation_failed",
     reconciled: bool = False,
     config: Settings = settings,
 ) -> None:
@@ -390,7 +391,7 @@ def finalize_successful_request(
         event.status = "succeeded" if result_valid else "failed"
         if not result_valid:
             event.error_category = "invalid_structured_output"
-            event.error_code = "schema_validation_failed"
+            event.error_code = invalid_error_code[:120]
         if usage_value is None and generation_id:
             event.next_reconciliation_at = now + timedelta(
                 seconds=config.openrouter_reconciliation_interval_seconds

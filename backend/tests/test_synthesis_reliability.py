@@ -10,8 +10,8 @@ from app.analysis.audit import DecisionAuditorInput, FindingAuditResult, decisio
 from app.analysis.grounding import _statement_matches, ground_report
 from app.analysis.product_info import ProductEvidence, ProductFact, merge_product_info
 from app.analysis.registry import AGENT_REGISTRY, evaluate_agent_spec, snapshot_input_model, snapshot_output_model
-from app.analysis.rendering import DistinctBuyingSynthesis, NormalizedBuyingSynthesis, PrioritizedSynthesisInput, prioritized_synthesis_input
-from app.analysis.review import ClassifiedVideoExtraction, VideoExtraction, normalize_usage
+from app.analysis.rendering import NormalizedBuyingSynthesis, PrioritizedSynthesisInput, prioritized_synthesis_input
+from app.analysis.review import VideoExtraction, normalize_usage
 from app.analysis.synthesis import CatalogRepairSynthesisInput, EvidenceBoundBuyingSynthesis, SynthesisBindingError, evidence_catalog
 
 
@@ -215,8 +215,10 @@ def test_snapshot_contracts_and_static_checks_are_honest():
     assert snapshot_output_model("review_analyst", VideoExtraction.model_json_schema()) is VideoExtraction
     assert snapshot_output_model("consensus_analyst", EvidenceBoundBuyingSynthesis.model_json_schema()) is EvidenceBoundBuyingSynthesis
     assert snapshot_input_model("consensus_analyst", CatalogRepairSynthesisInput.model_json_schema()) is CatalogRepairSynthesisInput
-    assert AGENT_REGISTRY["review_analyst"].output_model is ClassifiedVideoExtraction
-    assert AGENT_REGISTRY["consensus_analyst"].output_model is DistinctBuyingSynthesis
+    from app.analysis.spans import CompactSpanVideoExtraction
+    from app.analysis.rendering import CompleteBuyingSynthesis
+    assert AGENT_REGISTRY["review_analyst"].output_model is CompactSpanVideoExtraction
+    assert AGENT_REGISTRY["consensus_analyst"].output_model is CompleteBuyingSynthesis
     for spec in AGENT_REGISTRY.values():
         metrics = evaluate_agent_spec(spec)["metrics"]
         assert metrics["validation_kind"] == "static_contract" and not metrics["live_accuracy_verified"]

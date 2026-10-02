@@ -166,7 +166,9 @@ def create_node(
     node_id: uuid.UUID | None = None,
     config: Settings = settings,
 ) -> ContextNodeVersion:
-    workspace = db.get(Workspace, workspace_id)
+    # Reconciliation uses the same lock: a Markdown file cannot be treated as an
+    # orphan while its creating database transaction is still uncommitted.
+    workspace = db.scalar(select(Workspace).where(Workspace.id == workspace_id).with_for_update().execution_options(populate_existing=True))
     if not workspace or workspace.status not in {"active", "degraded"}:
         raise KnowledgeGraphError("workspace is not writable")
     _validate_creator(db, workspace, draft)
@@ -236,7 +238,11 @@ def create_node_version(
     *,
     config: Settings = settings,
 ) -> ContextNodeVersion:
-    node = db.scalar(select(ContextNode).where(ContextNode.id == node_id).with_for_update())
+    original = db.get(ContextNode, node_id)
+    if original:
+        # Keep workspace -> node lock order consistent with reconciliation.
+        db.scalar(select(Workspace).where(Workspace.id == original.workspace_id).with_for_update().execution_options(populate_existing=True))
+    node = db.scalar(select(ContextNode).where(ContextNode.id == node_id).with_for_update().execution_options(populate_existing=True))
     if not node or node.status != "active" or not node.current_version_id:
         raise KnowledgeGraphError("active context node does not exist")
     node_type = NodeType(node.node_type)
@@ -435,7 +441,7 @@ def reconcile_workspace(
     *,
     config: Settings = settings,
 ) -> dict[str, int]:
-    workspace = db.get(Workspace, workspace_id)
+    workspace = db.scalar(select(Workspace).where(Workspace.id == workspace_id).with_for_update().execution_options(populate_existing=True))
     if not workspace:
         raise KnowledgeGraphError("workspace does not exist")
     root = workspace_root(workspace.id, config)

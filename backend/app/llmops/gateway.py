@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from app.runtime.contracts import canonical_json_hash
+
 import asyncio
 import logging
 from datetime import datetime, timezone
@@ -94,11 +96,17 @@ class OpenRouterGateway:
             try:
                 result = await self.client.chat(invocation, request_id)
             except OpenRouterError as exc:
-                finalize_failed_request(
-                    reservation_id,
-                    category=exc.category,
-                    error_code=exc.provider_code,
-                )
+                if exc.completed_chat is not None:
+                    completed = exc.completed_chat
+                    # A malformed paid response is still billable. Preserve its
+                    # usage (or pending generation reconciliation) and fail the task.
+                    finalize_successful_request(reservation_id, generation_id=completed.generation_id,
+                        actual_model=completed.actual_model, actual_provider=completed.actual_provider,
+                        usage_value=completed.usage, latency_ms=completed.latency_ms,
+                        finish_reason=completed.finish_reason, service_tier=completed.service_tier,
+                        result_valid=False, invalid_error_code=exc.provider_code or 'invalid_chat_shape', config=self.config)
+                else:
+                    finalize_failed_request(reservation_id, category=exc.category, error_code=exc.provider_code)
                 update_account_state(category=exc.category, error_code=exc.provider_code, config=self.config)
                 last_error = exc
                 if not exc.retryable or retry_number >= max_attempts:
@@ -130,16 +138,26 @@ class OpenRouterGateway:
                 logger.error("Encrypted raw content retention failed: %s", type(exc).__name__)
             update_account_state(config=self.config)
             if not valid:
-                formatted_errors = [f"{list(err.path)}: {err.message}" for err in schema_errors[:10]]
+                # JSON-schema messages can contain full rejected output. Store only
+                # bounded locations/categories and server-owned repair constraints.
+                issues = []
+                for err in schema_errors[:16]:
+                    issue = {"loc": [str(part)[:300] if isinstance(part, str) else part for part in err.absolute_path],
+                             "type": "schema_" + str(err.validator)}
+                    if err.validator == "required" and isinstance(err.instance, dict):
+                        issue["missing_fields"] = [field for field in err.validator_value if field not in err.instance][:40]
+                    issues.append(issue)
                 logger.error(
                     "Schema validation failed for call_key=%s (task=%s): %s",
                     invocation.context.call_key,
                     invocation.context.task_run_id,
-                    formatted_errors,
+                    issues,
                 )
                 raise OpenRouterError(
                     OpenRouterErrorCategory.UNKNOWN,
                     provider_code="schema_validation_failed",
+                    validation_diagnostics={"status": "failed", "issues": issues},
+                    invalid_output_hash=canonical_json_hash(result.content),
                 )
             return result
         assert last_error is not None

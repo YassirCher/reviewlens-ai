@@ -253,7 +253,9 @@ def test_chat_client_reports_truncated_structured_output() -> None:
     def handler(_request: httpx.Request) -> httpx.Response:
         return httpx.Response(
             200,
-            json={"choices": [{"finish_reason": "length", "message": {"content": "{\"ok\":"}}]},
+            json={"id": "truncated-fixture", "model": "deepseek/deepseek-v4-flash",
+                  "usage": {"prompt_tokens": 10, "completion_tokens": 32, "total_tokens": 42, "cost": 0.000042},
+                  "choices": [{"finish_reason": "length", "message": {"content": "{\"ok\":"}}]},
         )
 
     async def run() -> None:
@@ -277,6 +279,35 @@ def test_chat_client_reports_truncated_structured_output() -> None:
             with pytest.raises(OpenRouterError) as raised:
                 await client.chat(invocation, "request-truncated")
             assert raised.value.provider_code == "chat_content_truncated"
+            completed = raised.value.completed_chat
+            assert completed and completed.content == {} and completed.usage.total_tokens == 42
+            assert completed.actual_model == 'deepseek/deepseek-v4-flash'
+            assert completed.generation_id == 'truncated-fixture'
+            assert raised.value.invalid_output_hash and len(raised.value.invalid_output_hash) == 64
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("choices", [None, []])
+def test_missing_completion_preserves_billed_usage_with_null_provider_metadata(choices) -> None:
+    async def run() -> None:
+        payload = {"id": "missing-fixture", "model": "deepseek/deepseek-v4-flash", "choices": choices,
+                   "openrouter_metadata": {"endpoints": {"available": None}},
+                   "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15, "cost": .000015}}
+        async with httpx.AsyncClient(transport=httpx.MockTransport(lambda _: httpx.Response(200, json=payload))) as raw:
+            invocation = ChatInvocation(context=_context(),
+                policy=ModelPolicyDocument(name="missing fixture", purpose="Validate billed invalid responses",
+                    models=("deepseek/deepseek-v4-flash",), provider=ProviderRouting(), max_completion_tokens=32),
+                messages=(ChatMessage(role="user", content="Return fixture JSON"),), response_schema={"type": "object"},
+                schema_name="fixture", estimated_prompt_tokens=10, estimated_cost_microusd=100)
+            with pytest.raises(OpenRouterError) as raised:
+                await OpenRouterClient(_config(), client=raw).chat(invocation, "missing-request")
+            assert raised.value.provider_code == "invalid_chat_shape"
+            completed = raised.value.completed_chat
+            assert completed and completed.usage.total_tokens == 15 and completed.content == {}
+            assert completed.generation_id == "missing-fixture"
+            assert completed.actual_model == "deepseek/deepseek-v4-flash"
+            assert raised.value.invalid_output_hash and len(raised.value.invalid_output_hash) == 64
 
     asyncio.run(run())
 

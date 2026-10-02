@@ -290,6 +290,13 @@ def _structured_content(schema_name: str, trace_id: str, task_input: dict) -> di
             if eligible:
                 ordered.append(candidate["video_id"])
         return {"decisions": decisions, "ordered_video_ids": ordered}
+    if schema_name in {"SpanVideoExtraction", "CompactSpanVideoExtraction"}:
+        review = _structured_content("ClassifiedVideoExtraction", trace_id, task_input)["review"]
+        for claim in review["claims"]:
+            claim.pop("evidence")
+            claim.update(span_refs=["c1"], confidence=90)
+        review["ownership_span_refs"] = ["c1"] if task_input.get("_evaluation_case_id") == "long_term_use" else []
+        return {"review": review, "product_information": {"facts": [], "variants": [], "sample_units": []}}
     if schema_name in {"VideoExtraction", "ClassifiedVideoExtraction"}:
         review = _structured_content("SourceAnalysisDraft", trace_id, task_input)
         review.pop("source_id")
@@ -356,6 +363,10 @@ def _structured_content(schema_name: str, trace_id: str, task_input: dict) -> di
                 }]}],
             }
         return {"facts": [], "variants": [], "sample_units": []}
+    if schema_name in {"BoundAudienceDraft", "CompactAudienceDraft"}:
+        return {"positive_pct": 60, "neutral_pct": 25, "negative_pct": 15,
+                "recurring_pros": [], "recurring_cons": [], "repeated_issues": [],
+                "audience_agrees_with_reviewer": True, "confidence_score": 60, "sampling_limitations": []}
     if schema_name == "AudienceAnalysisDraft":
         return {
             "source_id": task_input["source_id"],
@@ -387,7 +398,7 @@ def _structured_content(schema_name: str, trace_id: str, task_input: dict) -> di
                 }
             ]
         }
-    if schema_name in {"AtomicBuyingSynthesis", "SourceBoundBuyingSynthesis", "EvidenceBoundBuyingSynthesis", "NormalizedBuyingSynthesis", "DistinctBuyingSynthesis"}:
+    if schema_name in {"AtomicBuyingSynthesis", "SourceBoundBuyingSynthesis", "EvidenceBoundBuyingSynthesis", "NormalizedBuyingSynthesis", "DistinctBuyingSynthesis", "CompleteBuyingSynthesis"}:
         if RUN_SCENARIOS.get(trace_id) == "audit_empty_correction" and task_input.get("correction_issues"):
             return {"summary": "Narrative without any cited buying findings.", "assertions": []}
         catalog = task_input["evidence_catalog"]
@@ -405,7 +416,7 @@ def _structured_content(schema_name: str, trace_id: str, task_input: dict) -> di
         if schema_name == "AtomicBuyingSynthesis":
             assertions = [{"kind": "strength", "attribute": "Battery endurance",
                            "observation": "Reviewers report tested battery endurance.", "evidence_refs": refs}]
-        if schema_name in {"EvidenceBoundBuyingSynthesis", "NormalizedBuyingSynthesis", "DistinctBuyingSynthesis"}:
+        if schema_name in {"EvidenceBoundBuyingSynthesis", "NormalizedBuyingSynthesis", "DistinctBuyingSynthesis", "CompleteBuyingSynthesis"}:
             for assertion in assertions:
                 assertion.pop("source_ref")
                 if RUN_SCENARIOS.get(trace_id) == "comments":
@@ -463,6 +474,20 @@ def _structured_content(schema_name: str, trace_id: str, task_input: dict) -> di
             "who_should_avoid": ["buyers focused only on lowest price"],
             "limitations": ["YouTube transcript evidence only"],
         }
+    if schema_name == "OwnedAuditResult":
+        # Contract fixtures exercise gates, not live model semantic accuracy.
+        scenario = RUN_SCENARIOS.get(trace_id, "complete")
+        should_fail = (scenario in {"audit_fail", "audit_empty_correction", "audit_unchanged_correction"}
+                       or scenario in {"audit_correction", "audit_uppercase_correction"} and ROLE_CALLS[(trace_id, schema_name)] == 1)
+        return {"decisions": {finding["field_path"]: {"supported": not should_fail,
+                    "category": "material" if should_fail else None,
+                    "rejected_part_ref": finding["statement"][0]["part_ref"] if should_fail else None,
+                    "explanation": "Fixture-only rejection exercising repair." if should_fail else None}
+                    for field in ("consensus_pros", "consensus_cons") for finding in task_input["report_draft"][field]},
+                "other_issues": [{"code": "unsupported_narrative", "field_path": "report_draft.summary",
+                    "rejected_part_ref": task_input["report_draft"]["summary"][0]["part_ref"],
+                    "explanation": "The supplied battery quote does not support the exaggerated summary."}]
+                    if task_input.get("_evaluation_case_id") else []}
     if schema_name in {"FindingAuditResult", "ReferencedAuditResult"}:
         scenario = RUN_SCENARIOS.get(trace_id, "complete")
         should_fail = (scenario in {"audit_fail", "audit_empty_correction", "audit_unchanged_correction"}

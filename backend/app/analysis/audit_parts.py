@@ -208,3 +208,74 @@ def referenced_audit_schema(supplied: PartAuditorInput) -> dict[str, Any]:
             branches.append(branch)
     schema["$defs"]["ReferencedNarrativeIssue"] = {"anyOf": branches}
     return schema
+
+
+class OwnedFindingDecision(StrictModel):
+    supported: bool
+    category: Category | None
+    rejected_part_ref: str | None = Field(pattern=r"^p[1-9]\d*$")
+    explanation: str | None = Field(max_length=180)
+
+    @model_validator(mode="after")
+    def rejection_fields(self) -> "OwnedFindingDecision":
+        if self.supported:
+            if any(value is not None for value in (self.category, self.rejected_part_ref, self.explanation)):
+                raise ValueError("supported decision contains rejection fields")
+        elif not self.category or not self.rejected_part_ref or not (self.explanation or "").strip():
+            raise ValueError("rejection needs a category, owned part and defect explanation")
+        return self
+
+
+class OwnedNarrativeIssue(StrictModel):
+    code: Literal["unsupported_narrative", "unsupported_disagreement"]
+    field_path: str = Field(min_length=1, max_length=300)
+    rejected_part_ref: str = Field(pattern=r"^p[1-9]\d*$")
+    explanation: str = Field(min_length=1, max_length=180)
+
+
+class OwnedAuditResult(StrictModel):
+    decisions: dict[str, OwnedFindingDecision]
+    other_issues: tuple[OwnedNarrativeIssue, ...] = Field(default=(), max_length=60)
+
+    def as_audit(self, supplied: PartAuditorInput) -> tuple[AuditResult, dict[str, Any]]:
+        original, _ = supplied.binding()
+        findings = {f.field_path: f for f in (*original.report_draft.consensus_pros, *original.report_draft.consensus_cons)}
+        if set(self.decisions) != set(findings):
+            raise AuditDecisionError("audit paths must cover every original finding exactly", issues=({
+                "loc": ["decisions"], "type": "decision_coverage", "missing_paths": sorted(set(findings) - set(self.decisions)),
+                "unknown_paths": sorted(set(self.decisions) - set(findings))},))
+        checks = [{**decision.model_dump(mode="json"), "field_path": path,
+                   "evidence_refs": [citation.evidence_ref for citation in findings[path].citations]}
+                  for path, decision in self.decisions.items()]
+        # Narrative issues contain no model-selected citations either. The exact part/path
+        # checks still run through the compiled adapter.
+        issues = [{**issue.model_dump(mode="json"), "evidence_refs": []} for issue in self.other_issues]
+        audit, diagnostics = ReferencedAuditResult.model_validate({"finding_checks": checks, "other_issues": issues}).as_audit(supplied)
+        diagnostics["citation_binding"] = "server_owned"
+        return audit, diagnostics
+
+
+def owned_audit_schema(supplied: PartAuditorInput) -> dict[str, Any]:
+    schema = OwnedAuditResult.model_json_schema()
+    _, parts = supplied.binding()
+    properties = {}
+    for finding in (*supplied.report_draft.consensus_pros, *supplied.report_draft.consensus_cons):
+        branches = []
+        for supported in (True, False):
+            branch = copy.deepcopy(schema["$defs"]["OwnedFindingDecision"])
+            branch["properties"]["supported"] = {"type": "boolean", "const": supported}
+            for field in ("category", "rejected_part_ref", "explanation"):
+                prop = branch["properties"][field]
+                if supported:
+                    branch["properties"][field] = {"type": "null"}
+                else:
+                    prop.update(next(option for option in prop.pop("anyOf") if option.get("type") != "null"))
+                    if field == "rejected_part_ref":
+                        prop["enum"] = [ref for ref, (_, paths) in parts.items() if finding.field_path in paths]
+                    elif field == "explanation":
+                        prop["minLength"] = 1
+            branches.append(branch)
+        properties[finding.field_path] = {"anyOf": branches}
+    schema["properties"]["decisions"] = {"type": "object", "properties": properties,
+                                          "required": list(properties), "additionalProperties": False}
+    return schema

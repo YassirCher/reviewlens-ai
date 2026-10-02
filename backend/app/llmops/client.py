@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import logging
 import time
 from decimal import Decimal
@@ -98,6 +99,13 @@ def normalize_usage(payload: Any) -> NormalizedUsage | None:
 
 
 def _decode_json_object(text: str) -> dict[str, Any]:
+    def unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("chat_content_duplicate_key")
+            result[key] = value
+        return result
     candidate = text.strip()
     if not candidate:
         raise ValueError("chat_content_empty")
@@ -109,13 +117,13 @@ def _decode_json_object(text: str) -> dict[str, Any]:
             lines = lines[:-1]
         candidate = "\n".join(lines).strip()
     try:
-        decoded = json.loads(candidate)
+        decoded = json.loads(candidate, object_pairs_hook=unique_object)
     except json.JSONDecodeError:
         start = candidate.find("{")
         if start < 0:
             raise ValueError("chat_content_invalid_json") from None
         try:
-            decoded, end = json.JSONDecoder().raw_decode(candidate[start:])
+            decoded, end = json.JSONDecoder(object_pairs_hook=unique_object).raw_decode(candidate[start:])
         except json.JSONDecodeError:
             raise ValueError("chat_content_invalid_json") from None
         suffix = candidate[start + end :].strip()
@@ -335,23 +343,36 @@ class OpenRouterClient:
                 raise ValueError("chat_choice_invalid")
             decoded = _decode_chat_content(choice.get("message"))
         except (KeyError, IndexError, TypeError) as exc:
-            raise OpenRouterError(OpenRouterErrorCategory.UNKNOWN, provider_code="invalid_chat_shape") from exc
+            raise OpenRouterError(OpenRouterErrorCategory.UNKNOWN, provider_code="invalid_chat_shape",
+                completed_chat=self._chat_result({}, payload, {}, latency_ms),
+                invalid_output_hash=hashlib.sha256(json.dumps(payload, sort_keys=True, ensure_ascii=False).encode()).hexdigest(),
+                validation_diagnostics={'status': 'failed', 'issues': [{'path': 'choices', 'type': 'invalid_chat_shape'}]}) from exc
         except ValueError as exc:
-            is_length = choice.get("finish_reason") == "length"
+            safe_choice = choice if isinstance(choice, dict) else {}
+            is_length = safe_choice.get("finish_reason") == "length"
             code = "chat_content_truncated" if is_length else str(exc)
             if is_length:
-                raw_msg = choice.get("message")
+                raw_msg = safe_choice.get("message")
                 raw_content = raw_msg.get("content", "") if isinstance(raw_msg, dict) else ""
                 logger.warning(
                     "Chat completion truncated by max completion tokens (finish_reason=length) for %s (len=%d chars)",
                     invocation.context.call_key,
                     len(raw_content) if isinstance(raw_content, str) else 0,
                 )
-            raise OpenRouterError(OpenRouterErrorCategory.UNKNOWN, provider_code=code) from exc
+            raise OpenRouterError(OpenRouterErrorCategory.UNKNOWN, provider_code=code,
+                completed_chat=self._chat_result({}, payload, safe_choice, latency_ms),
+                invalid_output_hash=hashlib.sha256(json.dumps(safe_choice, sort_keys=True, ensure_ascii=False).encode()).hexdigest(),
+                validation_diagnostics={'status': 'failed', 'issues': [{'path': 'completion', 'type': code,
+                    'finish_reason': safe_choice.get('finish_reason')} ]}) from exc
+        return self._chat_result(decoded, payload, choice, latency_ms)
+
+    @staticmethod
+    def _chat_result(decoded: dict, payload: dict, choice: dict, latency_ms: int) -> ChatResult:
         metadata = payload.get("openrouter_metadata") or {}
         endpoints = metadata.get("endpoints") if isinstance(metadata, dict) else {}
         available = endpoints.get("available") if isinstance(endpoints, dict) else []
-        selected = next((item for item in available if isinstance(item, dict) and item.get("selected")), {})
+        selected = next((item for item in available if isinstance(item, dict) and item.get("selected")), {}) \
+            if isinstance(available, list) else {}
         return ChatResult(
             content=decoded,
             generation_id=str(payload.get("id")) if payload.get("id") else None,

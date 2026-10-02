@@ -7,7 +7,7 @@ from fractions import Fraction
 from typing import Any
 
 from app.analysis.contracts import AuditIssue, AuditResult, ConsensusItem, FinalReportDraft
-from app.analysis.quantities import decimal, explicit_quantities, without_product_identity
+from app.analysis.quantities import decimal, explicit_quantities, without_product_identity, product_passage, normalize_quantity_words
 
 
 _NUMBER = re.compile(r"(?<![\w.])\d+(?:[.,]\d+)?")
@@ -49,6 +49,11 @@ def _statement_matches(statement: str, claim: str, excerpt: str, product_name: s
 
 
 def statement_mismatches(statement: str, excerpt: str, product_name: str) -> list[str]:
+    # Explicit comparisons still need both products/results. Single-product
+    # quantities cannot borrow a sibling measurement from a mixed quotation.
+    extra_codes = set(_MODEL_CODE.findall(statement.casefold())) - set(_MODEL_CODE.findall(product_name.casefold()))
+    if not extra_codes and not re.search(r"\b(?:compared|comparison|versus|vs\.?|upgrad\w*)\b", statement, re.I):
+        excerpt = product_passage(excerpt, product_name)
     statement = without_product_identity(statement, product_name)
     statement_times, remaining_statement = _durations(statement)
     excerpt_times, remaining_excerpt = _durations(excerpt)
@@ -95,7 +100,7 @@ def _durations(text: str) -> tuple[set[Fraction], str]:
         values.add(amount * multiplier)
         return ""
 
-    return values, _DURATION.sub(replace, text)
+    return values, _DURATION.sub(replace, normalize_quantity_words(text))
 
 
 def _safe_summary(draft: FinalReportDraft, count: int) -> str:
@@ -116,6 +121,7 @@ def ground_report(
     *,
     strict_grounding: bool = False,
     diagnostics: list[dict[str, Any]] | None = None,
+    owned_guidance: bool = False,
 ) -> tuple[FinalReportDraft, AuditResult, bool]:
     """Remove unsupported material, retain non-grounding audit failures."""
     evidence: dict[str, tuple[str, str, str, str]] = {}
@@ -258,6 +264,8 @@ def ground_report(
         removed.append(AuditIssue(code="usage_period_unverified", field_path="report_draft.longest_usage_period", retryable=False))
     if removed or summary_flagged:
         safe = safe.model_copy(update={"summary": _safe_summary(safe, len(reviews))})
+    if owned_guidance:
+        safe = finding_narrative(safe, len(reviews))
     if not central or not pros and not cons:
         unhandled.append(AuditIssue(code="grounded_conclusion_missing", field_path="report_draft", retryable=False))
     issues = tuple({(item.code, item.field_path): item for item in (*removed, *unhandled)}.values())
@@ -280,3 +288,10 @@ def ground_report(
     if issues or model_audit.verdict == "pass_with_warnings":
         return safe, AuditResult(verdict="pass_with_warnings", issues=issues), False
     return safe, AuditResult(verdict="pass", issues=()), False
+
+
+def finding_narrative(draft: FinalReportDraft, count: int) -> FinalReportDraft:
+    """Templates reuse surviving attributed assertions; they introduce no facts."""
+    return draft.model_copy(update={"summary": _safe_summary(draft, count),
+        "who_should_buy": tuple(f"Consider whether this matters to you: {item.statement}" for item in draft.consensus_pros[:3]),
+        "who_should_avoid": tuple(f"Consider this caveat before buying: {item.statement}" for item in draft.consensus_cons[:3])})
