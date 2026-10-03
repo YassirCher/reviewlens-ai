@@ -277,7 +277,7 @@ def build_public_projection(db: Session, report: Report, run: AnalysisRun) -> tu
         graph_nodes.append({"id": fid, "type": "finding", "label": item.statement, "polarity": kind})
         for sid in ids:
             graph_edges.append({"source": sid, "target": fid, "type": "SUPPORTS"})
-        for eid in refs[:2]:
+        for eid in refs:
             evidence = evidence_by_id[eid]
             if not any(node["id"] == eid for node in graph_nodes):
                 graph_nodes.append({"id": eid, "type": "evidence", "label": evidence["text"]})

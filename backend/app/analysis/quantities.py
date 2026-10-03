@@ -15,6 +15,21 @@ _UNIT = re.compile(
     r"kHz|MHz|GHz|Hz|kW|watts?|W|GB|TB|MB|MP|fps|inches?|inch|%|milliseconds?|ms|seconds?|secs?|hours?|hrs?|minutes?|mins?)(?!\w)", re.I,
 )
 _CAPACITY_WORDS = re.compile(r"\b(milli\s*amp(?:ere)?|amp(?:ere)?)\s*[- ]?hours?\b", re.I)
+_DIGIT_WORDS = {word: str(index) for index, word in enumerate(
+    ("zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"))}
+_SMALL_WORDS = {word: index for index, word in enumerate(
+    (*_DIGIT_WORDS, "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"))}
+_TENS_WORDS = {word: value for word, value in zip(
+    ("twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"), range(20, 100, 10), strict=True)}
+_WORD_INTEGER = "|".join((*_SMALL_WORDS, *_TENS_WORDS))
+_WORD_DIGIT = "|".join(_DIGIT_WORDS)
+_SPOKEN_DECIMAL = re.compile(
+    rf"\b(?P<whole>(?:{_WORD_INTEGER})(?:[ -](?:{_WORD_DIGIT}))?)\s+point\s+"
+    rf"(?P<fraction>(?:{_WORD_DIGIT})(?:\s+(?:{_WORD_DIGIT})){{0,5}})"
+    r"(?=\s+(?:inches?|inch|mm|cm|meters?|kg|grams?|g|GB|TB|MB|Hz|kHz|MHz|GHz|mAh|Ah|Wh|watts?|W|hours?|minutes?|seconds?)\b)", re.I,
+)
+_MODEL_SEPARATOR = r"[\s_\-‐‑‒–—]*"
+_MODEL_SUFFIXES = {"pro", "max", "plus", "ultra", "mini", "lite", "se", "xl"}
 _UNITS = {
     "mah": ("capacity", Fraction(1)), "ah": ("capacity", Fraction(1000)),
     "wh": ("energy", Fraction(1)), "kwh": ("energy", Fraction(1000)),
@@ -45,6 +60,21 @@ def decimal(raw: str) -> Fraction:
 
 def normalize_quantity_words(text: str) -> str:
     text = _CAPACITY_WORDS.sub(lambda m: "mAh" if m[1].casefold().startswith("milli") else "Ah", text)
+    for word, unit in (("megabytes?", "MB"), ("gigabytes?", "GB"), ("terabytes?", "TB")):
+        text = re.sub(r"\b" + word + r"\b", unit, text, flags=re.I)
+
+    def spoken_decimal(match: re.Match[str]) -> str:
+        words = re.split(r"[ -]", match["whole"].casefold())
+        if len(words) == 2:
+            if words[0] not in _TENS_WORDS or words[1] not in _DIGIT_WORDS or words[1] == "zero":
+                return match[0]
+            whole = _TENS_WORDS[words[0]] + int(_DIGIT_WORDS[words[1]])
+        else:
+            whole = _SMALL_WORDS.get(words[0], _TENS_WORDS.get(words[0], 0))
+        fraction = "".join(_DIGIT_WORDS[word] for word in match["fraction"].casefold().split())
+        return f"{whole}.{fraction}"
+
+    text = _SPOKEN_DECIMAL.sub(spoken_decimal, text)
     text = re.sub(r'এমএম|एमएम', ' mm ', text)
     # Hindi/Bengali unit words normalize only for validation. Stored quotations
     # remain verbatim; no model translation or additional call is required.
@@ -78,22 +108,35 @@ def explicit_quantities(text: str) -> tuple[set[tuple[str, Fraction]], str]:
 
 def product_mentions(excerpt: str, product: str) -> tuple[tuple[int, int, bool], ...]:
     """Offsets and ownership of explicit mentions in the requested model family."""
-    tokens = re.findall(r"[a-z0-9]+", product.casefold())
-    code = next((token for token in tokens if re.fullmatch(r"[a-z]+\d+[a-z]*", token)), None)
-    if not code:
-        # Conservative iPhone family matching includes all variant suffixes.
-        match = re.search(r"iphone\s*(\d+)(\s+pro)?(\s+max)?", product, re.I)
-        if not match:
-            return ()
+    tokens = re.findall(r"[a-z0-9]+(?:[-_‐‑‒–—][a-z0-9]+)*", product.casefold())
+    iphone = re.search(r"iphone\s*(\d+)(\s+pro)?(\s+max)?", product, re.I)
+    if iphone:
         pattern = r"\b(?:iphone\s*\d+(?:\s+pro)?(?:\s+max)?|\d+\s+pro(?:\s+max)?)\b"
-        identity = re.sub(r"\s+", "", match[0]).casefold()
+        identity = re.sub(r"\s+", "", iphone[0]).casefold()
     else:
-        family = re.match(r"[a-z]+", code)[0]
-        pattern = rf"\b{family}\d+[a-z]*\b"
-        identity = code
+        selected = next(((index, re.sub(r"[^a-z0-9]", "", token)) for index, token in enumerate(tokens)
+                         if re.fullmatch(r"[a-z]+\d+[a-z0-9]*", re.sub(r"[^a-z0-9]", "", token))), None)
+        if selected is None:
+            number_index = next((index for index, token in enumerate(tokens) if token.isdigit() and index > 0), None)
+            if number_index is None:
+                return ()
+            selected = (number_index, tokens[number_index - 1] + tokens[number_index])
+        index, code = selected
+        parts = re.findall(r"[a-z]+|\d+", code)
+        pattern = _MODEL_SEPARATOR.join(
+            r"\d+" if part.isdigit() else _MODEL_SEPARATOR.join(re.escape(char) for char in part)
+            for part in parts
+        )
+        pattern = rf"(?<!\w){pattern}[a-z]*(?:\s+(?:{'|'.join(sorted(_MODEL_SUFFIXES))}))*(?!\w)"
+        suffixes = []
+        for token in tokens[index + 1:]:
+            if token not in _MODEL_SUFFIXES:
+                break
+            suffixes.append(token)
+        identity = code + "".join(suffixes)
     mentions = list(re.finditer(pattern, excerpt, re.I))
     def named(mention: re.Match) -> str:
-        value = re.sub(r"\s+", "", mention[0]).casefold()
+        value = re.sub(r"[\s_\-‐‑‒–—]", "", mention[0]).casefold()
         if identity.startswith('iphone') and not value.startswith('iphone'):
             value = 'iphone' + value
         return value[:-1] if value == identity + "s" else value
@@ -108,10 +151,16 @@ def product_passage(excerpt: str, product: str) -> str:
     if all(owned for _, _, owned in mentions):
         return excerpt
     owned = []
-    for index, (start, _, is_owned) in enumerate(mentions):
-        if is_owned:
-            end = mentions[index + 1][0] if index + 1 < len(mentions) else len(excerpt)
-            owned.append(excerpt[0 if index == 0 else start:end])
+    current_owner: bool | None = None
+    # Clause boundaries bind both 'model weighs value' and 'value for model'.
+    # Mixed ownership inside an unsplit clause is ambiguous, never borrowed.
+    clauses = re.split(r"(?<=[.!?;])\s+|[,;](?=\s)|\b(?:and|while|whereas|but|compared\s+to|versus|vs\.?)\s+", excerpt, flags=re.I)
+    for clause in clauses:
+        owners = {is_owned for _, _, is_owned in product_mentions(clause, product)}
+        if owners:
+            current_owner = next(iter(owners)) if len(owners) == 1 else None
+        if current_owner is True:
+            owned.append(clause)
     return " ".join(owned)
 
 

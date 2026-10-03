@@ -17,5 +17,5 @@ npm install
 Pop-Location
 
 Write-Host "Setup complete." -ForegroundColor Green
-Write-Host "Backend: .\\scripts\\run-backend.ps1"
-Write-Host "Frontend: .\\scripts\\run-frontend.ps1"
+Write-Host "Complete research stack: .\\scripts\\run-local.ps1"
+Write-Host "Docker Desktop and configured infrastructure credentials are required."

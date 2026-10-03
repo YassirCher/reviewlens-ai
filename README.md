@@ -210,6 +210,8 @@ cd ..
 ### 3. Start the Stack
 Launch the full stack with Docker Compose:
 
+On Windows, use `.\scripts\run-local.ps1`. This starts the complete durable workflow, checks configuration and ports, refreshes the catalog, and verifies API/worker/scheduler readiness. The previous backend/frontend launch helpers now delegate to this command. Repeating it preserves existing volumes and reports. Use `http://localhost:3000`; the numeric loopback alias redirects to this canonical site before session requests.
+
 ```bash
 docker compose up --build --wait
 ```

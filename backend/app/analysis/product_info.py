@@ -263,6 +263,27 @@ def _supported_value(value: str, excerpt: str) -> bool:
     return re.search(r"(?<!\d)" + re.escape(_compact(value)) + r"(?!\d)", _compact(excerpt)) is not None
 
 
+def _sample_attribution(value: str, excerpt: str, canonical_product: str | None) -> bool:
+    """The displayed citation must state the reviewer's tested configuration."""
+    passage = product_passage(excerpt, canonical_product or "")
+    clauses = re.split(r"(?<=[.!?;])\s+|,(?=\s)|\b(?:but|while|whereas)\s+", passage, flags=re.I)
+    cue = re.compile(
+        r"\b(?:(?:my|our|this)\s+(?:(?:review|test|tested)\s+)?(?:unit|sample|configuration)|"
+        r"(?:I|we)\s+(?:tested|reviewed|used|am\s+using|are\s+using|have\s+been\s+using)|"
+        r"(?:unit|configuration|model)\s+(?:I|we)\s+(?:tested|reviewed|used|am\s+using|are\s+using))\b", re.I,
+    )
+    for clause in clauses:
+        match = cue.search(clause)
+        if not match:
+            continue
+        attributed = clause[match.start():]
+        if re.search(r"\b(?:available|offered|options?|could|would|might|not|never)\b", attributed, re.I):
+            continue
+        if _supported_value(value, attributed):
+            return True
+    return False
+
+
 def validate_evidence(
     draft: EvidenceDraft,
     *,
@@ -355,14 +376,17 @@ def validate_extraction(
     )
     units = []
     for unit_index, unit in enumerate(draft.sample_units):
-        details = tuple(
-            SampleDetail(label=item.label, value=item.value, evidence=ref)
-            for index, item in enumerate(unit.details)
-            if (ref := scoped_evidence(item.evidence, item.value, None,
-                                      f"sample_units[{unit_index}].details[{index}]")) is not None
-        )
+        details = []
+        for index, item in enumerate(unit.details):
+            path = f"sample_units[{unit_index}].details[{index}]"
+            ref = scoped_evidence(item.evidence, item.value, None, path)
+            if ref is not None and _sample_attribution(item.value, ref.excerpt, canonical_product):
+                details.append(SampleDetail(label=item.label, value=item.value, evidence=ref))
+            elif ref is not None and diagnostics is not None and len(diagnostics) < 96:
+                diagnostics.append({"path": path, "code": "sample_attribution_not_supported",
+                                    "label": item.label[:80], "value": item.value[:160]})
         if details:
-            units.append(SampleUnit(role=unit.role, details=details))
+            units.append(SampleUnit(role=unit.role, details=tuple(details)))
     return facts, variants, SampleUsed(units=tuple(units))
 
 
@@ -463,9 +487,13 @@ def validate_span_products(payload: dict, spans: dict, *, title: str, descriptio
             if evidence:
                 # Stable public sample detail has one citation. The value itself
                 # must be supported by that displayed quotation.
-                primary = next((e for e in evidence if _supported_value(item['value'], e.excerpt)), None)
+                primary = next((e for e in evidence if _sample_attribution(item['value'], e.excerpt, canonical_product)), None)
                 if primary:
                     details.append(SampleDetail(label=item['label'], value=item['value'], evidence=primary))
+                elif len(diagnostics) < 96:
+                    diagnostics.append({'path': f'sample_units[{index}].details[{j}]',
+                        'label': item['label'], 'value': item['value'], 'reference_ids': item['span_refs'],
+                        'code': 'sample_attribution_not_supported'})
         if details:
             units.append(SampleUnit(role=unit['role'], details=tuple(details)))
     return tuple(facts), tuple(variants), SampleUsed(units=tuple(units))

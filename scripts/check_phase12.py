@@ -76,7 +76,6 @@ def _cleanup_artifacts() -> None:
         FRONTEND / ".next",
         FRONTEND / "test-results",
         FRONTEND / "playwright-report",
-        ROOT / ".audit-cache",
     ):
         resolved = path.resolve()
         if ROOT.resolve() not in resolved.parents:
@@ -176,7 +175,7 @@ def _static_checks() -> None:
         subprocess.run([python, "-m", "mypy", *MYPY_TARGETS], cwd=BACKEND, check=True)
         subprocess.run([python, "-m", "pytest", "tests", "-q"], cwd=BACKEND, check=True)
         _run_with_retries(
-            [python, "-m", "pip_audit", "--local", "--cache-dir", str(ROOT / ".audit-cache")],
+            [python, "-m", "pip_audit", "--local", "--cache-dir", str(ROOT / ".audit-cache" / "security-cache")],
             cwd=BACKEND,
         )
         subprocess.run([_npm(), "ci"], cwd=FRONTEND, check=True)
@@ -239,13 +238,19 @@ def _assert_frontend_redirect() -> None:
             return None
 
     opener = urllib.request.build_opener(NoRedirect)
-    try:
-        opener.open("http://127.0.0.1:3000/research", timeout=10)
-    except urllib.error.HTTPError as exc:
-        if exc.code == 308 and exc.headers.get("Location") == "/":
-            return
-        raise RuntimeError(f"/research returned {exc.code} instead of a 308 to /") from exc
-    raise RuntimeError("/research did not return a permanent redirect")
+    checks = (
+        ("http://127.0.0.1:3000/analysis/11111111-1111-4111-8111-111111111111?audit=1", 307,
+         "http://localhost:3000/analysis/11111111-1111-4111-8111-111111111111?audit=1"),
+        ("http://localhost:3000/research", 308, "/"),
+    )
+    for url, status, destination in checks:
+        try:
+            opener.open(url, timeout=10)
+        except urllib.error.HTTPError as exc:
+            if exc.code != status or exc.headers.get("Location") != destination:
+                raise RuntimeError(f"frontend redirect contract failed: expected {status} to {destination}") from exc
+        else:
+            raise RuntimeError("frontend did not return its required redirect")
 
 
 def _mock_history(compose: list[str]) -> list[dict]:
@@ -281,6 +286,7 @@ def _assert_approved_models(compose: list[str]) -> None:
 def _stack_browser(admin_password: str) -> None:
     environment = {
         **os.environ,
+        "APP_PUBLIC_URL": "http://127.0.0.1:3000",
         "PHASE8_EXTERNAL_SERVERS": "1",
         "PHASE10_ADMIN_EMAIL": "phase12-admin@example.test",
         "PHASE10_ADMIN_PASSWORD": admin_password,
@@ -467,6 +473,7 @@ def _browser_checks() -> None:
     environment = {
         **os.environ,
         "NEXT_PUBLIC_API_BASE_URL": "http://127.0.0.1:8899",
+        "APP_PUBLIC_URL": "http://127.0.0.1:3000",
         "V2_API_INTERNAL_URL": "http://127.0.0.1:8899",
         "PHASE8_EXTERNAL_SERVERS": "1",
     }

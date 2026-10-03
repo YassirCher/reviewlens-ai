@@ -127,6 +127,29 @@ def _evidence_links(
     return ", ".join(links)
 
 
+def _claim_citations(source: dict[str, Any]) -> list[tuple[str, str]]:
+    """Keep every public claim's original excerpt and safe video timestamp."""
+    video_id = source.get("video_id", "")
+    if not isinstance(video_id, str) or not _VIDEO_ID.fullmatch(video_id):
+        return []
+    result = []
+    seen = set()
+    for claim in source.get("claims", []):
+        for evidence in claim.get("evidence", []):
+            excerpt = str(evidence.get("text", ""))
+            timestamp = evidence.get("timestamp_start_seconds")
+            url = f"https://www.youtube.com/watch?v={video_id}"
+            label = "Open original review"
+            if isinstance(timestamp, (int, float)) and math.isfinite(timestamp) and timestamp >= 0:
+                seconds = int(timestamp)
+                url += f"&amp;t={seconds}s"
+                label = f"{seconds // 60}:{seconds % 60:02d} in original review"
+            if excerpt and (excerpt, url) not in seen:
+                seen.add((excerpt, url))
+                result.append((excerpt, f'<link href="{url}" color="#0284C7">{label}</link>'))
+    return result
+
+
 def generate_report_pdf(payload: dict[str, Any], token: str) -> bytes:
     """Generates an executive, publication-grade PDF dossier from a report payload."""
     buffer = io.BytesIO()
@@ -255,7 +278,7 @@ def generate_report_pdf(payload: dict[str, Any], token: str) -> bytes:
     confidence_band = _verdict_label(payload.get("confidence_band", "normal"))
     sources_analyzed = payload.get("source_count_analyzed", 0)
     sources_requested = payload.get("source_count_requested", 0)
-    longest_usage = payload.get("longest_usage_period", "Not established")
+    longest_usage = _sanitize(payload.get("longest_usage_period") or "Not established")
     gen_at = payload.get("generated_at", "")
     try:
         gen_date = datetime.fromisoformat(gen_at.replace("Z", "+00:00")).strftime("%b %d, %Y")
@@ -331,7 +354,7 @@ def generate_report_pdf(payload: dict[str, Any], token: str) -> bytes:
                 story.append(Paragraph("Not established by the cited reviews.", style_meta))
             for item in selected:
                 if item:
-                    story.append(Paragraph(f"â€¢ {_sanitize(item.get('statement', ''))}", style_body))
+                    story.append(Paragraph(f"&bull; {_sanitize(item.get('statement', ''))}", style_body))
         story.append(Paragraph("<b>Tested configuration and duration</b>", style_body_bold))
         tested = [sources_by_id.get(item_id) for item_id in guide.get("tested_source_ids", [])]
         if any(tested):
@@ -352,7 +375,7 @@ def generate_report_pdf(payload: dict[str, Any], token: str) -> bytes:
         ))
         story.append(Paragraph("<b>Check before paying</b>", style_body_bold))
         for item in guide.get("unknowns", []):
-            story.append(Paragraph(f"â€¢ {_sanitize(item)}", style_body))
+            story.append(Paragraph(f"&bull; {_sanitize(item)}", style_body))
         story.append(Spacer(1, 12))
 
     raw_product_info = payload.get("product_info")
@@ -390,7 +413,11 @@ def generate_report_pdf(payload: dict[str, Any], token: str) -> bytes:
     # 3. METHODOLOGICAL CONTEXT & REVIEWER BIAS NOTES
     # -------------------------------------------------------------
     limitations = payload.get("limitations", [])
-    warnings = payload.get("warnings", [])
+    warning_labels = {
+        "partial_source_coverage": "Some requested sources could not be analyzed.",
+        "quality_audit_warning": "Some findings were omitted because their evidence did not fully support them.",
+    }
+    warnings = [warning_labels.get(value, str(value).replace("_", " ").capitalize()) for value in payload.get("warnings", [])]
     all_notes = warnings + limitations
     if all_notes:
         notes_story: list[Any] = [
@@ -432,7 +459,7 @@ def generate_report_pdf(payload: dict[str, Any], token: str) -> bytes:
             stmt = pro.get("statement", "")
             src_ids = pro.get("source_ids", [])
             src_names = [source_map[sid].get("channel", "Reviewer") for sid in src_ids if sid in source_map]
-            src_label = f"Corroborated by {len(src_names)} sources ({', '.join(src_names[:3])})" if src_names else f"Cited by {len(src_ids)} independent sources"
+            src_label = f"Cited by {len(src_names)} source(s) ({_sanitize(', '.join(src_names[:3]))})" if src_names else f"Cited by {len(src_ids)} independent sources"
 
             row_data = [
                 [Paragraph(f"<b><font color='#059669'>PRO {i:02d}</font> · {_sanitize(stmt)}</b>", style_body_bold)],
@@ -469,7 +496,7 @@ def generate_report_pdf(payload: dict[str, Any], token: str) -> bytes:
             stmt = con.get("statement", "")
             src_ids = con.get("source_ids", [])
             src_names = [source_map[sid].get("channel", "Reviewer") for sid in src_ids if sid in source_map]
-            src_label = f"Corroborated by {len(src_names)} sources ({', '.join(src_names[:3])})" if src_names else f"Cited by {len(src_ids)} independent sources"
+            src_label = f"Cited by {len(src_names)} source(s) ({_sanitize(', '.join(src_names[:3]))})" if src_names else f"Cited by {len(src_ids)} independent sources"
 
             row_data = [
                 [Paragraph(f"<b><font color='#D97706'>CON {i:02d}</font> · {_sanitize(stmt)}</b>", style_body_bold)],
@@ -597,7 +624,7 @@ def generate_report_pdf(payload: dict[str, Any], token: str) -> bytes:
             views_str = f"{views:,} views" if views else "Views unlisted"
             dur_sec = src.get("duration_seconds")
             dur_str = f"{dur_sec // 60}:{dur_sec % 60:02d}" if dur_sec else "N/A"
-            period = src.get("usage_period") or "Stated testing period"
+            period = _sanitize(src.get("usage_period") or "Not established")
             rec = src.get("recommendation_summary", "")
 
             src_table_data = [
@@ -627,6 +654,9 @@ def generate_report_pdf(payload: dict[str, Any], token: str) -> bytes:
                 ("RIGHTPADDING", (0, 0), (-1, -1), 8),
             ]))
             src_elements.append(t)
+            for excerpt, link in _claim_citations(src):
+                src_elements.append(Paragraph(f'"{_sanitize(excerpt)}"', style_quote))
+                src_elements.append(Paragraph(link, style_meta))
             if "sample_used" in src:
                 sample = SampleUsed.model_validate(src["sample_used"] or {})
                 if not sample.units:

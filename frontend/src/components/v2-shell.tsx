@@ -66,7 +66,7 @@ export function V2Shell({ children, section = "Product research" }: { children: 
           </nav>
         </div>
       </header>
-      <main id="v2-main" className="v2-container">{children}</main>
+      <main id="v2-main" tabIndex={-1} className="v2-container">{children}</main>
       <footer className="v2-footer v2-container">
         <span>Evidence to help you decide. Not a substitute for hands-on testing.</span>
         <span>ReviewLens research</span>

@@ -52,7 +52,8 @@ def caption_spans(context: str, product: str = "") -> tuple[CaptionSpan, ...]:
             piece = piece.strip()
             if len(piece) < 3:
                 continue
-            if joinable and groups and start >= groups[-1][1] - .001 and end - groups[-1][0] <= 45 and len(groups[-1][2]) + len(piece) + 1 <= 300:
+            if (joinable and groups and start >= groups[-1][0] and end >= groups[-1][1]
+                    and end - groups[-1][0] <= 45 and len(groups[-1][2]) + len(piece) + 1 <= 300):
                 previous = groups.pop()
                 groups.append((previous[0], end, previous[2] + " " + piece))
             else:

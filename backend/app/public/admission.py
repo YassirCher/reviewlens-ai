@@ -4,8 +4,8 @@ import base64
 import hashlib
 import hmac
 import secrets
-import time
 import uuid
+import math
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation, ROUND_CEILING
 from typing import Any
@@ -29,6 +29,7 @@ from app.db.models import (
     WorkflowVersion,
 )
 from app.errors import V2Error
+from app.public.contracts import AdmissionRecovery
 from app.llmops.accounting import usd_to_microusd
 from app.llmops.catalog import current_endpoints, search_models
 from app.runtime.contracts import WorkflowDag, canonical_json_hash
@@ -38,11 +39,23 @@ from app.security import keyed_hash
 _RESERVE_SCRIPT = """
 local now = tonumber(ARGV[1])
 local token = ARGV[2]
+local blocked = {0, 0, 0}
+local retry_at = 0
 for i = 1, 3 do
   local window = tonumber(ARGV[2 + 2*i - 1])
   local limit = tonumber(ARGV[2 + 2*i])
   redis.call('ZREMRANGEBYSCORE', KEYS[i], '-inf', now - window)
-  if redis.call('ZCARD', KEYS[i]) >= limit then return i end
+  local count = redis.call('ZCARD', KEYS[i])
+  if count >= limit then
+    blocked[i] = 1
+    if limit > 0 then
+      local expiring = redis.call('ZRANGE', KEYS[i], count - limit, count - limit, 'WITHSCORES')
+      retry_at = math.max(retry_at, tonumber(expiring[2]) + window)
+    end
+  end
+end
+if blocked[1] + blocked[2] + blocked[3] > 0 then
+  return {retry_at, blocked[1], blocked[2], blocked[3]}
 end
 for i = 1, 3 do
   local window = tonumber(ARGV[2 + 2*i - 1])
@@ -132,7 +145,7 @@ def client_ip_hash(client_host: str, config: Settings = settings) -> str:
 def _limits(db: Session, config: Settings) -> tuple[ActiveConfiguration, BudgetPolicyVersion]:
     active = db.scalar(select(ActiveConfiguration).where(ActiveConfiguration.id == 1).with_for_update())
     if active is None or active.kill_switch:
-        raise V2Error(503, "analysis_unavailable", "New analyses are temporarily unavailable.", retryable=True)
+        raise _denied(503, "analysis_unavailable", "New analyses are temporarily unavailable.", _recovery(utc_now(), ["paused"]))
     policy = db.get(BudgetPolicyVersion, active.budget_policy_version_id)
     if policy is None or policy.lifecycle != "published" or active.workflow_version_id is None:
         raise V2Error(503, "analysis_not_configured", "Analysis is temporarily unavailable.", retryable=True)
@@ -154,21 +167,68 @@ def normalize_options(payload: Any, policy: BudgetPolicyVersion) -> tuple[str, d
     return display, {"source_count": count, "analyze_comments": payload.analyze_comments, "language": language}
 
 
-def _quota_state(
-    db: Session, policy: BudgetPolicyVersion, session_id: uuid.UUID, ip_hash: str, now: datetime
-) -> dict[str, int]:
+def _recovery(now: datetime, reasons: list[str], reset_times: list[datetime] | None = None) -> dict[str, Any] | None:
+    if not reasons:
+        return None
+    retry_at = max(reset_times) if reset_times else None
+    seconds = max(1, math.ceil((retry_at - now).total_seconds())) if retry_at else (60 if "queue" in reasons else None)
+    return AdmissionRecovery.model_validate({"reasons": list(dict.fromkeys(reasons)),
+        "retry_at": retry_at, "retry_after_seconds": seconds}).model_dump(mode="json")
+
+
+def _denied(status: int, code: str, message: str, recovery: dict[str, Any] | None) -> V2Error:
+    seconds = recovery.get("retry_after_seconds") if recovery else None
+    return V2Error(status, code, message, retryable=True,
+                   details={"recovery": recovery}, headers={"Retry-After": str(seconds)} if seconds else {})
+
+
+def _quota_decision(
+    db: Session, redis: Redis, policy: BudgetPolicyVersion, session_id: uuid.UUID, ip_hash: str, now: datetime
+) -> tuple[dict[str, int], list[str], list[datetime]]:
     hour = now - timedelta(hours=1)
     day = now - timedelta(days=1)
     ip_hour = db.scalar(select(func.count(RunSubmission.id)).where(RunSubmission.ip_hash == ip_hash, RunSubmission.created_at > hour)) or 0
     ip_day = db.scalar(select(func.count(RunSubmission.id)).where(RunSubmission.ip_hash == ip_hash, RunSubmission.created_at > day)) or 0
     session_day = db.scalar(select(func.count(RunSubmission.id)).where(RunSubmission.actor_type == "public", RunSubmission.actor_id == session_id, RunSubmission.created_at > day)) or 0
     active = db.scalar(select(func.count(AnalysisRun.id)).where(AnalysisRun.initiator_type == "public", AnalysisRun.initiator_id == session_id, AnalysisRun.status.in_(("queued", "running", "cancelling")))) or 0
-    return {
+    remaining = {
         "hourly_remaining": max(0, policy.public_runs_per_hour - ip_hour),
         "daily_ip_remaining": max(0, policy.public_runs_per_day - ip_day),
         "daily_session_remaining": max(0, policy.public_runs_per_day - session_day),
         "concurrent_remaining": max(0, policy.public_concurrent_runs - active),
     }
+    reasons: list[str] = []
+    reset_times: list[datetime] = []
+    windows = (
+        ("hourly", "hourly_remaining", ip_hour, policy.public_runs_per_hour, 3600,
+         (RunSubmission.ip_hash == ip_hash, RunSubmission.created_at > hour)),
+        ("daily_ip", "daily_ip_remaining", ip_day, policy.public_runs_per_day, 86400,
+         (RunSubmission.ip_hash == ip_hash, RunSubmission.created_at > day)),
+        ("daily_session", "daily_session_remaining", session_day, policy.public_runs_per_day, 86400,
+         (RunSubmission.actor_type == "public", RunSubmission.actor_id == session_id, RunSubmission.created_at > day)),
+    )
+    try:
+        for key, (reason, field, count, limit, seconds, conditions) in zip(_rate_keys(ip_hash, session_id), windows, strict=True):
+            reserved_count = redis.zcount(key, f"({now.timestamp() - seconds}", "+inf")
+            remaining[field] = min(remaining[field], max(0, limit - reserved_count))
+            if remaining[field] != 0:
+                continue
+            reasons.append(reason)
+            if limit > 0 and count >= limit:
+                expiring = db.scalar(select(RunSubmission.created_at).where(*conditions)
+                                     .order_by(RunSubmission.created_at).offset(count - limit).limit(1))
+                if expiring is not None:
+                    reset_times.append(expiring + timedelta(seconds=seconds))
+            if limit > 0 and reserved_count >= limit:
+                rows = redis.zrangebyscore(key, f"({now.timestamp() - seconds}", "+inf",
+                                          start=reserved_count - limit, num=1, withscores=True)
+                if rows:
+                    reset_times.append(datetime.fromtimestamp(float(rows[0][1]) + seconds, timezone.utc))
+    except RedisError as exc:
+        raise V2Error(503, "admission_unavailable", "Analysis admission is temporarily unavailable.", retryable=True) from exc
+    if not remaining["concurrent_remaining"]:
+        reasons.append("concurrent")
+    return remaining, reasons, reset_times
 
 
 def _price_pair(pricing: dict[str, Any]) -> tuple[Decimal, Decimal]:
@@ -256,9 +316,10 @@ def preflight(
     active, policy = _limits(db, config)
     product, options = normalize_options(payload, policy)
     estimated_tokens, estimated_cost, cost_band = _estimate(db, active, policy, options, config)
-    quota = _quota_state(db, policy, session_id, ip_hash, utc_now())
+    now = utc_now()
+    quota, limiting_reasons, reset_times = _quota_decision(db, redis, policy, session_id, ip_hash, now)
     queued = db.scalar(select(func.count(AnalysisRun.id)).where(AnalysisRun.initiator_type == "public", AnalysisRun.status == "queued")) or 0
-    daily = db.get(DailyBudgetState, (utc_now().date(), "public"))
+    daily = db.get(DailyBudgetState, (now.date(), "public"))
     remaining_cost = usd_to_microusd(policy.public_daily_cost_cap_usd) - (
         daily.consumed_cost_microusd + daily.reserved_cost_microusd if daily else 0
     )
@@ -266,12 +327,19 @@ def preflight(
     reasons = []
     if not active.public_analysis_enabled or not config.public_analysis_enabled:
         reasons.append("public_analysis_disabled")
+        limiting_reasons.append("paused")
     if not all(quota.values()):
         reasons.append("public_quota_exceeded")
     if queued >= policy.public_queue_capacity:
         reasons.append("queue_full")
-    if estimated_max <= 0 or estimated_cost > estimated_max or estimated_cost > remaining_cost:
+        limiting_reasons.append("queue")
+    if estimated_max <= 0 or estimated_cost > estimated_max:
         reasons.append("public_daily_budget_exceeded")
+        limiting_reasons.append("run_budget")
+    elif estimated_cost > remaining_cost:
+        reasons.append("public_daily_budget_exceeded")
+        limiting_reasons.append("daily_budget")
+        reset_times.append((now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0))
     return {
         "normalized_options": {"product_name": product, "video_count": options["source_count"], "analyze_comments": options["analyze_comments"], "locale": options["language"]},
         "allowed": not reasons,
@@ -279,6 +347,7 @@ def preflight(
         "queue": {"condition": "full" if queued >= policy.public_queue_capacity else "available", "queued_runs": int(queued)},
         "remaining_public_quota": quota,
         "estimate": {"token_band": {"min": 0, "max": estimated_tokens}, "cost_band": cost_band, "non_binding": True},
+        "recovery": _recovery(now, limiting_reasons, reset_times),
     }
 
 
@@ -292,12 +361,13 @@ def _rate_keys(ip_hash: str, session_id: uuid.UUID) -> tuple[str, str, str]:
 
 def _reserve_rate(redis: Redis, policy: BudgetPolicyVersion, ip_hash: str, session_id: uuid.UUID, token: str) -> tuple[str, str, str]:
     keys = _rate_keys(ip_hash, session_id)
+    now = utc_now()
     try:
         result = redis.eval(
             _RESERVE_SCRIPT,
             3,
             *keys,
-            int(time.time()), token,
+            int(now.timestamp()), token,
             3600, policy.public_runs_per_hour,
             86400, policy.public_runs_per_day,
             86400, policy.public_runs_per_day,
@@ -305,7 +375,10 @@ def _reserve_rate(redis: Redis, policy: BudgetPolicyVersion, ip_hash: str, sessi
     except RedisError as exc:
         raise V2Error(503, "admission_unavailable", "Analysis admission is temporarily unavailable.", retryable=True) from exc
     if result:
-        raise V2Error(429, "public_rate_limit_exceeded", "Analysis limit reached. Try again later.", retryable=True, headers={"Retry-After": "3600"})
+        reset, *flags = result
+        reasons = [reason for reason, flag in zip(("hourly", "daily_ip", "daily_session"), flags, strict=True) if flag]
+        resets = [datetime.fromtimestamp(float(reset), timezone.utc)] if reset else []
+        raise _denied(429, "public_rate_limit_exceeded", "Analysis limit reached. Try again later.", _recovery(now, reasons, resets))
     return keys
 
 
@@ -352,25 +425,26 @@ def create_analysis(
         active, policy = _limits(db, config)
         if actor_type == "public":
             if not active.public_analysis_enabled or not config.public_analysis_enabled:
-                raise V2Error(503, "public_analysis_disabled", "New public analyses are temporarily unavailable.", retryable=True)
+                raise _denied(503, "public_analysis_disabled", "New public analyses are temporarily unavailable.", _recovery(utc_now(), ["paused"]))
             assert ip_hash is not None and redis is not None
-            quota = _quota_state(db, policy, actor_id, ip_hash, utc_now())
+            now = utc_now()
+            quota, reasons, resets = _quota_decision(db, redis, policy, actor_id, ip_hash, now)
             if not all(quota.values()):
-                raise V2Error(429, "public_rate_limit_exceeded", "Analysis limit reached. Try again later.", retryable=True, headers={"Retry-After": "3600"})
+                raise _denied(429, "public_rate_limit_exceeded", "Analysis limit reached. Try again later.", _recovery(now, reasons, resets))
             queued = db.scalar(select(func.count(AnalysisRun.id)).where(AnalysisRun.initiator_type == "public", AnalysisRun.status == "queued")) or 0
             if queued >= policy.public_queue_capacity:
-                raise V2Error(503, "queue_full", "The analysis queue is full. Try again later.", retryable=True, headers={"Retry-After": "60"})
+                raise _denied(503, "queue_full", "The analysis queue is full. Try again later.", _recovery(now, ["queue"]))
             _, estimated_cost, _ = _estimate(db, active, policy, options, config)
-            daily = db.get(DailyBudgetState, (utc_now().date(), "public"))
+            daily = db.get(DailyBudgetState, (now.date(), "public"))
             remaining = usd_to_microusd(policy.public_daily_cost_cap_usd) - (
                 daily.consumed_cost_microusd + daily.reserved_cost_microusd if daily else 0
             )
-            if (
-                usd_to_microusd(policy.public_run_cost_cap_usd) <= 0
-                or estimated_cost > usd_to_microusd(policy.public_run_cost_cap_usd)
-                or estimated_cost > remaining
-            ):
-                raise V2Error(429, "public_daily_budget_exceeded", "The daily analysis budget is exhausted.", retryable=True, headers={"Retry-After": "3600"})
+            cap = usd_to_microusd(policy.public_run_cost_cap_usd)
+            if cap <= 0 or estimated_cost > cap:
+                raise _denied(429, "public_daily_budget_exceeded", "This request exceeds the research capacity per run.", _recovery(now, ["run_budget"]))
+            if estimated_cost > remaining:
+                reset = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+                raise _denied(429, "public_daily_budget_exceeded", "The daily analysis budget is exhausted.", _recovery(now, ["daily_budget"], [reset]))
             keys = _reserve_rate(redis, policy, ip_hash, actor_id, reservation)
         run = create_run(
             db,

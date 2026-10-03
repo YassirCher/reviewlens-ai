@@ -9,12 +9,14 @@ test("production root has no serious accessibility violations", async ({ page })
 });
 
 test("real public V2 root journey publishes a mocked-source report", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("http://127.0.0.1:3000/");
+  await expect(page).toHaveURL("http://localhost:3000/");
   await expect(page.getByRole("heading", { name: /See the buying signal/i })).toBeVisible();
   await page.getByLabel("Product name or exact model").fill("Phase 6 complete fixture");
   await expect(page.getByText(/Research available/i)).toBeVisible();
   await page.getByRole("button", { name: /Analyze product/i }).click();
   await expect(page).toHaveURL(/\/analysis\/[0-9a-f-]{36}$/);
+  await page.reload();
   await expect(page.getByRole("heading", { name: "Research timeline" })).toBeVisible();
   const reportLink = page.getByRole("link", { name: /Open report/i });
   await expect(reportLink).toBeVisible({ timeout: 240_000 });

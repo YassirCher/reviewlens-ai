@@ -1,17 +1,19 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useRef, useState } from "react";
+import * as Dialog from "@radix-ui/react-dialog";
 import { AlertCircle, CheckCircle, Eye, EyeOff, Loader2, Lock, Mail, User as UserIcon, X } from "lucide-react";
 import { useUserAuth } from "./v2-auth-context";
 
 interface V2AuthModalDialogProps {
   initialTab: "login" | "register";
+  opener: React.RefObject<HTMLElement | null>;
   closeAuthModal: () => void;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name?: string) => Promise<void>;
 }
 
-function V2AuthModalDialog({ initialTab, closeAuthModal, login, register }: V2AuthModalDialogProps) {
+function V2AuthModalDialog({ initialTab, opener, closeAuthModal, login, register }: V2AuthModalDialogProps) {
   const [tab, setTab] = useState<"login" | "register">(initialTab);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -21,15 +23,7 @@ function V2AuthModalDialog({ initialTab, closeAuthModal, login, register }: V2Au
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        closeAuthModal();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [closeAuthModal]);
+  const emailInput = useRef<HTMLInputElement | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,25 +45,33 @@ function V2AuthModalDialog({ initialTab, closeAuthModal, login, register }: V2Au
   };
 
   return (
-    <div className="v2-modal-overlay" onClick={closeAuthModal} role="dialog" aria-modal="true" aria-labelledby="v2-auth-title">
-      <div className="v2-modal-dialog" onClick={(e) => e.stopPropagation()}>
+    <Dialog.Root open onOpenChange={open => { if (!open) closeAuthModal(); }}>
+      <Dialog.Portal><Dialog.Overlay className="v2-modal-overlay">
+      <Dialog.Content className="v2-modal-dialog"
+        onOpenAutoFocus={event => { event.preventDefault(); emailInput.current?.focus(); }}
+        onCloseAutoFocus={event => {
+          event.preventDefault();
+          const target = opener.current?.isConnected ? opener.current : document.querySelector<HTMLElement>(".v2-researches-link, #v2-main");
+          target?.focus();
+        }}>
+        <Dialog.Close asChild>
         <button
           className="v2-modal-close"
-          onClick={closeAuthModal}
           aria-label="Close dialog"
         >
           <X size={18} aria-hidden="true" />
         </button>
+        </Dialog.Close>
 
         <div className="v2-modal-header">
-          <h2 id="v2-auth-title" className="v2-modal-title">
+          <Dialog.Title asChild><h2 className="v2-modal-title">
             {tab === "login" ? "Sign in to ReviewLens" : "Create your account"}
-          </h2>
-          <p className="v2-modal-desc">
+          </h2></Dialog.Title>
+          <Dialog.Description asChild><p className="v2-modal-desc">
             {tab === "login"
               ? "Access your research history, dossiers, and saved product evaluations."
               : "Track every product research you perform and keep past reports organized."}
-          </p>
+          </p></Dialog.Description>
         </div>
 
         <div className="v2-modal-tabs">
@@ -127,6 +129,7 @@ function V2AuthModalDialog({ initialTab, closeAuthModal, login, register }: V2Au
               <Mail size={16} className="v2-input-icon" aria-hidden="true" />
               <input
                 id="auth-email"
+                  ref={emailInput}
                 type="email"
                 required
                 placeholder="you@example.com"
@@ -203,13 +206,14 @@ function V2AuthModalDialog({ initialTab, closeAuthModal, login, register }: V2Au
             </p>
           )}
         </div>
-      </div>
-    </div>
+      </Dialog.Content>
+      </Dialog.Overlay></Dialog.Portal>
+    </Dialog.Root>
   );
 }
 
 export function V2AuthModal() {
-  const { isAuthModalOpen, authModalTab, closeAuthModal, login, register } = useUserAuth();
+  const { isAuthModalOpen, authModalTab, authModalOpener, closeAuthModal, login, register } = useUserAuth();
 
   if (!isAuthModalOpen) return null;
 
@@ -217,6 +221,7 @@ export function V2AuthModal() {
     <V2AuthModalDialog
       key={authModalTab}
       initialTab={authModalTab}
+      opener={authModalOpener}
       closeAuthModal={closeAuthModal}
       login={login}
       register={register}

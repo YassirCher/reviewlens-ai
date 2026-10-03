@@ -170,6 +170,7 @@ services:
       args:
         NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
     environment:
+      APP_PUBLIC_URL: ${APP_PUBLIC_URL:-http://localhost:3000}
       NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
       V2_API_INTERNAL_URL: http://api:8000
       TZ: UTC

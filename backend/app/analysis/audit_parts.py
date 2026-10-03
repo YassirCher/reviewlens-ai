@@ -278,4 +278,15 @@ def owned_audit_schema(supplied: PartAuditorInput) -> dict[str, Any]:
         properties[finding.field_path] = {"anyOf": branches}
     schema["properties"]["decisions"] = {"type": "object", "properties": properties,
                                           "required": list(properties), "additionalProperties": False}
+    narrative_paths = {path for _, paths in parts.values() for path in paths
+                       if not path.startswith(("report_draft.consensus_pros[", "report_draft.consensus_cons["))}
+    branches = []
+    for path in sorted(narrative_paths):
+        branch = copy.deepcopy(schema["$defs"]["OwnedNarrativeIssue"])
+        branch["properties"]["field_path"] = {"type": "string", "const": path}
+        branch["properties"]["code"] = {"type": "string", "const":
+            "unsupported_disagreement" if path.startswith("report_draft.disagreements[") else "unsupported_narrative"}
+        branch["properties"]["rejected_part_ref"]["enum"] = [ref for ref, (_, paths) in parts.items() if path in paths]
+        branches.append(branch)
+    schema["$defs"]["OwnedNarrativeIssue"] = {"anyOf": branches}
     return schema

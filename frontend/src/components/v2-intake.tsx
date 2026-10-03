@@ -3,46 +3,61 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Check, Clock3, GitBranch, MessageSquareText, ShieldCheck, UserRoundCheck, Youtube } from "lucide-react";
-import { createRun, preflight, productError, V2ApiError, type AnalysisInput, type Preflight } from "@/lib/v2";
+import { admissionMessage, nextAvailabilityCheck, createRun, preflight, productError, V2ApiError, type AnalysisInput, type Preflight } from "@/lib/v2";
 
 const PENDING_KEY = "reviewlens:v2:pending-submission";
 
-function denial(code: string | null): string {
-  if (code === "queue_full") return "The research queue is full. Please try again shortly.";
-  if (code === "public_daily_budget_exceeded") return "Today's research capacity has been reached. Try again tomorrow.";
-  if (code === "public_quota_exceeded" || code?.includes("rate") || code?.includes("limit") || code?.includes("quota")) return "Your research limit has been reached. Please try again later.";
-  if (code === "public_analysis_disabled") return "New research is temporarily paused.";
-  return "Research is temporarily unavailable. Please try again later.";
-}
+type Notice = { key: string; kind: "preflight" | "creation"; text: string; retryAt: number | null };
 
 export function V2Intake() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [videoCount, setVideoCount] = useState(5);
   const [comments, setComments] = useState(false);
-  const [estimate, setEstimate] = useState<Preflight | null>(null);
+  const [estimateRecord, setEstimate] = useState<{ key: string; data: Preflight; retryAt: number | null } | null>(null);
   const [checking, setChecking] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [notice, setMessage] = useState<Notice | null>(null);
+  const [recheck, setRecheck] = useState(0);
   const [touched, setTouched] = useState(false);
   const composing = useRef(false);
+  const generation = useRef(0);
+  const activeCheck = useRef<AbortController | null>(null);
   const validation = productError(name);
   const input: AnalysisInput = { product_name: name.trim().replace(/\s+/g, " "), video_count: videoCount, analyze_comments: comments };
   const inputKey = JSON.stringify(input);
+  const estimate = estimateRecord?.key === inputKey ? estimateRecord.data : null;
+  const message = notice?.key === inputKey ? notice : null;
+  const retryAt = message?.retryAt ?? (estimateRecord?.key === inputKey ? estimateRecord.retryAt : null);
+
+  useEffect(() => {
+    if (retryAt === null || submitting) return;
+    const timer = setTimeout(() => setRecheck(value => value + 1), Math.min(2_147_483_647, Math.max(1000, retryAt - Date.now())));
+    return () => clearTimeout(timer);
+  }, [retryAt, submitting]);
 
   useEffect(() => {
     if (productError(name)) return;
     const controller = new AbortController();
+    activeCheck.current = controller;
+    const request = ++generation.current;
     const timer = setTimeout(() => {
       setChecking(true);
-      preflight(input, controller.signal).then(setEstimate).catch((error) => {
-        if (error?.name !== "AbortError") setMessage(error instanceof V2ApiError ? error.message : "Cannot check availability right now.");
-      }).finally(() => { if (!controller.signal.aborted) setChecking(false); });
+      preflight(input, controller.signal).then(data => {
+        if (controller.signal.aborted || request !== generation.current) return;
+        setEstimate({ key: inputKey, data, retryAt: data.allowed ? null : nextAvailabilityCheck(data.recovery) });
+        setMessage(current => current?.kind === "preflight" ? null : current);
+      }).catch((error) => {
+        if (controller.signal.aborted || request !== generation.current || error?.name === "AbortError") return;
+        setMessage({ key: inputKey, kind: "preflight",
+          text: error instanceof V2ApiError ? admissionMessage(error.code, error.recovery, error.message) : "Cannot check availability right now.",
+          retryAt: error instanceof V2ApiError ? nextAvailabilityCheck(error.recovery, error.retryAfter) : null });
+      }).finally(() => { if (!controller.signal.aborted && request === generation.current) setChecking(false); });
     }, 550);
     return () => { clearTimeout(timer); controller.abort(); };
     // Depend on the serialized, normalized form rather than object identity.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inputKey]);
+  }, [inputKey, recheck]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -50,11 +65,16 @@ export function V2Intake() {
     setTouched(true);
     if (validation) return;
     setSubmitting(true);
+    ++generation.current;
+    activeCheck.current?.abort();
+    setChecking(false);
     setMessage(null);
+    let kind: Notice["kind"] = "preflight";
     try {
       const current = await preflight(input);
-      setEstimate(current);
-      if (!current.allowed) { setMessage(denial(current.denial_code)); return; }
+      setEstimate({ key: inputKey, data: current, retryAt: current.allowed ? null : nextAvailabilityCheck(current.recovery) });
+      if (!current.allowed) return;
+      kind = "creation";
       let pending: { input: AnalysisInput; key: string } | null = null;
       try { pending = JSON.parse(sessionStorage.getItem(PENDING_KEY) || "null"); } catch { /* Ignore invalid local state. */ }
       const key = pending && JSON.stringify(pending.input) === inputKey && /^[A-Za-z0-9._~-]{16,160}$/.test(pending.key)
@@ -65,7 +85,9 @@ export function V2Intake() {
       router.push(`/analysis/${created.run_id}`);
     } catch (error) {
       if (error instanceof V2ApiError && error.status === 409) sessionStorage.removeItem(PENDING_KEY);
-      setMessage(error instanceof V2ApiError ? error.message : "Connection interrupted. Retry to resume the same submission.");
+      setMessage({ key: inputKey, kind,
+        text: error instanceof V2ApiError ? admissionMessage(error.code, error.recovery, error.message) : "Connection interrupted. Retry to resume the same submission.",
+        retryAt: error instanceof V2ApiError ? nextAvailabilityCheck(error.recovery, error.retryAfter) : null });
     } finally { setSubmitting(false); }
   }
 
@@ -115,13 +137,13 @@ export function V2Intake() {
       <div className="v2-section-top"><div><p className="v2-eyebrow">START A RESEARCH RUN</p><h2 id="v2-composer-title">What are you considering?</h2></div><span className="v2-step">01 — PRODUCT</span></div>
       <form onSubmit={submit} noValidate>
         <label className="v2-label" htmlFor="v2-product">Product name or exact model</label>
-        <div className="v2-input-row"><input id="v2-product" autoComplete="off" value={name} maxLength={500} aria-invalid={Boolean(touched && validation)} aria-describedby="v2-product-help v2-product-error" placeholder="e.g. Sony WH-1000XM5 headphones" onChange={(event) => { setName(event.target.value); setEstimate(null); setChecking(false); setMessage(null); }} onBlur={() => setTouched(true)} onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }} /><button className="v2-button v2-submit" type="submit" disabled={submitting || Boolean(validation)}>{submitting ? "Starting research…" : "Analyze product"}<ArrowRight size={18} aria-hidden="true" /></button></div>
+        <div className="v2-input-row"><input id="v2-product" autoComplete="off" value={name} disabled={submitting} maxLength={500} aria-invalid={Boolean(touched && validation)} aria-describedby="v2-product-help v2-product-error" placeholder="e.g. Sony WH-1000XM5 headphones" onChange={(event) => { setName(event.target.value); setEstimate(null); setChecking(false); setMessage(null); }} onBlur={() => setTouched(true)} onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }} /><button className="v2-button v2-submit" type="submit" disabled={submitting || Boolean(validation)}>{submitting ? "Starting research…" : "Analyze product"}<ArrowRight size={18} aria-hidden="true" /></button></div>
         <p id="v2-product-help" className="v2-help">Include the brand and model for better source matching. For example: “POCO F7” or “Dyson V15 Detect”.</p>
         <p id="v2-product-error" className="v2-error" role="alert">{touched && validation ? validation : ""}</p>
 
-        <details className="v2-advanced"><summary>Research options <span>Choose how many reviews to compare and whether to include comments</span></summary><div className="v2-option-grid"><div><label className="v2-label" htmlFor="v2-video-count">Review sources</label><select id="v2-video-count" value={videoCount} onChange={(event) => { setVideoCount(Number(event.target.value)); setEstimate(null); setChecking(false); }}>{[3,4,5,6,7,8].map(count => <option key={count} value={count}>{count} videos{count === 5 ? " · default" : ""}</option>)}</select><p className="v2-help">More sources can improve coverage but take longer and use more analysis capacity.</p></div><div><label className="v2-switch-label" htmlFor="v2-comments"><span><MessageSquareText size={18} aria-hidden="true" /> Include top comments</span><input id="v2-comments" type="checkbox" checked={comments} onChange={(event) => { setComments(event.target.checked); setEstimate(null); setChecking(false); }} /></label><p className="v2-help">Comments are secondary signals, never a substitute for independent reviews.</p></div></div></details>
-        <div className="v2-admission" aria-live="polite">{checking ? <><Clock3 size={16} aria-hidden="true" /> Checking availability…</> : estimate && !validation ? <>{estimate.allowed ? <Check size={16} aria-hidden="true" /> : <ShieldCheck size={16} aria-hidden="true" />}<span>{estimate.allowed ? `Research available · ${estimate.remaining_public_quota.hourly_remaining} hourly request${estimate.remaining_public_quota.hourly_remaining === 1 ? "" : "s"} remaining · estimate is non-binding` : denial(estimate.denial_code)}</span></> : <><ShieldCheck size={16} aria-hidden="true" /> Availability and quota are checked before research begins.</>}</div>
-        {message && <p className="v2-alert v2-alert-error" role="alert">{message}</p>}
+        <details className="v2-advanced"><summary>Research options <span>Choose how many reviews to compare and whether to include comments</span></summary><div className="v2-option-grid"><div><label className="v2-label" htmlFor="v2-video-count">Review sources</label><select id="v2-video-count" value={videoCount} disabled={submitting} onChange={(event) => { setVideoCount(Number(event.target.value)); setEstimate(null); setChecking(false); setMessage(null); }}>{[3,4,5,6,7,8].map(count => <option key={count} value={count}>{count} videos{count === 5 ? " · default" : ""}</option>)}</select><p className="v2-help">More sources can improve coverage but take longer and use more analysis capacity.</p></div><div><label className="v2-switch-label" htmlFor="v2-comments"><span><MessageSquareText size={18} aria-hidden="true" /> Include top comments</span><input id="v2-comments" type="checkbox" checked={comments} disabled={submitting} onChange={(event) => { setComments(event.target.checked); setEstimate(null); setChecking(false); setMessage(null); }} /></label><p className="v2-help">Comments are secondary signals, never a substitute for independent reviews.</p></div></div></details>
+        <div className="v2-admission" aria-live="polite">{checking ? <><Clock3 size={16} aria-hidden="true" /> Checking availability…</> : estimate && !validation ? <>{estimate.allowed ? <Check size={16} aria-hidden="true" /> : <ShieldCheck size={16} aria-hidden="true" />}<span>{estimate.allowed ? `Research available · ${estimate.remaining_public_quota.hourly_remaining} hourly request${estimate.remaining_public_quota.hourly_remaining === 1 ? "" : "s"} remaining · estimate is non-binding` : admissionMessage(estimate.denial_code, estimate.recovery)}</span></> : <><ShieldCheck size={16} aria-hidden="true" /> Availability and quota are checked before research begins.</>}</div>
+        {message && <p className="v2-alert v2-alert-error" role="alert">{message.text}</p>}
       </form>
     </section>
 

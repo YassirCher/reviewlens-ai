@@ -31,7 +31,7 @@ function productInfo() {
 function report(partial = false) {
   const value = {
     schema_version: 1, report_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", product_name: partial ? "Partial Widget" : "Sony WH-1000XM5 headphones", status: partial ? "partial" : "complete",
-    source_count_requested: partial ? 3 : 5, source_count_analyzed: partial ? 1 : 3, overall_score: 78, verdict: "buy_with_caveats", confidence: partial ? 45 : 73, confidence_band: partial ? "medium" : "high",
+    source_count_requested: partial ? 3 : 5, source_count_analyzed: partial ? 1 : 5, overall_score: 78, verdict: "buy_with_caveats", confidence: partial ? 45 : 73, confidence_band: partial ? "medium" : "high",
     summary: "Comfort and noise isolation are strong in the reviewed sources. Battery behavior and value deserve a closer look before buying.",
     consensus_pros: [{ id: findingId, statement: "Comfort remains strong over long sessions", source_ids: [sourceId,"source-public-2"], evidence_ids: [evidenceId] }], consensus_cons: [],
     disagreements: [{ topic: "Battery life", side_a: "Long enough for travel", side_a_source_ids: [sourceId], side_b: "Shorter than expected", side_b_source_ids: ["source-public-2"] }],
@@ -47,8 +47,14 @@ function report(partial = false) {
       unknowns: ["Current price in your market", "Local availability", "Current warranty terms"],
     };
     value.product_info = productInfo();
-    value.sources[0].sample_used = { units: [{ role: "Review unit", details: [{ label: "Color", value: "black", evidence: { video_id: "7lCDEYXw3mM", source_url: "https://www.youtube.com/watch?v=7lCDEYXw3mM", source_part: "description", excerpt: "Review unit is black", timestamp_seconds: null } }] }] };
+    value.sources[0].sample_used = { units: [{ role: "Review unit", details: [{ label: "Color", value: "black", evidence: { video_id: "7lCDEYXw3mM", source_url: "https://www.youtube.com/watch?v=7lCDEYXw3mM", source_part: "description", excerpt: "My review unit is black", timestamp_seconds: null } }] }] };
     value.sources.push({ ...value.sources[0], id: "source-public-2", video_id: "def456GHI78", url: "https://www.youtube.com/watch?v=def456GHI78", title: "Second independent review", channel: "Reviewer Two", claims: [], sample_used: { units: [] } });
+    for (let index = 3; index <= 5; index++) value.sources.push({ ...value.sources[1], id: `source-public-${index}`,
+      video_id: `auditSRC00${index}`, url: `https://www.youtube.com/watch?v=auditSRC00${index}`,
+      title: `Independent fixture review ${index}`, channel: `Reviewer ${index}` });
+  } else {
+    value.consensus_pros[0].source_ids = [sourceId];
+    value.disagreements = [];
   }
   return value;
 }
@@ -74,16 +80,24 @@ function status(id) {
   const isCancelled = cancelled.has(id);
   const done = isCancelled || (id !== CANCEL_RUN && (partial ? reads > 2 : reads > 1));
   const state = isCancelled ? "cancelled" : done ? (id === FAIL_RUN ? "failed" : partial || auditWarning ? "partial" : "complete") : "running";
-  return { run_id: id, status: state, product_name: partial ? "Partial Widget" : "Sony WH-1000XM5 headphones", product_info: id === RUN ? productInfo() : undefined, created_at: "2026-09-17T09:00:00Z", started_at: "2026-09-17T09:00:01Z", completed_at: done ? "2026-09-17T09:01:00Z" : null, source_count_requested: partial ? 3 : 5, source_count_analyzed: done && id !== FAIL_RUN ? (partial ? 1 : 3) : 0, completed_tasks: done ? 7 : 2, total_tasks: 7, warnings: partial && done ? ["transcript_unavailable"] : [], failure: state === "failed" ? { code: "no_transcripts", message: "Review videos were found, but usable captions were unavailable. Try another product or model." } : null, total_tokens: done ? 3128 : 84, usage_pending: false, tasks: [
+  const value = { run_id: id, status: state, product_name: partial ? "Partial Widget" : "Sony WH-1000XM5 headphones", product_info: id === RUN ? productInfo() : undefined, created_at: "2026-09-17T09:00:00Z", started_at: "2026-09-17T09:00:01Z", completed_at: done ? "2026-09-17T09:01:00Z" : null, source_count_requested: partial ? 3 : 5, source_count_analyzed: done && id !== FAIL_RUN ? (partial ? 1 : 5) : 0, completed_tasks: done ? 10 : 2, total_tasks: 10, warnings: partial && done ? ["transcript_unavailable"] : [], failure: state === "failed" ? { code: "no_transcripts", message: "Review videos were found, but usable captions were unavailable. Try another product or model." } : null, total_tokens: done ? 3128 : 84, usage_pending: false, tasks: [
     { task_key: "validate_request", status: "succeeded", label: "Validate request", started_at: "2026-09-17T09:00:01Z", completed_at: "2026-09-17T09:00:02Z" },
     { task_key: "plan_research", status: "succeeded", label: "Plan research", started_at: "2026-09-17T09:00:02Z", completed_at: "2026-09-17T09:00:04Z" },
     { task_key: "discover_candidates", status: done ? "succeeded" : "running", label: "Discover candidates", started_at: "2026-09-17T09:00:04Z", completed_at: done ? "2026-09-17T09:00:08Z" : null },
     { task_key: "fetch_transcript.source_1", status: done ? "succeeded" : "queued", label: "Fetch transcript", started_at: null, completed_at: null },
     { task_key: "analyze_review.source_1", status: done ? "succeeded" : "queued", label: "Analyze review", started_at: null, completed_at: null },
+    { task_key: "curate_knowledge", status: done ? "succeeded" : "queued", label: "Connect evidence", started_at: null, completed_at: null },
+    { task_key: "retrieve_context", status: done ? "succeeded" : "queued", label: "Retrieve context", started_at: null, completed_at: null },
+    { task_key: "build_consensus", status: done ? "succeeded" : "queued", label: "Decide", started_at: null, completed_at: null },
     { task_key: "audit_report", status: done ? "succeeded" : "queued", label: "Audit report", started_at: null, completed_at: null },
     { task_key: "publish_report", status: done ? "succeeded" : "queued", label: "Publish report", started_at: null, completed_at: null },
   ], report_url: done && !isCancelled && id !== FAIL_RUN ? `/api/v2/reports/${partial ? PARTIAL_TOKEN : auditWarning ? WARNING_TOKEN : TOKEN}` : null, progress_sequence: done ? 2 : 1,
   ...(auditWarning ? { product_name: "Audit Warning Widget", source_count_analyzed: done ? 5 : 0, warnings: done ? ["quality_audit_warning"] : [] } : {}) };
+  if (isCancelled || id === FAIL_RUN && done) {
+    value.tasks = value.tasks.map(task => ({ ...task, status: task.status === "succeeded" ? "succeeded" : "skipped" }));
+  }
+  value.completed_tasks = value.tasks.filter(task => ["succeeded", "failed", "skipped", "cancelled"].includes(task.status)).length;
+  return value;
 }
 
 createServer(async (req, res) => {
@@ -95,7 +109,7 @@ createServer(async (req, res) => {
   if (path === "/api/v2/analyses/preflight" && req.method === "POST") {
     const input = await body(req); const denied = String(input.product_name || "").toLowerCase().includes("quota");
     if (String(input.product_name || "").toLowerCase().includes("maintenance")) return send(res, 503, error("admission_unavailable", "Research availability cannot be checked now."));
-    return send(res, 200, { normalized_options: { ...input, locale: "en" }, allowed: !denied, denial_code: denied ? "public_rate_limit_exceeded" : null, queue: { condition: "available", queued_runs: 0 }, remaining_public_quota: { hourly_remaining: denied ? 0 : 3, daily_ip_remaining: 10, daily_session_remaining: 10, concurrent_remaining: 2 }, estimate: { token_band: { min: 1000, max: 10000 }, cost_band: "low", non_binding: true } }, { "Set-Cookie": "reviewlens_anonymous_session=mock-session; HttpOnly; SameSite=Lax; Path=/api/v2" });
+    return send(res, 200, { normalized_options: { ...input, locale: "en" }, allowed: !denied, denial_code: denied ? "public_rate_limit_exceeded" : null, recovery: denied ? { reasons: ["hourly"], retry_at: new Date(Date.now() + 3600_000).toISOString(), retry_after_seconds: 3600 } : null, queue: { condition: "available", queued_runs: 0 }, remaining_public_quota: { hourly_remaining: denied ? 0 : 3, daily_ip_remaining: 10, daily_session_remaining: 10, concurrent_remaining: 2 }, estimate: { token_band: { min: 1000, max: 10000 }, cost_band: "low", non_binding: true } }, { "Set-Cookie": "reviewlens_anonymous_session=mock-session; HttpOnly; SameSite=Lax; Path=/api/v2" });
   }
   if (path === "/api/v2/analyses" && req.method === "POST") {
     const input = await body(req);
@@ -115,7 +129,7 @@ createServer(async (req, res) => {
     if (runMatch[2] === "/events") {
       if (id === PARTIAL_RUN || id === CANCEL_RUN || id === FAIL_RUN) return send(res, 503, error("stream_unavailable", "Live stream unavailable."));
       res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-store", "Access-Control-Allow-Origin": res._origin, "Access-Control-Allow-Credentials": "true", "Access-Control-Allow-Headers": "Last-Event-ID" });
-      res.write(`id: 2\nevent: run.completed\ndata: ${JSON.stringify({ sequence: 2, run_id: id, label: "Analysis complete", detail: "", completed_tasks: 7, total_tasks: 7, percent: 100, timestamp: "2026-09-17T09:01:00Z" })}\n\n`); res.end(); return;
+      res.write(`id: 2\nevent: run.completed\ndata: ${JSON.stringify({ sequence: 2, run_id: id, label: "Analysis complete", detail: "", completed_tasks: 10, total_tasks: 10, percent: 100, timestamp: "2026-09-17T09:01:00Z" })}\n\n`); res.end(); return;
     }
     return send(res, 200, status(id));
   }

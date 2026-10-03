@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { canonicalLocalRedirect } from "./src/lib/local-origin";
 
 const production = process.env.NODE_ENV === "production";
 const apiOrigin = (() => {
@@ -25,6 +26,16 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   allowedDevOrigins: ["127.0.0.1", "localhost"],
+  async redirects() {
+    const canonical = process.env.APP_PUBLIC_URL || "http://localhost:3000";
+    let canonicalHost = "";
+    try { canonicalHost = new URL(canonical).hostname; } catch { return []; }
+    return ["localhost", "127.0.0.1"].flatMap(host => {
+      if (host === canonicalHost) return [];
+      const destination = canonicalLocalRedirect(`http://${host}:3000/:path*`, canonical);
+      return destination ? [{ source: "/:path*", has: [{ type: "host" as const, value: host.replaceAll(".", "\\.") }], destination, permanent: false }] : [];
+    });
+  },
   async headers() {
     return [{
       source: "/:path*",

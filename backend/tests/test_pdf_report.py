@@ -3,7 +3,7 @@ import uuid
 from app.api.v2 import analyses as routes
 from app.db.models import Report, ReportPublication, AnalysisRun
 from app.public.reports import token_hash
-from app.services.pdf_generator import _evidence_links, generate_report_pdf
+from app.services.pdf_generator import _claim_citations, _evidence_links, generate_report_pdf
 
 def test_generate_report_pdf_direct():
     payload = {
@@ -81,6 +81,43 @@ def test_pdf_product_links_use_report_source_numbers() -> None:
     assert "Review source 2" in links and "Review source 1" in links
     assert links.index("Review source 2") < links.index("Review source 1")
     assert f"watch?v={second}&amp;t=42s" in links
+
+
+def test_pdf_retains_all_public_claim_excerpts_and_safe_timestamp_links() -> None:
+    source = {'video_id': 'abc123DEF45', 'claims': [{'evidence': [
+        {'text': 'Measured outside noise fell by 84%.', 'timestamp_start_seconds': 124.56},
+        {'text': 'Bluetooth version is 5.2.', 'timestamp_start_seconds': 272},
+        {'text': 'The headphones do not fold.', 'timestamp_start_seconds': 320},
+    ]}]}
+    citations = _claim_citations(source)
+    assert len(citations) == 3 and '84%' in citations[0][0]
+    assert '&amp;t=124s' in citations[0][1] and '2:04' in citations[0][1]
+    assert '&amp;t=320s' in citations[2][1]
+    assert _claim_citations({**source, 'video_id': 'javascript:bad'}) == []
+
+
+def test_pdf_guidance_bullets_and_missing_duration_are_readable(monkeypatch) -> None:
+    import app.services.pdf_generator as generator
+    original = generator.Paragraph
+    paragraphs = []
+
+    def capture(text, *args, **kwargs):
+        paragraphs.append(text)
+        return original(text, *args, **kwargs)
+
+    monkeypatch.setattr(generator, 'Paragraph', capture)
+    payload = {'product_name': 'Sony WH-1000XM5', 'summary': 'A partial report.',
+        'warnings': ['partial_source_coverage'],
+        'sources': [{'id': 's1', 'channel': 'Reviewer', 'title': 'Review', 'video_id': 'abc123DEF45',
+            'usage_period': None, 'claims': [{'evidence': [{'text': 'The headphones do not fold.',
+                                                        'timestamp_start_seconds': 320}]}]}],
+        'decision_guide': {'unknowns': ['Current price']}}
+    assert generate_report_pdf(payload, 'a' * 43).startswith(b'%PDF')
+    text = '\n'.join(paragraphs)
+    assert 'â€¢' not in text and '&bull; Current price' in text
+    assert 'Stated testing period' not in text and 'Not established' in text
+    assert 'Some requested sources could not be analyzed.' in text
+    assert 'The headphones do not fold.' in text and '5:20 in original review' in text
 
 
 def test_pdf_includes_optional_decision_guide() -> None:

@@ -99,7 +99,7 @@ test("report shows evidence and unlisted sharing without private fields", async 
   await expect(card.getByRole("link", { name: /Review source 2.*0:42/ })).toHaveAttribute("href", "https://www.youtube.com/watch?v=def456GHI78&t=42s");
   await expect(card.getByText("black")).toBeVisible();
   await expect(page.getByRole("region", { name: "Reviewer sample used" }).getByText("black")).toBeVisible();
-  await expect(page.getByText("3 of 5 requested sources analyzed")).toBeVisible();
+  await expect(page.getByText("5 of 5 requested sources analyzed")).toBeVisible();
   await expect(page.getByText("3,128")).toBeVisible();
   await expect(page.getByText("8", { exact: true })).toBeVisible();
   await expect(page.getByText("Disagreement matters.")).toBeVisible();
@@ -193,15 +193,20 @@ test("cancellation ends without a public report", async ({ page }) => {
   await expect(page.getByRole("link", { name: /Open report/i })).toHaveCount(0);
 });
 
-for (const width of [375, 768, 1024, 1440]) {
-  test(`research and report avoid horizontal page overflow at ${width}px`, async ({ page }) => {
+for (const theme of ["dark", "light"] as const) for (const width of [375, 768, 1024, 1440]) {
+  test(`research and report avoid horizontal page overflow at ${width}px in ${theme} mode`, async ({ page }) => {
+    await page.addInitScript(value => localStorage.setItem("reviewlens-theme", value), theme);
     await page.setViewportSize({ width, height: 850 });
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/");
     await expect(page.getByRole("link", { name: /Skip to main content/i })).toHaveCount(1);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+    expect((await new AxeBuilder({ page }).analyze()).violations.filter(item => ["serious", "critical"].includes(item.impact || ""))).toEqual([]);
+    await page.screenshot({ path: `../.audit-cache/product-audit-2026-10-03/browser/intake-${theme}-${width}.png` });
     await page.goto(`/r/${TOKEN}`);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+    expect((await new AxeBuilder({ page }).analyze()).violations.filter(item => ["serious", "critical"].includes(item.impact || ""))).toEqual([]);
+    await page.screenshot({ path: `../.audit-cache/product-audit-2026-10-03/browser/report-${theme}-${width}.png` });
   });
 }
 

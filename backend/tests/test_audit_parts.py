@@ -9,7 +9,7 @@ from pydantic import ValidationError
 
 from app.analysis.audit import AuditDecisionError, DecisionAuditorInput, FindingAuditResult, decision_audit_input
 from app.analysis.audit_parts import PartAuditorInput, ReferencedAuditResult, part_audit_input, referenced_audit_schema
-from app.analysis.audit_parts import OwnedAuditResult
+from app.analysis.audit_parts import OwnedAuditResult, owned_audit_schema
 from app.analysis.rendering import CompleteBuyingSynthesis
 from app.analysis.contracts import FinalReportDraft
 from app.analysis.grounding import ground_report
@@ -89,6 +89,23 @@ def test_narrative_parts_cannot_reject_foreign_fields():
     response['other_issues'][0]['rejected_part_ref'] = value.report_draft.consensus_cons[0].statement[0].part_ref
     with pytest.raises(AuditDecisionError, match='foreign rejection part'):
         ReferencedAuditResult.model_validate(response).as_audit(value)
+
+
+def test_owned_generation_schema_requires_exact_narrative_paths_and_owned_parts():
+    value = supplied(captured())
+    validator = Draft202012Validator(strictify_json_schema(owned_audit_schema(value)))
+    response = {'decisions': {finding.field_path: {'supported': True, 'category': None,
+        'rejected_part_ref': None, 'explanation': None}
+        for finding in (*value.report_draft.consensus_pros, *value.report_draft.consensus_cons)},
+        'other_issues': [{'code': 'unsupported_narrative', 'field_path': 'report_draft.summary',
+            'rejected_part_ref': value.report_draft.summary[0].part_ref, 'explanation': 'Unsupported narrative.'}]}
+    validator.check_schema(validator.schema)
+    validator.validate(response)
+    for path, ref in (('report_draft.summary[0].p1', value.report_draft.summary[0].part_ref),
+                      ('report_draft.summary', value.report_draft.consensus_pros[0].statement[0].part_ref)):
+        invalid = copy.deepcopy(response)
+        invalid['other_issues'][0].update(field_path=path, rejected_part_ref=ref)
+        assert list(validator.iter_errors(invalid))
 
 
 def test_generation_schema_accepts_correct_shape_and_rejects_unknown_parts():

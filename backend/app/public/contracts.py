@@ -68,6 +68,12 @@ class PreflightEstimate(StrictModel):
     non_binding: Literal[True]
 
 
+class AdmissionRecovery(StrictModel):
+    reasons: list[Literal["hourly", "daily_ip", "daily_session", "concurrent", "queue", "daily_budget", "run_budget", "paused"]]
+    retry_at: datetime | None = None
+    retry_after_seconds: int | None = Field(default=None, ge=1)
+
+
 class PreflightResponse(StrictModel):
     normalized_options: NormalizedOptions
     allowed: bool
@@ -75,6 +81,7 @@ class PreflightResponse(StrictModel):
     queue: QueueCondition
     remaining_public_quota: QuotaRemaining
     estimate: PreflightEstimate
+    recovery: AdmissionRecovery | None = None
 
 
 class CreateResponse(StrictModel):

@@ -77,7 +77,8 @@ def create_test_environment(path: Path) -> tuple[str, str, str]:
         "POSTGRES_PASSWORD": secrets.token_urlsafe(24),
         "REDIS_PASSWORD": secrets.token_urlsafe(24),
         "NEO4J_USERNAME": "neo4j",
-        "NEO4J_PASSWORD": secrets.token_urlsafe(24),
+        # Neo4j's image forwards this to its CLI; avoid an option-looking value.
+        "NEO4J_PASSWORD": "phase12_" + secrets.token_urlsafe(24),
         "YOUTUBE_API_KEY": youtube_key,
         "YOUTUBE_BASE_URL": "http://youtube-mock:8090/youtube/v3",
         "YOUTUBE_RETRY_BASE_SECONDS": "0",

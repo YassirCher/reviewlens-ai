@@ -28,6 +28,7 @@ from app.llmops.catalog import refresh_catalogs
 from app.main import app
 from app.api.v2.dependencies import get_v2_redis
 from app.public.admission import _rate_keys, _reserve_rate
+from app.errors import V2Error
 from app.runtime.outbox import relay_runtime_outbox, stream_key
 
 pytestmark = pytest.mark.skipif(
@@ -120,6 +121,10 @@ def test_phase7_public_lifecycle_and_revocation() -> None:
             publication = db.scalar(select(ReportPublication).where(ReportPublication.run_id == run_id))
             assert publication is not None and publication.revoked_at is None
             assert publication.token_hash not in report_url
+            graph_edges = publication.graph_payload["edges"]
+            for finding in publication.payload["consensus_pros"] + publication.payload["consensus_cons"]:
+                linked = {edge["source"] for edge in graph_edges if edge["target"] == finding["id"]}
+                assert set(finding["evidence_ids"]) <= linked
             publication_id = publication.id
             report_id = publication.report_id
         with pytest.raises(DBAPIError), session_scope() as db:
@@ -197,6 +202,28 @@ def test_phase7_concurrent_same_key_creates_one_run() -> None:
     assert results[0][1] == results[1][1]
     with session_scope() as db:
         assert db.scalar(select(func.count(RunSubmission.id)).where(RunSubmission.idempotency_key == key)) == 1
+
+
+def test_phase7_atomic_rate_recovery_reports_the_actual_expiring_reservations() -> None:
+    _seed()
+    redis = get_redis()
+    with session_scope() as db:
+        active = db.get(ActiveConfiguration, 1)
+        policy = db.get(BudgetPolicyVersion, active.budget_policy_version_id)
+        session_id, ip_hash = uuid.uuid4(), uuid.uuid4().hex
+        keys = _rate_keys(ip_hash, session_id)
+        now = int(time.time())
+        try:
+            count = policy.public_runs_per_hour + 1
+            redis.zadd(keys[0], {f"reservation-{index}": now - 3540 + index * 10 for index in range(count)})
+            with pytest.raises(V2Error) as caught:
+                _reserve_rate(redis, policy, ip_hash, session_id, "should-not-reserve")
+            assert caught.value.details["recovery"]["reasons"] == ["hourly"]
+            assert 68 <= int(caught.value.headers["Retry-After"]) <= 70
+            assert redis.zcard(keys[0]) == count
+            assert redis.zcard(keys[1]) == redis.zcard(keys[2]) == 0
+        finally:
+            redis.delete(*keys)
 
 
 def test_phase7_kill_switch_admin_bypass_and_redis_fail_closed() -> None:

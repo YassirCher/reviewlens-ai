@@ -17,7 +17,46 @@ export type Preflight = {
     concurrent_remaining: number;
   };
   estimate: { token_band: { min: number; max: number }; cost_band: "low" | "medium" | "high"; non_binding: true };
+  recovery?: AdmissionRecovery | null;
 };
+
+export type AdmissionRecovery = {
+  reasons: ("hourly" | "daily_ip" | "daily_session" | "concurrent" | "queue" | "daily_budget" | "run_budget" | "paused")[];
+  retry_at: string | null;
+  retry_after_seconds: number | null;
+};
+
+export function admissionMessage(code: string | null, recovery?: AdmissionRecovery | null, fallback?: string): string {
+  const reasons = recovery?.reasons || [];
+  if (reasons.includes("paused") || code === "public_analysis_disabled") return "New research is temporarily paused.";
+  if (reasons.includes("run_budget")) return "This request exceeds the capacity per run. Try fewer review sources.";
+  const parts: string[] = [];
+  if (reasons.includes("hourly")) parts.push("Your hourly research limit has been reached.");
+  if (reasons.includes("daily_ip") || reasons.includes("daily_session")) parts.push("Your daily research limit has been reached.");
+  if (reasons.includes("daily_budget")) parts.push("Today's research capacity has been reached.");
+  if (reasons.includes("concurrent")) parts.push("Wait for your active research to finish before starting another run.");
+  if (reasons.includes("queue")) parts.push("The research queue is full.");
+  if (!parts.length) {
+    if (code === "queue_full") parts.push("The research queue is full.");
+    else if (code === "public_daily_budget_exceeded") parts.push("Today's research capacity has been reached.");
+    else if (code?.includes("rate") || code?.includes("limit") || code?.includes("quota")) parts.push("Your research limit has been reached.");
+    else return fallback || "Research is temporarily unavailable. Please try again later.";
+  }
+  if (recovery?.retry_at && Number.isFinite(Date.parse(recovery.retry_at))) {
+    parts.push(`Earliest retry: ${new Date(recovery.retry_at).toLocaleString()}. Availability will be checked again.`);
+  } else if (recovery?.retry_after_seconds) {
+    parts.push(`Check availability again in ${recovery.retry_after_seconds} seconds.`);
+  } else if (!reasons.includes("concurrent")) parts.push("Please check availability again later.");
+  return parts.join(" ");
+}
+
+export function nextAvailabilityCheck(recovery?: AdmissionRecovery | null, retryAfter?: string | null, now = Date.now()): number | null {
+  if (recovery?.retry_at && Number.isFinite(Date.parse(recovery.retry_at))) return Math.max(now + 1000, Date.parse(recovery.retry_at));
+  const seconds = recovery?.retry_after_seconds ?? (retryAfter && /^\d+$/.test(retryAfter) ? Number(retryAfter) : null);
+  if (seconds !== null && Number.isFinite(seconds) && seconds > 0) return now + seconds * 1000;
+  if (retryAfter && Number.isFinite(Date.parse(retryAfter))) return Math.max(now + 1000, Date.parse(retryAfter));
+  return null;
+}
 
 export type CreatedRun = { run_id: string; status: string; status_url: string; events_url: string };
 export type PublicTask = { task_key: string; status: string; label: string; started_at: string | null; completed_at: string | null };
@@ -92,7 +131,7 @@ export type GraphEdge = { source: string; target: string; type: "ABOUT" | "SUPPO
 export type GraphPage = { nodes: GraphNode[]; edges: GraphEdge[]; next_cursor: string | null };
 
 export class V2ApiError extends Error {
-  constructor(public code: string, message: string, public retryable: boolean, public retryAfter: string | null = null, public status = 0) {
+  constructor(public code: string, message: string, public retryable: boolean, public retryAfter: string | null = null, public status = 0, public recovery: AdmissionRecovery | null = null) {
     super(message);
     this.name = "V2ApiError";
   }
@@ -116,10 +155,18 @@ export function productError(value: string): string | null {
 
 async function checked<T>(response: Response): Promise<T> {
   if (response.ok) return response.json() as Promise<T>;
-  let envelope: { error?: { code?: string; message?: string; retryable?: boolean } } = {};
+  let envelope: { error?: { code?: string; message?: string; retryable?: boolean; details?: { recovery?: AdmissionRecovery | null } } } = {};
   try { envelope = await response.json(); } catch { /* Never surface an upstream body. */ }
   const error = envelope.error;
-  throw new V2ApiError(error?.code || "request_failed", error?.message || "ReviewLens could not complete this request.", Boolean(error?.retryable), response.headers.get("Retry-After"), response.status);
+  const raw = error?.details?.recovery;
+  const retryAfter = response.headers.get("Retry-After");
+  let recovery = raw && Array.isArray(raw.reasons) && raw.reasons.every(reason =>
+    ["hourly", "daily_ip", "daily_session", "concurrent", "queue", "daily_budget", "run_budget", "paused"].includes(reason)) ? raw : null;
+  if (!recovery && retryAfter && nextAvailabilityCheck(null, retryAfter)) {
+    recovery = { reasons: [], retry_at: /^\d+$/.test(retryAfter) ? null : new Date(retryAfter).toISOString(),
+      retry_after_seconds: /^\d+$/.test(retryAfter) ? Number(retryAfter) : null };
+  }
+  throw new V2ApiError(error?.code || "request_failed", error?.message || "ReviewLens could not complete this request.", Boolean(error?.retryable), retryAfter, response.status, recovery);
 }
 
 function api(path: string): string { return `${BASE}${path}`; }

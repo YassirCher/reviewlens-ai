@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { fetchCurrentUser, loginUser, logoutUser, registerUser, type UserProfile } from "@/lib/user-auth";
 
 interface AuthContextType {
@@ -8,6 +8,7 @@ interface AuthContextType {
   loading: boolean;
   isAuthModalOpen: boolean;
   authModalTab: "login" | "register";
+  authModalOpener: React.RefObject<HTMLElement | null>;
   openAuthModal: (tab?: "login" | "register") => void;
   closeAuthModal: () => void;
   login: (email: string, password: string) => Promise<void>;
@@ -23,6 +24,7 @@ export function UserAuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalTab, setAuthModalTab] = useState<"login" | "register">("login");
+  const authModalOpener = useRef<HTMLElement | null>(null);
 
   const refreshUser = async () => {
     try {
@@ -53,6 +55,7 @@ export function UserAuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const openAuthModal = (tab: "login" | "register" = "login") => {
+    authModalOpener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setAuthModalTab(tab);
     setIsAuthModalOpen(true);
   };
@@ -85,6 +88,7 @@ export function UserAuthProvider({ children }: { children: React.ReactNode }) {
         loading,
         isAuthModalOpen,
         authModalTab,
+        authModalOpener,
         openAuthModal,
         closeAuthModal,
         login: handleLogin,

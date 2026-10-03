@@ -154,6 +154,23 @@ def test_source_instruction_segment_cannot_contaminate_a_verbatim_span():
     assert transcript_excerpt_matches(context, spans[0].text, spans[0].start, spans[0].end)
 
 
+def test_overlapping_automatic_captions_keep_complete_owned_measurements():
+    context = '[120.56-124.56] According to our test these headphones reduce\n[124.56-129.479] outside noise by about 84% which falls a\n[126.8-131.3] little short of the comparison headphones.'
+    spans = caption_spans(context, 'Sony WH-1000XM5')
+    assert len(spans) == 1
+    assert spans[0].text == ('According to our test these headphones reduce outside noise by about 84% which falls a '
+                             'little short of the comparison headphones.')
+    assert spans[0].start == 120.56 and spans[0].end == 131.3
+    from app.tools.evidence import transcript_excerpt_matches
+    assert transcript_excerpt_matches(context, spans[0].text, spans[0].start, spans[0].end)
+
+
+def test_overlapping_captions_cannot_merge_across_foreign_model_ownership():
+    spans = caption_spans('[0-4] The WH-1000XM4 lasts 40 hours.\n[2-6] The WH-1000XM5 lasts 30 hours.', 'Sony WH-1000XM5')
+    assert spans and '40' not in ' '.join(span.text for span in spans)
+    assert '30' in ' '.join(span.text for span in spans)
+
+
 def test_comparison_catalog_preserves_numeric_subject_across_caption_boundaries():
     context = '[0-3] The T9 latency with gaming off is\n[3-6] 425 milliseconds, or\n[6-9] 143 milliseconds with it on. The T11\n[9-12] gets 424 milliseconds off and 142 milliseconds on.'
     spans = caption_spans(context, 'Black Shark T11')
