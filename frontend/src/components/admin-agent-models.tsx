@@ -51,11 +51,11 @@ export function AdminAgentModelsPanel() {
     : false;
 
   const customizedCount = data?.agents
-    ? data.agents.filter((a) => (selectedModels[a.key] || defaultModel) !== defaultModel).length
+    ? data.agents.filter((a) => (selectedModels[a.key] || a.default_model) !== a.default_model).length
     : 0;
 
   function handleSetDefault(key: string) {
-    setSelectedModels((prev) => ({ ...prev, [key]: defaultModel }));
+    setSelectedModels((prev) => ({ ...prev, [key]: data?.agents.find(agent => agent.key === key)?.default_model || defaultModel }));
     setCustomInputMode((prev) => ({ ...prev, [key]: false }));
   }
 
@@ -68,7 +68,7 @@ export function AdminAgentModelsPanel() {
     const reset: Record<string, string> = {};
     const inputModes: Record<string, boolean> = {};
     for (const a of data.agents) {
-      reset[a.key] = defaultModel;
+      reset[a.key] = a.default_model;
       inputModes[a.key] = false;
     }
     setSelectedModels(reset);
@@ -101,7 +101,7 @@ export function AdminAgentModelsPanel() {
             <Cpu size={20} /> Agent LLM Model Configuration
           </h2>
           <p className="admin-muted" style={{ marginTop: 4 }}>
-            Control which OpenRouter model powers each of the 8 analysis agents. By default, every agent runs with{" "}
+            Configure the review roles. Audience analysis uses its dedicated small model; other roles default to{" "}
             <strong className="admin-mono" style={{ color: "var(--admin-primary)" }}>
               {defaultModel}
             </strong>
@@ -177,7 +177,7 @@ export function AdminAgentModelsPanel() {
         <span className="admin-muted">
           Active configuration status:{" "}
           <strong style={{ color: customizedCount > 0 ? "var(--admin-primary)" : "var(--admin-teal)" }}>
-            {customizedCount === 0 ? "All 8 agents using default model" : `${customizedCount} of 8 agents customized`}
+            {customizedCount === 0 ? "All 8 agents using their default policies" : `${customizedCount} of 8 agents customized`}
           </strong>
         </span>
         {hasUnsavedChanges && (
@@ -188,8 +188,10 @@ export function AdminAgentModelsPanel() {
       <AdminState loading={loading} error={error} empty={!data?.agents?.length}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))", gap: 14 }}>
           {data?.agents.map((agent) => {
-            const currentSelected = selectedModels[agent.key] || defaultModel;
-            const isUsingDefault = currentSelected === defaultModel;
+            const roleDefault = agent.default_model || defaultModel;
+            const isAudience = agent.key === "audience_analyst";
+            const currentSelected = selectedModels[agent.key] || roleDefault;
+            const isUsingDefault = currentSelected === roleDefault;
             const isCustomInput = customInputMode[agent.key];
 
             return (
@@ -275,10 +277,11 @@ export function AdminAgentModelsPanel() {
                     </button>
                     <button
                       type="button"
+                      disabled={isAudience || busy}
                       onClick={() => {
                         if (isUsingDefault) {
                           // pick the first non-default recommended model as starting suggestion
-                          const firstCustom = availableModels.find((m) => !m.is_default)?.slug || "deepseek/deepseek-v4-flash-0731";
+                          const firstCustom = availableModels.find((m) => !m.is_default && m.slug !== "meta-llama/llama-3.1-8b-instruct")?.slug || "deepseek/deepseek-v4-flash-0731";
                           handleSetCustom(agent.key, firstCustom);
                         }
                       }}
@@ -312,10 +315,10 @@ export function AdminAgentModelsPanel() {
                       }}
                     >
                       <span className="admin-mono" style={{ color: "var(--admin-text)" }}>
-                        {defaultModel}
+                        {roleDefault}
                       </span>
                       <span className="admin-muted" style={{ fontSize: 11 }}>
-                        Global default
+                        {isAudience ? "Audience policy" : "Global default"}
                       </span>
                     </div>
                   ) : (
@@ -342,7 +345,7 @@ export function AdminAgentModelsPanel() {
                           }}
                         >
                           <optgroup label="Recommended Models">
-                            {availableModels.map((m) => (
+                            {availableModels.filter((m) => agent.key === "audience_analyst" || m.slug !== "meta-llama/llama-3.1-8b-instruct").map((m) => (
                               <option key={m.slug} value={m.slug}>
                                 {m.name} ({m.slug})
                               </option>

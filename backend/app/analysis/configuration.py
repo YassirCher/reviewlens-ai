@@ -91,11 +91,11 @@ def _tool_versions(db: Session) -> dict[str, ToolVersion]:
     return versions
 
 
-def _model_policy(db: Session, config: Settings) -> ModelPolicyVersion:
+def _model_policy(db: Session, config: Settings, *, audience: bool = False) -> ModelPolicyVersion:
     document = ModelPolicyDocument(
-        name="ReviewLens V2 bounded analysis",
+        name="ReviewLens V2 audience analysis" if audience else "ReviewLens V2 bounded analysis",
         purpose="Strict structured analysis for the seven bounded ReviewLens roles.",
-        models=config.v2_agent_model_slugs,
+        models=(config.v2_audience_chat_model,) if audience else config.v2_agent_model_slugs,
         provider=ProviderRouting(
             mode="all_compatible",
             allow_fallbacks=False,
@@ -104,17 +104,17 @@ def _model_policy(db: Session, config: Settings) -> ModelPolicyVersion:
             sort="throughput",
         ),
         temperature=0.1,
-        minimum_context_tokens=32_000,
-        max_completion_tokens=16_000,
-        reasoning={"effort": "none", "exclude": True},
-        compatibility_mode="strict",
+        minimum_context_tokens=8_000 if audience else 32_000,
+        max_completion_tokens=2_500 if audience else 16_000,
+        reasoning={} if audience else {"effort": "none", "exclude": True},
+        compatibility_mode="json_object" if audience else "strict",
     )
     payload = document.model_dump(mode="json")
     content_hash = canonical_json_hash(payload)
     definition = _definition(
         db,
         ModelPolicy,
-        key="v2-default-agent-chat",
+        key="v2-audience-chat" if audience else "v2-default-agent-chat",
         name="V2 default agent chat policy",
         description="Strict privacy-denying policy for bounded V2 agents.",
     )
@@ -208,9 +208,11 @@ def _agents(
     model_policy: ModelPolicyVersion,
     budget_policy: BudgetPolicyVersion,
     tools: dict[str, ToolVersion],
+    audience_policy: ModelPolicyVersion | None = None,
 ) -> dict[str, AgentVersion]:
     result: dict[str, AgentVersion] = {}
     for spec in AGENT_SPECS:
+        role_policy = audience_policy if spec.key == "audience_analyst" and audience_policy is not None else model_policy
         definition = _definition(
             db,
             AgentDefinition,
@@ -229,7 +231,7 @@ def _agents(
         ]
         payload = {
             **spec.persisted_payload(),
-            "model_policy_version_id": str(model_policy.id),
+            "model_policy_version_id": str(role_policy.id),
             "budget_policy_version_id": str(budget_policy.id),
             "tools": tool_refs,
             "evaluation_suite_hash": EVALUATION_SUITE_HASH,
@@ -262,7 +264,7 @@ def _agents(
                     "suite_hash": EVALUATION_SUITE_HASH,
                     "status": evaluation["status"],
                 },
-                model_policy_version_id=model_policy.id,
+                model_policy_version_id=role_policy.id,
                 budget_policy_version_id=budget_policy.id,
             )
             db.add(version)
@@ -278,7 +280,7 @@ def _agents(
             db.add(
                 AgentEvaluationResult(
                     agent_version_id=version.id,
-                    model_policy_version_id=model_policy.id,
+                    model_policy_version_id=role_policy.id,
                     suite_version=EVALUATION_SUITE_VERSION,
                     suite_hash=EVALUATION_SUITE_HASH,
                     status=evaluation["status"],
@@ -314,7 +316,7 @@ def _agents(
                 or version.retrieval_policy != persisted["retrieval_policy"]
                 or version.generation_config != persisted["generation_config"]
                 or version.execution_limits != persisted["execution_limits"]
-                or version.model_policy_version_id != model_policy.id
+                or version.model_policy_version_id != role_policy.id
                 or version.budget_policy_version_id != budget_policy.id
                 or actual_tools != expected_tools
                 or evaluation_row is None
@@ -403,7 +405,10 @@ def _default_workflow(
                 tools["graph.create_edges"].id,
             ),
         ),
-        agent_task("curate_sources", "curate_sources", "source_curator", ("discover_candidates",), timeout_seconds=300),
+        WorkflowTaskTemplate(template_key="resolve_discovered_product", task_key="resolve_discovered_product",
+            handler="analysis.resolve_discovered_product", dependencies=("discover_candidates",),
+            retry=RetryPolicy(max_attempts=1), timeout_seconds=30),
+        agent_task("curate_sources", "curate_sources", "source_curator", ("resolve_discovered_product",), timeout_seconds=300),
         WorkflowTaskTemplate(
             template_key="fetch_transcript",
             task_key="fetch_transcript.source_{index}",
@@ -455,6 +460,20 @@ def _default_workflow(
             timeout_seconds=30,
             optional=True,
         ),
+        WorkflowTaskTemplate(
+            template_key="recover_product_information",
+            task_key="recover_product_information.source_{index}",
+            executor_kind="agent",
+            handler="analysis.agent.product_information_analyst",
+            agent_version_id=agents["product_information_analyst"].id,
+            dependencies=("extract_product_information",),
+            fanout="source_slots",
+            dependency_mode="all_terminal_min_success",
+            minimum_successes=1,
+            retry=RetryPolicy(max_attempts=1),
+            timeout_seconds=240,
+            optional=True,
+        ),
         agent_task(
             "analyze_audience",
             "analyze_audience.source_{index}",
@@ -465,6 +484,7 @@ def _default_workflow(
             dependency_mode="all_terminal_min_success",
             minimum_successes=1,
             timeout_seconds=240,
+            optional=True,
         ),
         WorkflowTaskTemplate(
             template_key="curate_knowledge",
@@ -498,7 +518,7 @@ def _default_workflow(
             template_key="publish_report",
             task_key="publish_report",
             handler="analysis.publish_report",
-            dependencies=("reaudit_report", "extract_product_information"),
+            dependencies=("reaudit_report", "extract_product_information", "recover_product_information"),
             dependency_mode="all_terminal_min_success",
             minimum_successes=1,
             retry=RetryPolicy(max_attempts=1),
@@ -564,8 +584,9 @@ def seed_analysis_configuration(
     seed_tool_registry(db)
     tools = _tool_versions(db)
     model_policy = _model_policy(db, config)
+    audience_policy = _model_policy(db, config, audience=True)
     budget_policy = _budget_policy(db, config)
-    agents = _agents(db, model_policy, budget_policy, tools)
+    agents = _agents(db, model_policy, budget_policy, tools, audience_policy)
     workflow = _workflow(db, agents, tools, config)
     active = db.get(ActiveConfiguration, 1)
     if active is None:
@@ -573,9 +594,10 @@ def seed_analysis_configuration(
         db.add(active)
     if active.environment != config.app_env:
         raise AnalysisConfigurationConflict("active configuration belongs to another environment")
-    if active.workflow_version_id is None or config.app_env.lower() in {"development", "local"}:
+    auto_activate = config.app_env.lower() in {"development", "local"} and not (active.feature_flags or {}).get("seeded_configuration_pinned", False)
+    if active.workflow_version_id is None or auto_activate:
         active.workflow_version_id = workflow.id
-    if active.budget_policy_version_id is None or config.app_env.lower() in {"development", "local"}:
+    if active.budget_policy_version_id is None or auto_activate:
         active.budget_policy_version_id = budget_policy.id
     if active.system_settings_version_id is None:
         system_settings = db.scalar(
@@ -611,6 +633,8 @@ def seed_analysis_configuration(
         "status": "ready",
         "workflow_version_id": str(workflow.id),
         "model_policy_version_id": str(model_policy.id),
+        "audience_model_policy_version_id": str(audience_policy.id),
+        "audience_model_slug": config.v2_audience_chat_model,
         "budget_policy_version_id": str(budget_policy.id),
         "agent_versions": {key: str(value.id) for key, value in sorted(agents.items())},
         "model_slugs": list(config.v2_agent_model_slugs),

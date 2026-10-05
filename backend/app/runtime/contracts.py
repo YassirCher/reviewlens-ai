@@ -20,6 +20,7 @@ class StrictModel(BaseModel):
 class RunStatus(StrEnum):
     QUEUED = "queued"
     RUNNING = "running"
+    WAITING_FOR_INPUT = "waiting_for_input"
     COMPLETE = "complete"
     PARTIAL = "partial"
     FAILED = "failed"
@@ -31,6 +32,7 @@ class TaskStatus(StrEnum):
     BLOCKED = "blocked"
     QUEUED = "queued"
     RUNNING = "running"
+    WAITING_FOR_INPUT = "waiting_for_input"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
     SKIPPED = "skipped"
@@ -78,8 +80,9 @@ ATTEMPT_TERMINAL_STATUSES = frozenset(
 RUN_TRANSITIONS: dict[RunStatus, frozenset[RunStatus]] = {
     RunStatus.QUEUED: frozenset({RunStatus.RUNNING, RunStatus.CANCELLING, RunStatus.FAILED}),
     RunStatus.RUNNING: frozenset(
-        {RunStatus.COMPLETE, RunStatus.PARTIAL, RunStatus.FAILED, RunStatus.CANCELLING}
+        {RunStatus.COMPLETE, RunStatus.PARTIAL, RunStatus.FAILED, RunStatus.CANCELLING, RunStatus.WAITING_FOR_INPUT}
     ),
+    RunStatus.WAITING_FOR_INPUT: frozenset({RunStatus.RUNNING, RunStatus.CANCELLING, RunStatus.FAILED}),
     RunStatus.CANCELLING: frozenset({RunStatus.CANCELLED}),
     RunStatus.COMPLETE: frozenset(),
     RunStatus.PARTIAL: frozenset(),
@@ -106,8 +109,10 @@ TASK_TRANSITIONS: dict[TaskStatus, frozenset[TaskStatus]] = {
             TaskStatus.CANCELLING,
             TaskStatus.CANCELLED,
             TaskStatus.TIMED_OUT,
+            TaskStatus.WAITING_FOR_INPUT,
         }
     ),
+    TaskStatus.WAITING_FOR_INPUT: frozenset({TaskStatus.SUCCEEDED, TaskStatus.FAILED, TaskStatus.CANCELLED}),
     TaskStatus.CANCELLING: frozenset({TaskStatus.CANCELLED, TaskStatus.SUCCEEDED}),
     TaskStatus.SUCCEEDED: frozenset(),
     TaskStatus.FAILED: frozenset({TaskStatus.QUEUED}),
@@ -385,6 +390,8 @@ PUBLIC_EVENT_TYPES = frozenset(
     {
         "run.queued",
         "run.started",
+        "run.waiting_for_input",
+        "run.input_received",
         "task.started",
         "task.progress",
         "source.completed",

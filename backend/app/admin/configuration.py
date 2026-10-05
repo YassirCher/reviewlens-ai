@@ -43,9 +43,9 @@ class BudgetDocument(BaseModel):
     public_queue_capacity: int = Field(ge=0)
     public_run_cost_cap_usd: Decimal = Field(ge=0)
     public_daily_cost_cap_usd: Decimal = Field(ge=0)
-    min_video_count: int = Field(ge=3, le=8)
-    default_video_count: int = Field(ge=3, le=8)
-    max_video_count: int = Field(ge=3, le=8)
+    min_video_count: int = Field(ge=3, le=5)
+    default_video_count: int = Field(ge=3, le=5)
+    max_video_count: int = Field(ge=3, le=5)
     comments_enabled_default: bool = False
     token_limits: dict[str, Any] = Field(default_factory=dict)
 
@@ -159,6 +159,7 @@ def _validate_workflow(db: Session, payload: dict) -> dict:
     dag = WorkflowDag.model_validate(payload["dag"])
     templates = dag.templates if dag.schema_version == 2 else dag.tasks
     handlers = {"analysis.validate_request", "analysis.discover_candidates", "analysis.fetch_transcript",
+                "analysis.resolve_discovered_product",
                 "analysis.fetch_comments", "analysis.project_product_information", "analysis.project_knowledge",
                 "analysis.publish_report"}
     keys = set()
@@ -194,7 +195,7 @@ def _validate_workflow(db: Session, payload: dict) -> dict:
                 raise ValueError("workflow task uses a tool outside its declared role")
     if "publish_report" not in keys:
         raise ValueError("workflow requires a publication task")
-    for count in (3, 8):
+    for count in (3, 5, 8):
         for comments in (False, True):
             concrete = dag.materialize(source_count=count, comments_enabled=comments)
             if "publish_report" not in {task.task_key for task in concrete.tasks}:
@@ -315,6 +316,8 @@ def activate_version(db: Session, kind: str, version_id: uuid.UUID) -> tuple[str
     row = db.get(model, version_id)
     if row is None or row.lifecycle != "published":
         raise V2Error(422, "invalid_activation", "Only a published version can be activated.")
+    if kind == "budget-policies" and (row.max_video_count > 5 or row.default_video_count != 3 or row.min_video_count != 3):
+        raise V2Error(422, "invalid_activation", "New research requires three to five videos, with three by default.")
     active = db.scalar(select(ActiveConfiguration).where(ActiveConfiguration.id == 1).with_for_update())
     if active is None:
         raise V2Error(503, "configuration_unavailable", "Active configuration is missing.")

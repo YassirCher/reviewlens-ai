@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 
 from app.admin.evaluation import GOLDEN_CASES, case_fixture, golden_cases
 from app.analysis.audit import DecisionAuditorInput, decision_audit_input
+from app.analysis.support_audit import SupportAuditorInput, support_audit_input
 from app.analysis.audit_parts import PartAuditorInput, part_audit_input
 from app.analysis.registry import AGENT_REGISTRY
 from app.analysis.rendering import PrioritizedSynthesisInput, prioritized_synthesis_input
@@ -236,7 +237,7 @@ def test_operational_alert_thresholds_are_stable_and_typed(monkeypatch) -> None:
 def test_phase10_golden_suite_covers_contract_and_validates_every_role_fixture() -> None:
     expected = {
         "recommendation_rejection_ambiguity", "long_term_use", "reviewer_disagreement",
-        "sponsorship", "prompt_injection", "comment_spam", "isolated_complaint",
+        "sponsorship", "prompt_injection", "comment_spam", "isolated_complaint", "multilingual_comments",
         "translated_captions", "unrelated_products", "missing_evidence_timestamps",
         "unsupported_visual_claims", "conflicting_node_versions",
     }
@@ -251,6 +252,8 @@ def test_phase10_golden_suite_covers_contract_and_validates_every_role_fixture()
                 fixture = {**fixture, "canonical_product": "Aurora Headphones"}
             if spec.input_model is DecisionAuditorInput:
                 fixture = decision_audit_input(fixture)
+            if spec.input_model is SupportAuditorInput:
+                fixture = support_audit_input(fixture)
             if spec.input_model is PartAuditorInput:
                 fixture = part_audit_input(fixture)
             spec.input_model.model_validate(repair_synthesis_input(fixture)

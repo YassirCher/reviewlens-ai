@@ -516,12 +516,16 @@ def request_cancellation(db: Session, run_id: uuid.UUID) -> AnalysisRun:
             detail="No additional workflow tasks will be dispatched.",
         )
 
+    from app.db.models import ProductClarification
+    pending = db.scalar(select(ProductClarification).where(ProductClarification.run_id == run.id, ProductClarification.status == "pending").with_for_update())
+    if pending:
+        pending.status = "cancelled"
     tasks = list(
         db.scalars(select(TaskRun).where(TaskRun.run_id == run.id).with_for_update())
     )
     for task in tasks:
         status = TaskStatus(task.status)
-        if status in {TaskStatus.BLOCKED, TaskStatus.QUEUED}:
+        if status in {TaskStatus.BLOCKED, TaskStatus.QUEUED, TaskStatus.WAITING_FOR_INPUT}:
             _set_task_status(task, TaskStatus.CANCELLED)
             task.completed_at = utc_now()
         elif status == TaskStatus.RUNNING:
@@ -550,9 +554,13 @@ def retry_task(db: Session, task_id: uuid.UUID) -> TaskRun:
         raise RuntimeTaskError("run_is_cancelling", category="cancelled")
     if task.status not in {TaskStatus.FAILED, TaskStatus.TIMED_OUT}:
         raise RuntimeTaskError("task_not_retryable", category="invalid_state")
-    if utc_now() >= run.deadline_at:
+    now = utc_now()
+    if now >= run.deadline_at:
         raise RuntimeTaskError("run_deadline_elapsed", category="timeout")
     task.max_attempts = max(task.max_attempts, task.current_attempt + 1)
+    # A manual retry may happen after the prior attempt's task deadline.
+    # Renew the task window without extending the immutable run deadline.
+    task.deadline_at = min(run.deadline_at, now + timedelta(seconds=task.timeout_seconds))
     _set_task_status(task, TaskStatus.QUEUED)
     task.completed_at = None
     if RunStatus(run.status) in RUN_TERMINAL_STATUSES:
@@ -563,7 +571,16 @@ def retry_task(db: Session, task_id: uuid.UUID) -> TaskRun:
         if budget:
             budget.status = "active"
     _reset_skipped_descendants(db, task.id)
-    queue_task_dispatch(db, run, task)
+    dispatch = queue_task_dispatch(db, run, task)
+    if dispatch.status == OutboxStatus.PUBLISHED:
+        # The previous delivery may have expired before start_attempt created
+        # an attempt. Its idempotency key still names the next attempt, so
+        # explicitly rearm that delivery for a manual retry.
+        dispatch.status = OutboxStatus.PENDING
+        dispatch.next_attempt_at = now
+        dispatch.published_at = None
+        dispatch.lease_expires_at = None
+        dispatch.last_error_code = None
     return task
 
 
@@ -619,6 +636,8 @@ def execute_task_run(
                 task.completed_at = utc_now()
                 _finalize_run(db, run)
             return {"status": "cancelled"}
+        if run.status == RunStatus.WAITING_FOR_INPUT:
+            return {"status": "waiting_for_input"}
         if task.status == TaskStatus.CANCELLING:
             return {"status": "cancelling"}
         if task.status == TaskStatus.RUNNING:
@@ -862,6 +881,10 @@ def _complete_attempt_success(
         attempt.status = AttemptStatus.SUCCEEDED
         attempt.output_payload = output
         attempt.output_hash = canonical_json_hash(output)
+        if task.handler == "analysis.resolve_discovered_product" and output.get("clarification_choices"):
+            from app.runtime.clarification import pause_for_product
+            pause_for_product(db, run, task, output["clarification_choices"])
+            return {"status": "waiting_for_input", "attempt_number": attempt.attempt_number}
         _set_task_status(task, TaskStatus.SUCCEEDED)
         task.completed_at = now
         append_progress(
@@ -945,6 +968,8 @@ def _complete_attempt_failure(
         terminal = TaskStatus.TIMED_OUT if error.category == "timeout" else TaskStatus.FAILED
         _set_task_status(task, terminal)
         task.completed_at = now
+        if task.workflow_task_key.startswith(("fetch_comments.", "analyze_audience.")):
+            run.warning_summary = {**(run.warning_summary or {}), "comment_analysis_unavailable": True}
         _evaluate_dependents(db, run, task.id)
         _finalize_run(db, run)
         return {"status": terminal.value, "attempt_number": attempt.attempt_number}
@@ -981,6 +1006,13 @@ def _unblock_dependents(db: Session, run: AnalysisRun, upstream_id: uuid.UUID) -
     _evaluate_dependents(db, run, upstream_id)
 
 
+def _publication_audit_failed(task: TaskRun, upstream_rows: list[TaskRun]) -> bool:
+    return task.handler == "analysis.publish_report" and any(
+        upstream.workflow_task_key == "reaudit_report" and upstream.status != TaskStatus.SUCCEEDED
+        for upstream in upstream_rows
+    )
+
+
 def _evaluate_dependents(db: Session, run: AnalysisRun, upstream_id: uuid.UUID) -> None:
     # Runtime sessions disable autoflush so transaction assembly stays explicit.
     # Persist the upstream terminal transition before dependency status queries;
@@ -997,20 +1029,20 @@ def _evaluate_dependents(db: Session, run: AnalysisRun, upstream_id: uuid.UUID) 
         task = db.scalar(select(TaskRun).where(TaskRun.id == downstream_id).with_for_update())
         if task is None or task.status != TaskStatus.BLOCKED:
             continue
-        upstream_statuses = list(
+        upstream_rows = list(
             db.scalars(
-                select(TaskRun.status)
+                select(TaskRun)
                 .join(TaskDependency, TaskDependency.upstream_task_id == TaskRun.id)
                 .where(TaskDependency.downstream_task_id == task.id)
             )
         )
-        statuses = [TaskStatus(status) for status in upstream_statuses]
+        statuses = [TaskStatus(upstream.status) for upstream in upstream_rows]
         all_terminal = bool(statuses) and all(status in TASK_TERMINAL_STATUSES for status in statuses)
         succeeded = sum(status == TaskStatus.SUCCEEDED for status in statuses)
         if task.dependency_mode == "all_terminal_min_success":
             if not all_terminal:
                 continue
-            if succeeded >= task.minimum_successes:
+            if succeeded >= task.minimum_successes and not _publication_audit_failed(task, upstream_rows):
                 _set_task_status(task, TaskStatus.QUEUED)
                 queue_task_dispatch(db, run, task)
             else:
@@ -1097,7 +1129,10 @@ def _finalize_run(db: Session, run: AnalysisRun) -> None:
         )
         _close_budget(db, run.id)
         return
+    if run.status == RunStatus.WAITING_FOR_INPUT:
+        return
     active = statuses & {
+        TaskStatus.WAITING_FOR_INPUT,
         TaskStatus.BLOCKED,
         TaskStatus.QUEUED,
         TaskStatus.RUNNING,
@@ -1219,11 +1254,15 @@ def repair_unfinished_runs() -> int:
         runs = list(
             db.scalars(
                 select(AnalysisRun)
-                .where(AnalysisRun.status.in_((RunStatus.QUEUED, RunStatus.RUNNING, RunStatus.CANCELLING)))
+                .where(AnalysisRun.status.in_((RunStatus.QUEUED, RunStatus.RUNNING, RunStatus.WAITING_FOR_INPUT, RunStatus.CANCELLING)))
                 .with_for_update(skip_locked=True)
             )
         )
         for run in runs:
+            if run.status == RunStatus.WAITING_FOR_INPUT:
+                from app.runtime.clarification import expire_pending
+                repaired += int(expire_pending(db, run))
+                continue
             tasks = list(db.scalars(select(TaskRun).where(TaskRun.run_id == run.id)))
             if run.status == RunStatus.CANCELLING:
                 _finalize_run(db, run)

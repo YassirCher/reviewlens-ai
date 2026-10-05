@@ -7,7 +7,7 @@ from typing import Any, ClassVar
 from pydantic import Field
 
 from app.analysis.contracts import ConsensusItem, FinalReportDraft, StrictModel
-from app.analysis.grounding import finding_narrative
+from app.analysis.grounding import finding_narrative, incomplete_prose
 from app.analysis.synthesis import (
     AtomicBuyingSynthesis, CatalogRepairSynthesisInput, EvidenceBoundBuyingSynthesis,
     SynthesisBindingError, catalog_repair_synthesis_input, evidence_catalog,
@@ -69,7 +69,7 @@ def _render_prose(text: str, *, owners: set[str], refs: set[str], sources: dict,
         return match[0]
 
     text = re.sub(r"\([^()]*\)|\[[^\[\]]*\]", annotation, text)
-    error = None
+    error = "incomplete_prose" if require_observation and incomplete_prose(text) else None
 
     def alias(match: re.Match) -> str:
         nonlocal error

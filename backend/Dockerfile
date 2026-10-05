@@ -2,7 +2,8 @@ FROM python:3.12-slim AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PLAYWRIGHT_BROWSERS_PATH=/opt/playwright
 WORKDIR /app
 
 RUN groupadd --gid 10001 reviewlens \
@@ -12,6 +13,7 @@ RUN groupadd --gid 10001 reviewlens \
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+RUN python -m playwright install --with-deps chromium
 
 FROM base AS runtime
 COPY --chown=reviewlens:reviewlens alembic.ini ./alembic.ini

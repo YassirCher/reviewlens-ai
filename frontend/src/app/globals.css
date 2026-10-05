@@ -34,3 +34,16 @@ select {
 button {
   -webkit-tap-highlight-color: transparent;
 }
+
+.v2-clarification { margin: 20px 0; padding: 24px; border: 1px solid var(--v2-border); border-radius: 16px; }
+.v2-clarification h3, .v2-clarification h2 { margin-bottom: 12px; }
+.v2-clarification fieldset { border: 0; padding: 0; margin: 20px 0; min-width: 0; }
+.v2-clarification legend { font-weight: 600; margin-bottom: 12px; }
+.v2-clarification-choice { padding: 12px 0; border-bottom: 1px solid var(--v2-border); }
+.v2-clarification-choice label { display: flex; gap: 12px; align-items: center; min-height: 44px; font-weight: 600; }
+.v2-clarification-choice input { width: 20px; height: 20px; }
+.v2-clarification-choice ul { padding-left: 32px; overflow-wrap: anywhere; }
+.v2-clarification-choice a { text-decoration: underline; }
+
+.v2-clarification input:not([type="checkbox"]):not([type="radio"]) { width: 100%; min-height: 48px; padding: 12px; background: var(--v2-bg); color: var(--v2-text); border: 1px solid var(--v2-border-strong); border-radius: 8px; }
+.v2-clarification input:focus-visible, .v2-clarification a:focus-visible { outline: 2px solid var(--v2-text); outline-offset: 4px; }

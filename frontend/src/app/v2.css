@@ -2038,3 +2038,19 @@
 .v2-sample-used li { display:flex; flex-direction:column; gap:2px; padding:6px 9px; border:1px solid var(--v2-border); border-radius:7px; font-size:13px; }
 .v2-sample-used div+div { margin-top:10px; }
 @media(max-width:600px) { .v2-product-detail,.v2-product-variant-row { grid-template-columns:1fr; gap:2px; } }
+
+/* Reflow controls and progress content when magnification reduces available space. */
+.v2-header { height: auto; min-height: 68px; }
+.v2-header-inner { flex-wrap: wrap; padding-block: 14px; }
+.v2-nav { flex-wrap: wrap; }
+.v2-panel-heading { flex-wrap: wrap; }
+.v2-progress-main, .v2-progress-aside, .v2-clarification { min-width: 0; overflow-wrap: anywhere; }
+.v2-timeline-item { grid-template-columns: 24px minmax(0, 1fr) 20px; gap: 10px; }
+.v2-timeline-title { flex-wrap: wrap; }
+.v2-clarification-choice input { flex-shrink: 0; }
+.v2-clarification .v2-button { max-width: 100%; }
+@media(max-width:420px) {
+  .v2-panel { padding: 16px; }
+  .v2-timeline-item { grid-template-columns: 20px minmax(0, 1fr); }
+  .v2-timeline-item > svg { grid-column: 2; }
+}

@@ -25,6 +25,7 @@ from app.runtime.fixtures import create_fixture_run, install_fixture_configurati
 from app.runtime.outbox import read_progress, relay_runtime_outbox, stream_key
 from app.runtime.service import (
     create_run,
+    queue_task_dispatch,
     reconstruct_run,
     recover_stale_attempts,
     request_cancellation,
@@ -226,6 +227,10 @@ def test_manual_retry_reopens_failed_run_and_rebuilds_skipped_dependencies() -> 
         task_id = task.id
     _wait_for_status(run_id, RunStatus.FAILED)
     with session_scope() as db:
+        retried = db.get(TaskRun, task_id)
+        retried.deadline_at = utc_now() - timedelta(seconds=1)
+        stale_delivery = queue_task_dispatch(db, db.get(AnalysisRun, run_id), retried)
+        stale_delivery.status = OutboxStatus.PUBLISHED
         skipped = db.scalar(
             select(TaskRun).where(
                 TaskRun.run_id == run_id,
@@ -234,6 +239,8 @@ def test_manual_retry_reopens_failed_run_and_rebuilds_skipped_dependencies() -> 
         )
         assert skipped.status == TaskStatus.SKIPPED
         retry_task(db, task_id)
+        assert retried.deadline_at > utc_now()
+        assert stale_delivery.status == OutboxStatus.PENDING
     _wait_for_status(run_id, RunStatus.COMPLETE)
     with session_scope() as db:
         retried = db.get(TaskRun, task_id)

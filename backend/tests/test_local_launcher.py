@@ -76,4 +76,31 @@ def test_local_launcher_checks_failure_and_repeat_paths(tmp_path, scenario, succ
         assert any("openrouter-catalog-refresh" in command for command in data["calls"])
         assert any("healthcheck scheduler" in command for command in data["calls"])
     else:
-        assert "ReviewLens research is ready" not in result.stdout
+        assert "ReviewLens services are ready" not in result.stdout
+
+
+@pytest.mark.skipif(shutil.which("powershell") is None, reason="Windows PowerShell native stderr semantics")
+@pytest.mark.parametrize("exit_code", [0, 1])
+def test_windows_powershell_docker_progress_uses_native_exit_code(tmp_path, exit_code):
+    adapter = tmp_path / "docker.cmd"
+    adapter.write_text(f"@echo off\necho simulated Compose progress 1>&2\nexit /b {exit_code}\n")
+    def literal(value):
+        return "'" + str(value).replace("'", "''") + "'"
+    code = f"""
+    . {literal(ROOT / 'scripts/run-local.ps1')}
+    $env:PATH = {literal(tmp_path)} + ';' + $env:PATH
+    $ErrorActionPreference = 'Stop'
+    try {{
+        $captured = Invoke-LocalDocker -Arguments @('build')
+        $result = @{{success=$true; output=$captured; preference=[string]$ErrorActionPreference}}
+    }} catch {{
+        $result = @{{success=$false; output=$_.Exception.Message; preference=[string]$ErrorActionPreference}}
+    }}
+    $result | ConvertTo-Json -Compress
+    """
+    result = subprocess.run([shutil.which("powershell"), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", code],
+                            capture_output=True, text=True, timeout=20, check=True)
+    data = json.loads(result.stdout.strip().splitlines()[-1])
+    assert data["success"] is (exit_code == 0), data
+    assert data["preference"] == "Stop"
+    assert ("simulated Compose progress" if exit_code == 0 else "Docker command failed: build") in data["output"]

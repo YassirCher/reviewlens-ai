@@ -291,7 +291,9 @@ def test_phase9_recovery_actions_celery_jobs_and_refresh_failure() -> None:
         assert failed_refresh.status_code == 202, failed_refresh.text
         failed_job_id = uuid.UUID(failed_refresh.json()["job_id"])
 
-    assert recover_jobs() >= 1
+    # The live scheduler can recover this stale lease before this explicit pass.
+    # Verify the durable outcome below, regardless of which recovery pass won.
+    recover_jobs()
     recovered_job = _wait_for_job(recovered_id, "succeeded")
     assert recovered_job.safe_result["download_url"].endswith(f"/{recovered_id}/download")
     failed_job = _wait_for_job(failed_job_id, "failed")

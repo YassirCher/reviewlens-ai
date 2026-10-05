@@ -73,6 +73,16 @@ def extraction():
     return {'review': review, 'product_information': None}
 
 
+def test_compact_review_summary_is_bounded_without_discarding_the_source():
+    payload = extraction()
+    payload['review']['recommendation_summary'] = 'This laptop is a reasonable choice. ' * 8 + 'Some caveats remain.'
+    result, diagnostics = bind_span_extraction(payload, caption_spans('[0-5] A supported quotation.'),
+                                               output_model=CompactSpanVideoExtraction)
+    assert len(result.review.recommendation_summary) <= 300
+    assert result.review.recommendation_summary.endswith('.')
+    assert {'path': 'review.recommendation_summary', 'code': 'summary_bounded'} in diagnostics
+
+
 @pytest.mark.parametrize('context', [
     '[10.000-14.000] बैटरी अच्छी है\n[14.000-18.000] इसका बैकअप 30 घंटे है',
     '[20.000-24.000] সাউন্ড ভালো\n[24.000-28.000] বেস পরিষ্কার',
@@ -115,6 +125,21 @@ def test_product_value_and_qualifier_keep_both_owned_citations():
         transcript_body=context, video_id='abcdefghijk', canonical_product='Black Shark T11', diagnostics=rejected)
     assert len(facts) == 1 and len(facts[0].evidence) == 2 and not rejected
     assert [e.timestamp_seconds for e in facts[0].evidence] == [0, 50]
+
+
+def test_span_product_allows_only_an_exact_reordered_target_name():
+    context = '[10-14] The HP Omen Max 16 has a 240 Hz OLED screen.'
+    catalog = {span.ref: span for span in caption_spans(context, 'HP Omen 16 Max')}
+    payload = {'facts': [{'group': 'Display', 'label': 'Refresh rate', 'value': '240 Hz',
+                         'scope': 'HP Omen Max 16', 'span_refs': ['c1']}]}
+    diagnostics = []
+    facts, _, _ = validate_span_products(payload, catalog, title='HP Omen Max 16 review', description='',
+        transcript_body=context, video_id='abcdefghijk', canonical_product='HP Omen 16 Max', diagnostics=diagnostics)
+    assert len(facts) == 1 and diagnostics == []
+    payload['facts'][0]['scope'] = 'HP Omen Max 17'
+    facts, _, _ = validate_span_products(payload, catalog, title='HP Omen Max 16 review', description='',
+        transcript_body=context, video_id='abcdefghijk', canonical_product='HP Omen 16 Max', diagnostics=[])
+    assert facts == ()
 
 
 def test_duplicate_model_json_paths_are_rejected_before_parsing_loses_them():

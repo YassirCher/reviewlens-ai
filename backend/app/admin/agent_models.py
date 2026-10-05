@@ -23,6 +23,7 @@ from app.analysis.registry import (
     evaluate_agent_spec,
 )
 from app.config import Settings, settings
+from app.errors import V2Error
 from app.db.models import (
     ActiveConfiguration,
     AgentDefinition,
@@ -39,6 +40,7 @@ from app.llmops.contracts import ModelPolicyDocument, ProviderRouting
 from app.runtime.contracts import WorkflowDag, canonical_json_hash
 
 RECOMMENDED_MODELS: list[dict[str, Any]] = [
+    {"slug": "meta-llama/llama-3.1-8b-instruct", "name": "Llama 3.1 8B Instruct", "author": "meta-llama", "context_length": 128000, "is_default": False},
     {
         "slug": "deepseek/deepseek-v4-flash",
         "name": "DeepSeek V4 Flash",
@@ -169,10 +171,11 @@ def get_agent_models_state(db: Session, *, config: Settings = settings) -> dict[
 
     agents_list: list[dict[str, Any]] = []
     for spec in AGENT_SPECS:
+        role_default = config.v2_audience_chat_model if spec.key == "audience_analyst" else default_model
         current_model = (
             active_models.get(spec.key)
             or flag_models.get(spec.key)
-            or default_model
+            or role_default
         )
         agents_list.append(
             {
@@ -180,8 +183,8 @@ def get_agent_models_state(db: Session, *, config: Settings = settings) -> dict[
                 "name": spec.name,
                 "purpose": spec.purpose,
                 "current_model": current_model,
-                "is_default": current_model == default_model,
-                "default_model": default_model,
+                "is_default": current_model == role_default,
+                "default_model": role_default,
                 "max_input_tokens": spec.max_input_tokens,
                 "max_output_tokens": spec.max_output_tokens,
                 "max_total_tokens": spec.max_total_tokens,
@@ -207,17 +210,25 @@ def save_agent_models_assignment(
     tools = _tool_versions(db)
     budget_policy = _budget_policy(db, config)
     default_model_policy = _model_policy(db, config)
+    audience_model_policy = _model_policy(db, config, audience=True)
 
     resolved_agents: dict[str, AgentVersion] = {}
 
     for spec in AGENT_SPECS:
-        target_model = assignments.get(spec.key, default_model).strip()
+        role_default = config.v2_audience_chat_model if spec.key == "audience_analyst" else default_model
+        target_model = assignments.get(spec.key, role_default).strip()
         if not target_model:
-            target_model = default_model
+            target_model = role_default
 
-        if target_model == default_model:
+        if spec.key == "audience_analyst":
+            if target_model != config.v2_audience_chat_model:
+                raise V2Error(422, "audience_model_required", "Audience analysis requires its dedicated small model policy.")
+            model_policy = audience_model_policy
+        elif target_model == default_model:
             model_policy = default_model_policy
         else:
+            if target_model == config.v2_audience_chat_model:
+                raise V2Error(422, "audience_model_role_invalid", "The audience small model is reserved for comment analysis.")
             # Clean key for definition
             clean_name = re.sub(r"[^a-zA-Z0-9_-]", "-", target_model)
             policy_key = f"v2-model-policy-{clean_name}"[:120]
@@ -383,7 +394,7 @@ def save_agent_models_assignment(
     active.workflow_version_id = workflow_version.id
 
     flags = dict(active.feature_flags or {})
-    flags["agent_models"] = {spec.key: assignments.get(spec.key, default_model) for spec in AGENT_SPECS}
+    flags["agent_models"] = {spec.key: assignments.get(spec.key, config.v2_audience_chat_model if spec.key == "audience_analyst" else default_model) for spec in AGENT_SPECS}
     active.feature_flags = flags
     db.flush()
 

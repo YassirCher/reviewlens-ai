@@ -12,7 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.analysis.contracts import FinalReport
-from app.analysis.product_info import ProductInfo, ProductEvidence, merge_product_info
+from app.analysis.product_info import ProductInfo, ProductEvidence, canonicalize_product_info, merge_product_info
 from app.config import Settings, settings
 from app.db.models import (
     AnalysisRun,
@@ -29,6 +29,40 @@ from app.tools.contracts import VIDEO_ID_PATTERN
 
 class PublicProjectionError(RuntimeError):
     pass
+
+
+def comment_summary(db: Session, run: AnalysisRun) -> dict:
+    from app.public.contracts import PublicCommentSummary
+    if not (run.requested_options or {}).get("analyze_comments", False):
+        return PublicCommentSummary(status="disabled").model_dump(mode="json")
+    tasks = list(db.scalars(select(TaskRun).where(TaskRun.run_id == run.id,
+        TaskRun.workflow_task_key.like("analyze_audience.source_%"))))
+    outputs = [_task_output(db, run.id, task.workflow_task_key) or {} for task in tasks]
+    artifacts = [output["audience_artifact"] for output in outputs if isinstance(output.get("audience_artifact"), dict)]
+    legacy = [output["analysis"] for output in outputs
+              if isinstance(output.get("analysis"), dict) and not isinstance(output.get("audience_artifact"), dict)]
+    fetched = [_task_output(db, run.id, "fetch_comments.source_" + task.workflow_task_key.rsplit("_", 1)[-1]) or {}
+               for task in tasks]
+    analyzed = [item for item in artifacts if item.get("status") == "analyzed"]
+    unavailable = any(task.status in {"failed", "timed_out", "skipped"} for task in tasks)
+    status = "analyzed" if analyzed or legacy else "insufficient" if artifacts else "unavailable"
+    limitations = ["Comments are a limited, selected sample and remain secondary evidence."]
+    if unavailable or len(artifacts) + len(legacy) < len(tasks):
+        limitations.append("Comment analysis was unavailable for some requested sources; video evidence remains available.")
+    if legacy:
+        limitations.append("Detailed relevant and translation counts were not recorded by an older comment analysis.")
+    if status == "insufficient":
+        limitations.append("No relevant comments remained. No sentiment distribution was calculated.")
+    if any(item.get("comments_excluded", 0) for item in artifacts):
+        limitations.append("Some comments were excluded because their language or translation could not be validated.")
+    if any(item.get('selection', {}).get('comments_not_selected', 0) for item in artifacts):
+        limitations.append("Analysis used a bounded subset of complete short comments. Longer comments were omitted rather than shortened.")
+    return PublicCommentSummary(status=status, sources_analyzed=len(analyzed) + len(legacy),
+        comments_sampled=sum(int(item.get("comments_sampled", 0)) for item in fetched),
+        comments_retained=sum(int(item.get("comments_retained", 0)) for item in fetched),
+        **{field: None if legacy else sum(int(item.get(field, 0)) for item in artifacts) for field in (
+            "comments_relevant", "comments_translated")},
+        limitations=tuple(limitations)).model_dump(mode="json")
 
 
 def display_report_limitations(payload: dict, report_id: uuid.UUID, internal_source_ids: list[str]) -> dict:
@@ -51,7 +85,15 @@ def public_display_payload(db: Session, publication: ReportPublication) -> dict:
     report = db.get(Report, publication.report_id)
     stored = (report.payload or {}) if report else {}
     source_ids = [str(source["source_id"]) for source in stored.get("source_analyses", [])]
-    return display_report_limitations(publication.payload, publication.report_id, source_ids)
+    payload = display_report_limitations(publication.payload, publication.report_id, source_ids)
+    run_id = getattr(publication, "run_id", None)
+    run = db.get(AnalysisRun, run_id) if run_id is not None else None
+    if run is not None:
+        payload = {**payload, "comment_analysis": comment_summary(db, run)}
+    if payload.get("product_info"):
+        product_info = canonicalize_product_info(ProductInfo.model_validate(payload["product_info"]))
+        payload = {**payload, "product_info": product_info.model_dump(mode="json")}
+    return payload
 
 
 def report_token(report_id: uuid.UUID, config: Settings = settings) -> str:
@@ -129,7 +171,8 @@ def product_info_from_tasks(db: Session, run_id: uuid.UUID) -> ProductInfo | Non
         .join(TaskAttempt, TaskAttempt.task_run_id == TaskRun.id)
         .where(
             TaskRun.run_id == run_id,
-            TaskRun.workflow_task_key.like("extract_product_information.source_%"),
+            (TaskRun.workflow_task_key.like("extract_product_information.source_%")
+             | TaskRun.workflow_task_key.like("recover_product_information.source_%")),
             TaskAttempt.status == "succeeded",
         )
         .order_by(TaskRun.workflow_task_key, TaskAttempt.attempt_number.desc())
@@ -328,6 +371,7 @@ def build_public_projection(db: Session, report: Report, run: AnalysisRun) -> tu
         "who_should_avoid": list(validated.who_should_avoid),
         "limitations": list(validated.limitations),
         "warnings": list(validated.warnings),
+        "comment_analysis": comment_summary(db, run),
         "sources": source_cards,
         "decision_guide": _decision_guide(validated, source_cards, pros, cons, source_ids),
         **({"product_info": validated.product_info.model_dump(mode="json")} if validated.product_info is not None else {}),

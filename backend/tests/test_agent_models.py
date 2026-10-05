@@ -8,6 +8,7 @@ from sqlalchemy.pool import StaticPool
 from sqlalchemy.schema import CheckConstraint, CreateColumn
 
 from unittest.mock import patch
+import pytest
 
 from app.admin.agent_models import (
     get_agent_models_state,
@@ -18,6 +19,7 @@ from app.config import Settings
 from app.db.base import Base
 from app.db.models import ActiveConfiguration, AgentVersion, ModelPolicyVersion, WorkflowVersion
 from app.runtime.contracts import WorkflowDag
+from app.errors import V2Error
 
 
 @compiles(JSONB, "sqlite")
@@ -40,6 +42,18 @@ def compile_check_constraint(element, compiler, **kw):
 
 def _mock_validation(db, policy, **kw):
     return {"status": "valid", "eligible_routes": {slug: ["mock_provider"] for slug in policy.models}}
+
+
+@patch("app.llmops.policies.validate_model_policy", _mock_validation)
+@patch("app.analysis.configuration.validate_model_policy", _mock_validation)
+def test_small_model_cannot_be_assigned_to_review_or_synthesis():
+    db = _setup_db()
+    config = _test_config()
+    seed_analysis_configuration(db, config=config)
+    with pytest.raises(V2Error, match="reserved for comment analysis"):
+        save_agent_models_assignment(db, {"review_analyst": config.v2_audience_chat_model}, config=config)
+    with pytest.raises(V2Error, match="dedicated small model policy"):
+        save_agent_models_assignment(db, {"audience_analyst": config.v2_agent_model_slugs[0]}, config=config)
 
 
 def _setup_db():
@@ -75,7 +89,7 @@ def test_agent_models_initial_state():
     assert len(state["agents"]) == 8
 
     for agent in state["agents"]:
-        assert agent["current_model"] == "deepseek/deepseek-v4-flash"
+        assert agent["current_model"] == ("meta-llama/llama-3.1-8b-instruct" if agent["key"] == "audience_analyst" else "deepseek/deepseek-v4-flash")
         assert agent["is_default"] is True
 
     # Available models include recommended models

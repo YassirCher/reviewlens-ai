@@ -88,6 +88,13 @@ def caption_spans(context: str, product: str = "") -> tuple[CaptionSpan, ...]:
                  for index, (a, b, text) in enumerate(groups))
 
 
+def owned_use_candidates(catalog: tuple[CaptionSpan, ...]) -> tuple[str, ...]:
+    """Hints only: an owned passage still needs reviewer/model validation."""
+    return tuple(span.ref for span in catalog if re.search(
+        r"\b(?:I(?:['’]ve| have| had)?|my)\b.{0,80}\b(?:us(?:e|ed|ing)|own(?:ed|ing)?|main device)\b.{0,90}"
+        r"\b(?:past|\d+|one|two|three|six|a|an)\s+(?:months?|years?|weeks?|days?)\b", span.text, re.I))[:3]
+
+
 class SpanReviewInput(ReviewAnalystInput):
     canonical_product: str = Field(min_length=1, max_length=200)
 
@@ -181,9 +188,11 @@ def span_extraction_schema(catalog: tuple[CaptionSpan, ...], output_model: type[
     return schema
 
 
-def bind_span_extraction(payload: dict, catalog: tuple[CaptionSpan, ...], product: str = "") -> tuple[ClassifiedVideoExtraction, list[dict]]:
+def bind_span_extraction(payload: dict, catalog: tuple[CaptionSpan, ...], product: str = "",
+                         output_model: type[SpanVideoExtraction] = SpanVideoExtraction) -> tuple[ClassifiedVideoExtraction, list[dict]]:
     # Optional details cannot invalidate the review, including malformed sections.
-    review = SpanReview.model_validate(payload.get("review"))
+    review_type = CompactSpanReview if issubclass(output_model, CompactSpanVideoExtraction) else SpanReview
+    review = review_type.model_validate(payload.get("review"))
     try:
         products = SpanProducts.model_validate(payload.get("product_information"))
     except ValidationError:
@@ -198,6 +207,12 @@ def bind_span_extraction(payload: dict, catalog: tuple[CaptionSpan, ...], produc
 
     raw = review.model_dump(mode="json")
     raw.pop("ownership_span_refs")
+    if len(raw["recommendation_summary"]) > 300:
+        original = raw["recommendation_summary"]
+        complete = max(original.rfind(mark, 0, 301) for mark in (". ", "! ", "? "))
+        raw["recommendation_summary"] = (original[:complete + 1] if complete >= 120
+                                          else original[:297].rsplit(" ", 1)[0].rstrip(" ,;:-") + "…")
+        diagnostics.append({"path": "review.recommendation_summary", "code": "summary_bounded"})
     for index, (claim, selected) in enumerate(zip(raw["claims"], review.claims)):
         claim.pop("span_refs")
         confidence = claim.pop("confidence")
@@ -214,8 +229,9 @@ def bind_span_extraction(payload: dict, catalog: tuple[CaptionSpan, ...], produc
     if start and start < len(phrase) and not phrase[start - 1].isspace():
         boundary = phrase.find(' ', start)
         start = boundary + 1 if boundary >= 0 else start
-    selected_phrase = phrase[start:start + 120]
-    if start + 120 < len(phrase):
+    end = min(duration.end(), start + 120) if duration else min(len(phrase), start + 120)
+    selected_phrase = phrase[start:end]
+    if end < len(phrase) and not phrase[end].isspace() and not phrase[end - 1].isspace() and not duration:
         selected_phrase = selected_phrase.rsplit(' ', 1)[0]
     raw.update(usage_period_mentioned=bool(phrase), usage_period_raw=selected_phrase if phrase else None,
                usage_period_days_estimate=None)

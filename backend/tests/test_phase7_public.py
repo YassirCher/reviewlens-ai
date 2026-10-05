@@ -229,3 +229,51 @@ def test_limitations_resolve_catalog_aliases_to_public_source_order_without_muta
 def test_unresolved_limitation_alias_does_not_fabricate_a_source() -> None:
     result = display_report_limitations({"limitations": ["s1 test."], "sources": []}, uuid.uuid4(), [])
     assert result["limitations"] == ["an unidentified source test."]
+
+
+def test_historical_eight_source_report_stays_readable_without_rewriting(monkeypatch) -> None:
+    from app.public import reports
+
+    report_id, run_id, workspace_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    reviews, candidates, nodes = [], [], []
+    for index in range(8):
+        source_id, analysis_id, evidence_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+        video_id = f"historic{index:03d}"
+        candidates.append({"source_node_id": str(source_id), "video_id": video_id,
+                           "title": f"Historical target review {index}", "channel_title": f"Reviewer {index}"})
+        reviews.append({"source_id": str(source_id), "source_analysis_node_id": str(analysis_id),
+            "channel_id": f"reviewer{index}", "review_type": "unknown", "ownership_context": "review_unit",
+            "usage_period_mentioned": False, "reviewer_sentiment_score": 70, "purchase_recommendation_score": 70,
+            "evidence_quality_score": 70, "source_score": 70, "purchase_verdict": "buy_with_caveats",
+            "recommendation_summary": "The reviewer found the target comfortable.", "pros": [], "cons": [],
+            "major_issues": [], "recommended_for": [], "not_recommended_for": [], "limitations": [],
+            "transcript_language": "en", "translated": False, "caption_kind": "manual",
+            "claims": [{"claim": "The target is comfortable.", "central": False, "evidence": [{
+                "source_node_id": str(source_id), "evidence_node_id": str(evidence_id),
+                "evidence_text": "I found the target comfortable.", "timestamp_start_seconds": 1,
+                "timestamp_end_seconds": 3, "confidence": 70, "support_type": "supports"}]}]})
+        for node_id, kind in ((source_id, "source"), (analysis_id, "source_analysis"), (evidence_id, "evidence")):
+            nodes.append(SimpleNamespace(id=node_id, workspace_id=workspace_id, node_type=kind,
+                                         status="active", current_version_id=uuid.uuid4()))
+    historical = {"report_id": str(report_id), "run_id": str(run_id), "workspace_id": str(workspace_id),
+        "product_display_name": "Historical target", "product_canonical_name": "historical target",
+        "status": "complete", "source_count_requested": 8, "source_count_analyzed": 8, "base_score": 70,
+        "audience_adjustment": 0, "overall_score": 70, "verdict": "buy_with_caveats", "confidence": 70,
+        "confidence_band": "high", "summary": "Eight historical sources were analyzed.", "consensus_pros": [],
+        "consensus_cons": [], "disagreements": [], "who_should_buy": [], "who_should_avoid": [],
+        "limitations": [], "warnings": [], "source_analyses": reviews, "total_tokens": 0,
+        "configuration_snapshot_id": str(uuid.uuid4()), "generated_at": "2026-09-01T00:00:00Z"}
+    stored = copy.deepcopy(historical)
+    db = MagicMock()
+    db.scalars.return_value = nodes
+    monkeypatch.setattr(reports, "_task_output", lambda *_args: {"candidates": candidates})
+    payload, graph = reports.build_public_projection(db,
+        SimpleNamespace(id=report_id, run_id=run_id, workspace_id=workspace_id, audit_status="pass", payload=historical),
+        SimpleNamespace(id=run_id, requested_options={"source_count": 8, "analyze_comments": False}))
+    public = PublicReportResponse.model_validate(payload | {"total_tokens": 0, "model_call_count": 0, "usage_pending": False})
+    assert public.source_count_requested == public.source_count_analyzed == len(public.sources) == 8
+    assert len({source.video_id for source in public.sources}) == 8
+    assert len([node for node in graph["nodes"] if node["type"] == "source"]) == 8
+    assert historical == stored
+    with pytest.raises(ValidationError):
+        AnalysisRequest(product_name="Historical target", video_count=8)

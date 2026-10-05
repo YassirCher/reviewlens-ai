@@ -8,6 +8,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.analysis.product_attributes import canonical_fact, canonical_variant_dimension
 from app.tools.evidence import transcript_excerpt_matches
 from app.analysis.quantities import explicit_quantities, product_passage, without_product_identity, product_mentions
 
@@ -159,6 +160,18 @@ def _compact(value: str) -> str:
     return "".join(char for char in value.casefold() if char.isalnum())
 
 
+def _same_model_words(first: str, second: str) -> bool:
+    """Recognize an exact brand/model token reorder, never a partial family."""
+    left = re.findall(r"[a-z]+|\d+", first.casefold())
+    right = re.findall(r"[a-z]+|\d+", second.casefold())
+    return len(left) >= 3 and any(token.isdigit() for token in left) and sorted(left) == sorted(right)
+
+
+def _value_key(value: str) -> str:
+    # Preserve decimal points and separators: 1.86 x 3.2 must not equal 18.6 x 32.
+    return "".join(value.casefold().split())
+
+
 def _detail_score(body: str) -> int:
     """Rank stored chunks by product-like statements, excluding timestamp digits."""
     score = 0
@@ -198,6 +211,8 @@ def select_product_chunk_indexes(bodies: list[str], costs: list[int], budget: in
 def _different_model(scope: str | None, excerpt: str, canonical_product: str | None) -> bool:
     if not canonical_product:
         return False
+    if scope and _same_model_words(scope, canonical_product):
+        return False
     if not product_passage(excerpt, canonical_product).strip():
         return True
     target = re.findall(r"[a-z0-9]+", canonical_product.casefold())
@@ -233,6 +248,8 @@ def _different_model(scope: str | None, excerpt: str, canonical_product: str | N
 
 def _scope_qualifier(scope: str | None, canonical_product: str) -> str:
     value = (scope or '').strip()
+    if canonical_product and _same_model_words(value, canonical_product):
+        return ''
     # These are identity labels, not assertions about a variant or region.
     if value.casefold() in {'product', 'model', 'this product', 'this model', 'requested product'}:
         return ''
@@ -244,6 +261,10 @@ def _scope_qualifier(scope: str | None, canonical_product: str) -> str:
 
 
 def _supported_value(value: str, excerpt: str) -> bool:
+    # Captions often transcribe ownership as "Intel's Core" or "Nvidia's RTX".
+    # Remove only that grammatical suffix; numeric and model-code checks below
+    # still require the exact value in the cited passage.
+    excerpt = re.sub(r"(?<=\w)[’']s\b", "", excerpt)
     quantities, remaining = explicit_quantities(value)
     if quantities:
         quoted, _ = explicit_quantities(excerpt)
@@ -338,7 +359,10 @@ def validate_extraction(
                         path: str, label: str = "") -> ProductEvidence | None:
         code = None
         identity_scope = _scope_qualifier(scope, canonical_product or "")
-        identity_supported = bool(canonical_product and _compact(canonical_product) in _compact(title + " " + description))
+        identity_supported = bool(canonical_product and (
+            _compact(canonical_product) in _compact(title + " " + description)
+            or (scope and _same_model_words(scope, canonical_product)
+                and _compact(scope) in _compact(title + " " + description))))
         if scope and not (identity_supported and not identity_scope) and _compact(identity_scope or scope) not in _compact(item.excerpt):
             code = "scope_not_supported"
         elif _different_model(scope, item.excerpt, canonical_product):
@@ -364,13 +388,15 @@ def validate_extraction(
         return comparison
 
     facts = tuple(
-        ProductFact(group=item.group, label=item.label, value=item.value, scope=item.scope, evidence=(ref,))
+        ProductFact(group=item.group, label=item.label, value=item.value,
+                    scope=_scope_qualifier(item.scope, canonical_product or '') or None, evidence=(ref,))
         for index, item in enumerate(draft.facts)
         if (ref := scoped_evidence(item.evidence, item.value, item.scope, f"facts[{index}]", item.label)) is not None
         and not reject_comparison_identity(item, index)
     )
     variants = tuple(
-        ProductVariant(dimension=item.dimension, value=item.value, scope=item.scope, evidence=(ref,))
+        ProductVariant(dimension=item.dimension, value=item.value,
+                       scope=_scope_qualifier(item.scope, canonical_product or '') or None, evidence=(ref,))
         for index, item in enumerate(draft.variants)
         if (ref := scoped_evidence(item.evidence, item.value, item.scope, f"variants[{index}]", item.dimension)) is not None
     )
@@ -390,37 +416,52 @@ def validate_extraction(
     return facts, variants, SampleUsed(units=tuple(units))
 
 
+def canonicalize_product_info(info: ProductInfo) -> ProductInfo:
+    """Unify equivalent facts while retaining every distinct value and citation."""
+    facts: dict[tuple[str, str, str], ProductFact] = {}
+    variants: dict[tuple[str, str, str], ProductVariant] = {}
+    for item in info.facts:
+        identity, group, label = canonical_fact(item.group, item.label, item.value)
+        fact_key = (identity, _value_key(item.value), _normalized(item.scope or ""))
+        prior = facts.get(fact_key)
+        evidence = _distinct_evidence((prior.evidence if prior else ()) + item.evidence)
+        facts[fact_key] = (prior or item).model_copy(update={"group": group, "label": label, "evidence": evidence})
+    for item in info.variants:
+        dimension = canonical_variant_dimension(item.dimension)
+        variant_key = (_normalized(dimension), _value_key(item.value), _normalized(item.scope or ""))
+        prior = variants.get(variant_key)
+        evidence = _distinct_evidence((prior.evidence if prior else ()) + item.evidence)
+        variants[variant_key] = (prior or item).model_copy(update={"dimension": dimension, "evidence": evidence})
+    by_identity: dict[tuple[str, str], set[str]] = {}
+    for identity, value, scope in facts:
+        by_identity.setdefault((identity, scope), set()).add(value)
+    return info.model_copy(update={
+        "facts": tuple(item.model_copy(update={"conflicting": len(by_identity[(identity, scope)]) > 1})
+                       for (identity, _, scope), item in facts.items()),
+        "variants": tuple(variants.values()),
+    })
+
+
 def merge_product_info(outputs: list[dict]) -> ProductInfo | None:
     """Merge supported values without inventing cross-dimension combinations."""
-    facts: dict[tuple[str, str, str, str], ProductFact] = {}
-    variants: dict[tuple[str, str, str], ProductVariant] = {}
+    facts: list[ProductFact] = []
+    variants: list[ProductVariant] = []
     for output in outputs:
         for raw in output.get("facts", []):
             try:
                 item = ProductFact.model_validate(raw)
             except ValueError:
                 continue
-            fact_key = (*_property_key(item.group, item.label), _compact(item.value), _normalized(item.scope or ""))
-            prior = facts.get(fact_key)
-            facts[fact_key] = prior.model_copy(update={"evidence": _distinct_evidence(prior.evidence + item.evidence)}) if prior else item.model_copy(update={"evidence": _distinct_evidence(item.evidence)})
+            facts.append(item)
         for raw in output.get("variants", []):
             try:
                 item = ProductVariant.model_validate(raw)
             except ValueError:
                 continue
-            variant_key = (_normalized(item.dimension), _compact(item.value), _normalized(item.scope or ""))
-            prior = variants.get(variant_key)
-            variants[variant_key] = prior.model_copy(update={"evidence": _distinct_evidence(prior.evidence + item.evidence)}) if prior else item.model_copy(update={"evidence": _distinct_evidence(item.evidence)})
+            variants.append(item)
     if not facts and not variants:
         return None
-    by_label: dict[tuple[str, str, str], set[str]] = {}
-    for item in facts.values():
-        by_label.setdefault((*_property_key(item.group, item.label), _normalized(item.scope or "")), set()).add(_normalized(item.value))
-    merged_facts = tuple(
-        item.model_copy(update={"conflicting": len(by_label[(*_property_key(item.group, item.label), _normalized(item.scope or ""))]) > 1})
-        for item in facts.values()
-    )
-    return ProductInfo(facts=merged_facts, variants=tuple(variants.values()))
+    return canonicalize_product_info(ProductInfo(facts=tuple(facts), variants=tuple(variants)))
 
 
 def validate_span_products(payload: dict, spans: dict, *, title: str, description: str,
@@ -441,7 +482,9 @@ def validate_span_products(payload: dict, spans: dict, *, title: str, descriptio
         combined = ' '.join(s.text for s in quotes)
         scope = item.get('scope')
         qualifier = _scope_qualifier(scope, canonical_product)
-        identity_bound = _compact(canonical_product) in _compact(title + ' ' + description)
+        identity_bound = (_compact(canonical_product) in _compact(title + ' ' + description)
+                          or bool(scope and _same_model_words(scope, canonical_product)
+                                  and _compact(scope) in _compact(title + ' ' + description)))
         if reason is None:
             if scope and not (identity_bound and not qualifier) and _compact(qualifier or scope) not in _compact(combined):
                 reason = 'scope_not_supported'
@@ -474,6 +517,7 @@ def validate_span_products(payload: dict, spans: dict, *, title: str, descriptio
             evidence = selected(item, f'{field}[{index}]')
             if evidence:
                 values = {key: value for key, value in item.items() if key != 'span_refs'}
+                values['scope'] = _scope_qualifier(item.get('scope'), canonical_product) or None
                 label = item.get('label', '').casefold()
                 if re.search(r'\b(?:compared|comparison|sibling|other)\b.*\b(?:product|model)\b', label.replace('_', ' ')):
                     diagnostics.append({'path': f'{field}[{index}]', 'label': label, 'value': item['value'],
@@ -497,16 +541,6 @@ def validate_span_products(payload: dict, spans: dict, *, title: str, descriptio
         if details:
             units.append(SampleUnit(role=unit['role'], details=tuple(details)))
     return tuple(facts), tuple(variants), SampleUsed(units=tuple(units))
-
-
-def _property_key(group: str, label: str) -> tuple[str, str]:
-    group_key = _normalized(group).replace("_", " ").replace("-", " ")
-    label_key = _normalized(label).replace("_", " ").replace("-", " ")
-    if group_key in {"chip", "chipset", "processor", "soc"} and label_key in {
-        "processor", "processor name", "chipset name", "soc", "soc name",
-    }:
-        return "processing", "processor model"
-    return group_key, label_key
 
 
 def _distinct_evidence(items: tuple[ProductEvidence, ...]) -> tuple[ProductEvidence, ...]:

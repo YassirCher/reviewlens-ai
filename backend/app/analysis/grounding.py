@@ -23,6 +23,51 @@ _GROUNDING_CODES = {
     "scope_mismatch", "missing_central_evidence",
 }
 
+_MEASUREMENT_TOPIC = re.compile(
+    r"\b(?P<noise>noise[ -]cancell\w*|anc|isolation)|\b(?P<sound>sound(?:\s+quality)?|audio(?:\s+quality)?|frequency\s+response)|"
+    r"\b(?P<battery>battery(?:\s+life)?|endurance)|\b(?P<charging>charg\w*\s+(?:speed|time|rate))|"
+    r"\b(?P<weight>weigh\w*|mass)", re.I)
+
+
+def incomplete_prose(text: str) -> bool:
+    """Recognize dangling English fragments without requiring punctuation on labels."""
+    _, text = explicit_quantities(text)
+    return bool(re.search(r"(?:\s+[b-df-hj-np-tv-z]|\b(?:the|a|an|and|or|because|which|to|with|they['’](?:ve|re))|"
+                          r"\b(?:days? with heavy|before (?:one|both) of (?:my|the) \w+|the case you|(?:for|about)\s+\d+))$",
+                          text.strip(), re.I))
+
+
+def _semantic_edges(statement: str, excerpt: str) -> list[str]:
+    """Explicit missing qualifications/predicates; the auditor still judges meaning."""
+    issues = []
+    for term, support in (
+        (r"\bcareful(?:ly)?\b", r"\bcareful(?:ly)?\b|सावधान|संभाल|précaution"),
+        (r"\bheavy (?:use|usage)\b", r"\bheavy (?:use|usage)\b|हैवी यूसेज"),
+        (r"\b(?:ship|shipped)\b", r"\b(?:ship|shipped|shipping|delivered|released)\b"),
+        (r"\bear(?:s)? touch(?:es)?\b", r"\b(?:touch\w*|press\w*|contact)\b"),
+        (r"\b(?:case is (?:larger|large)|case.*larger than)\b", r"\b(?:larger|large|bigger|big|huge)\b"),
+        (r"\b(?:more visible|visibility)\b", r"\b(?:visible|visibility|noticeable)\b|विजिबल|दिखाई|दिखते"),
+    ):
+        if re.search(term, statement, re.I) and not re.search(support, excerpt, re.I):
+            issues.append("qualification_or_predicate_not_cited")
+    for property_name in re.findall(r"\b(?:Snapdragon\s+Sound|LC3|LDAC|USB-C\s+audio|360\s+Reality\s+Audio|ChatGPT)\b", statement, re.I):
+        if not re.search(re.escape(property_name).replace(r"\ ", r"\s+"), excerpt, re.I):
+            issues.append("named_property_not_cited")
+    return sorted(set(issues))
+
+
+def _measurement_topics(text: str) -> dict[Fraction, set[str]]:
+    active: str | None = None
+    result: dict[Fraction, set[str]] = {}
+    tokens = sorted([(match.start(), "topic", match.lastgroup) for match in _MEASUREMENT_TOPIC.finditer(text)] +
+                    [(match.start(), "number", match[0]) for match in _NUMBER.finditer(text)])
+    for _, kind, value in tokens:
+        if kind == "topic":
+            active = value
+        elif active:
+            result.setdefault(decimal(value), set()).add(active)
+    return result
+
 
 def _field_index(path: str, field: str) -> int | None:
     match = re.search(rf"(?:^|\.){field}\[(\d+)\]", path)
@@ -49,15 +94,30 @@ def _statement_matches(statement: str, claim: str, excerpt: str, product_name: s
 
 
 def statement_mismatches(statement: str, excerpt: str, product_name: str) -> list[str]:
+    # Reviewers use plural/separated model codes. Normalize only explicit codes;
+    # phrases such as 'last year' never establish a sibling identity.
+    if re.search(r"\bWH[ -]?1000XM\d\b", product_name, re.I) and not re.search(r"\bWF[ -]?1000XM\d", statement + ' ' + excerpt, re.I):
+        def alias(text: str) -> str:
+            text = re.sub(r"\bWH[ -]?1000XM(\d)s?\b", r"WH1000XM\1", text, flags=re.I)
+            return re.sub(r"\b(?:XM[ -]?|mark[ -]?)(\d)(?:[ -]?s)?\b", r"WH1000XM\1", text, flags=re.I)
+        statement, excerpt, product_name = alias(statement), alias(excerpt), alias(product_name)
     # Explicit comparisons still need both products/results. Single-product
     # quantities cannot borrow a sibling measurement from a mixed quotation.
     extra_codes = set(_MODEL_CODE.findall(statement.casefold())) - set(_MODEL_CODE.findall(product_name.casefold()))
     if not extra_codes and not re.search(r"\b(?:compared|comparison|versus|vs\.?|upgrad\w*)\b", statement, re.I):
         excerpt = product_passage(excerpt, product_name)
     statement = without_product_identity(statement, product_name)
+    issues = ["incomplete_prose"] if incomplete_prose(statement) else []
+    issues.extend(_semantic_edges(statement, excerpt))
+    quoted_topics = _measurement_topics(without_product_identity(excerpt, product_name))
+    if any(value in quoted_topics and not topics <= quoted_topics[value]
+           for value, topics in _measurement_topics(statement).items()):
+        issues.append("measurement_subject_mismatch")
+    if re.search(r"\bmost comfortable\b", statement, re.I) and not re.search(
+            r"\bmost comfortable\b|\bcomfortable\b.{0,50}\bever\b", excerpt, re.I):
+        issues.append("superlative_not_cited")
     statement_times, remaining_statement = _durations(statement)
     excerpt_times, remaining_excerpt = _durations(excerpt)
-    issues = []
     if not statement_times <= excerpt_times:
         issues.append("duration_not_cited")
     measured, plain_statement = explicit_quantities(remaining_statement)

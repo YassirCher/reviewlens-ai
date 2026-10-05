@@ -32,9 +32,13 @@ def endpoint_eligibility_reasons(endpoint: dict[str, Any], policy: ModelPolicyDo
         reasons.append("endpoint_unavailable")
     if routing.mode == "restricted" and endpoint["provider_slug"] not in routing.only:
         reasons.append("provider_not_allowed")
-    if policy.compatibility_mode == "strict" and "response_format" not in endpoint["supported_parameters"]:
+    if "response_format" not in endpoint["supported_parameters"]:
         reasons.append("strict_json_unsupported")
     required_capacity = policy.minimum_context_tokens + policy.max_completion_tokens
+    if policy.compatibility_mode == "json_object" and endpoint["context_length"] is None:
+        reasons.append("context_capacity_unknown")
+    if policy.compatibility_mode == "json_object" and endpoint["max_completion_tokens"] is None:
+        reasons.append("completion_capacity_unknown")
     if endpoint["context_length"] is not None and endpoint["context_length"] < required_capacity:
         reasons.append("context_too_small")
     if endpoint["max_completion_tokens"] is not None and endpoint["max_completion_tokens"] < policy.max_completion_tokens:
@@ -100,6 +104,17 @@ def validate_model_policy(
     if errors:
         raise PolicyCompatibilityError(errors)
     return {"valid": True, "stale_acknowledged": bool(catalog["stale"]), "eligible_routes": eligible}
+
+
+def compatible_request_policy(
+    db: Session, policy: ModelPolicyDocument, *, config: Settings = settings,
+) -> ModelPolicyDocument:
+    """Constrain a compatibility request to the endpoints actually validated."""
+    validation = validate_model_policy(db, policy, config=config)
+    providers = tuple(sorted({provider for routes in validation["eligible_routes"].values() for provider in routes}))
+    return policy.model_copy(update={"provider": policy.provider.model_copy(update={
+        "mode": "restricted", "only": providers,
+    })})
 
 
 def validate_embedding_policy(

@@ -93,7 +93,7 @@ def _safe_runtime_task_result(result: dict) -> dict[str, str | int]:
     status = result.get("status")
     allowed = {
         "succeeded", "failed", "retrying", "cancelled", "timed_out",
-        "queued", "running", "missing", "skipped", "duplicate",
+        "queued", "running", "waiting_for_input", "missing", "skipped", "duplicate",
     }
     attempt_number = result.get("attempt_number")
     return {

@@ -2,14 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowRight, Check, CircleAlert, CircleDashed, RotateCcw, Square, Wifi, WifiOff } from "lucide-react";
-import { cancelRun, getRun, readEvents, reportTokenFromApiPath, validRunId, V2ApiError, type PublicTask, type RunStatus } from "@/lib/v2";
+import { answerClarification, cancelRun, getRun, readEvents, reportTokenFromApiPath, validRunId, V2ApiError, type PublicTask, type RunStatus } from "@/lib/v2";
 import { ProductInformationCard } from "./v2-product-info";
 import { partialNotice, warningLabel } from "@/lib/warnings";
 
 const TERMINAL = new Set(["complete", "partial", "failed", "cancelled"]);
 const STAGES = [
-  { name: "Discover", keys: ["validate_request", "plan_research", "discover_candidates", "curate_sources"] },
+  { name: "Discover", keys: ["validate_request", "plan_research", "discover_candidates", "resolve_discovered_product", "curate_sources"] },
   { name: "Acquire", keys: ["fetch_transcript", "fetch_comments"] },
   { name: "Analyze", keys: ["analyze_review", "analyze_audience", "extract_product_information"] },
   { name: "Connect", keys: ["curate_knowledge"] },
@@ -19,6 +20,7 @@ const STAGES = [
 
 function stageState(tasks: PublicTask[]): string {
   if (!tasks.length) return "queued";
+  if (tasks.some(task => task.status === "waiting_for_input")) return "waiting for input";
   if (tasks.some(task => task.status === "running" || task.status === "cancelling")) return "running";
   if (tasks.some(task => task.status === "failed" || task.status === "timed_out")) return "warning";
   if (tasks.every(task => ["succeeded", "skipped", "cancelled"].includes(task.status))) return tasks.some(task => task.status !== "succeeded") ? "warning" : "succeeded";
@@ -35,6 +37,11 @@ function elapsed(start: string, endOrNow: string | number): string {
 function runDate(value: string): string { return new Intl.DateTimeFormat("en-US", { timeZone: "UTC", dateStyle: "medium", timeStyle: "short" }).format(new Date(value)); }
 
 export function V2Progress({ runId }: { runId: string }) {
+  const router = useRouter();
+  const [choice, setChoice] = useState("");
+  const [answering, setAnswering] = useState(false);
+  const [answerError, setAnswerError] = useState<string | null>(null);
+  const [differentModel, setDifferentModel] = useState("");
   const [run, setRun] = useState<RunStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [connection, setConnection] = useState<"connecting" | "live" | "reconnecting" | "polling" | "closed">("connecting");
@@ -105,6 +112,27 @@ export function V2Progress({ runId }: { runId: string }) {
     return () => { stopped = true; controller.abort(); clearInterval(clock); clearInterval(poll); };
   }, [runId, refresh, retrySerial]);
 
+  async function resume() {
+    if (!run?.clarification || !choice || answering) return;
+    setAnswering(true);
+    setAnswerError(null);
+    try { await answerClarification(runId, run.clarification.id, choice); await refresh(); setAnnouncement("Product confirmed. Research resumed."); }
+    catch (reason) { await refresh().catch(() => {}); setAnswerError(reason instanceof V2ApiError ? reason.message : "The answer could not be saved. Retry to confirm the same choice."); }
+    finally { setAnswering(false); }
+  }
+
+  async function changeModel() {
+    if (!run || !differentModel.trim() || cancelling || answering) return;
+    setCancelling(true);
+    try {
+      await cancelRun(runId);
+      const state = await refresh();
+      if (state.status !== "cancelled") { setError("Cancellation is still pending. Wait for it to finish before choosing another model."); return; }
+      router.push(`/?product=${encodeURIComponent(differentModel.trim().slice(0, 500))}`);
+    } catch (reason) { setError(reason instanceof V2ApiError ? reason.message : "Cancellation could not be requested."); }
+    finally { setCancelling(false); }
+  }
+
   async function cancel() {
     if (!run || cancelling) return;
     if (run.total_tokens > 0 && !window.confirm("Cancel this analysis? Work already completed will not become a public report.")) return;
@@ -119,7 +147,7 @@ export function V2Progress({ runId }: { runId: string }) {
 
   const token = reportTokenFromApiPath(run.report_url);
   const isActive = !TERMINAL.has(run.status);
-  const headingLabel = isActive ? "RESEARCH IN PROGRESS" : run.status === "failed" ? "RESEARCH STOPPED" : "RESEARCH FINISHED";
+  const headingLabel = run.status === "waiting_for_input" ? "YOUR INPUT IS NEEDED" : isActive ? "RESEARCH IN PROGRESS" : run.status === "failed" ? "RESEARCH STOPPED" : "RESEARCH FINISHED";
   const connectionLabel = !isActive && run.status === "failed" ? "Run ended with an error"
     : !isActive && run.status === "cancelled" ? "Run was cancelled"
     : !isActive ? "Run finished"
@@ -137,6 +165,19 @@ export function V2Progress({ runId }: { runId: string }) {
     {run.status === "partial" && <div className="v2-alert v2-alert-warning v2-run-notice" role="status">{partialNotice(run)}</div>}
     {run.status === "failed" && <div className="v2-alert v2-alert-error v2-run-notice" role="alert">{run.failure?.message || "The analysis could not be completed."} <Link href="/">Start a new research run</Link>.</div>}
     {run.status === "cancelled" && <div className="v2-alert v2-alert-warning v2-run-notice" role="status">This analysis was cancelled. No public report was published.</div>}
+    {run.status === "waiting_for_input" && run.clarification && <section className="v2-panel v2-clarification" aria-labelledby="v2-discovery-question">
+      <h2 id="v2-discovery-question">{run.clarification.question}</h2>
+      <p>Research is paused. Answer within {Math.max(0, Math.ceil((Date.parse(run.clarification.expires_at) - now) / 60000))} minutes; the original research deadline still applies.</p>
+      <fieldset disabled={answering || cancelling}><legend>Choose the exact model</legend>
+        {run.clarification.choices.map(option => <div className="v2-clarification-choice" key={option.id}>
+          <label><input type="radio" name="product-choice" value={option.id} checked={choice === option.id} onChange={() => { setChoice(option.id); setAnswerError(null); }} /> {option.product_name}</label>
+          <ul>{option.sources.map(source => <li key={source.url}><a href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a></li>)}</ul>
+        </div>)}
+      </fieldset>
+      {answerError && <p className="v2-alert v2-alert-error" role="alert">{answerError}</p>}
+      <button className="v2-button" disabled={!choice || answering || cancelling || now >= Date.parse(run.clarification.expires_at)} onClick={resume}>{answering ? "Saving your answer…" : "Confirm model and resume"}</button>
+      <details className="v2-advanced"><summary>I mean a different model</summary><label className="v2-label" htmlFor="v2-different-model">Exact product name</label><input id="v2-different-model" value={differentModel} maxLength={500} disabled={answering || cancelling} onChange={event => setDifferentModel(event.target.value)} /><p>This run will be cancelled. Review the populated intake and select Analyze product to start a separate analysis.</p><button className="v2-button-secondary" disabled={!differentModel.trim() || answering || cancelling} onClick={changeModel}>Cancel and edit product</button></details>
+    </section>}
     <ProductInformationCard info={run.product_info} live={isActive} />
     <div className="v2-progress-layout"><section className="v2-panel v2-progress-main" aria-labelledby="v2-timeline-heading"><div className="v2-panel-heading"><div><p className="v2-eyebrow">LIVE WORKFLOW</p><h2 id="v2-timeline-heading">Research timeline</h2></div><span className={`v2-status v2-status-${run.status}`}>{run.status.replaceAll("_", " ")}</span></div>
       <div className="v2-connection" role="status">{connection === "live" ? <Wifi size={16} /> : <WifiOff size={16} />}{connectionLabel}</div>
@@ -144,7 +185,7 @@ export function V2Progress({ runId }: { runId: string }) {
       {slots.length > 0 && <div className="v2-source-progress"><h3>Source progress</h3><ul>{slots.map(slot => { const tasks = sourceTasks.filter(task => task.task_key.endsWith(`source_${slot}`)); return <li key={slot}><span>Source {slot}</span><span className="v2-status">{stageState(tasks)}</span></li>; })}</ul></div>}
     </section>
     <aside className="v2-panel v2-progress-aside"><p className="v2-eyebrow">RUN SNAPSHOT</p><h2>What’s happening</h2><div className="v2-metric"><strong>{run.completed_tasks} / {run.total_tasks}</strong><span>tasks finished</span></div><div className="v2-metric"><strong>{run.source_count_analyzed} / {run.source_count_requested}</strong><span>sources analyzed</span></div><div className="v2-metric"><strong>{run.total_tokens.toLocaleString()}</strong><span>tokens recorded{run.usage_pending ? " · accounting pending" : ""}</span></div>
-      {isActive ? <><p className="v2-aside-note">Research continues if you leave this page. Return with the same browser session to follow it.</p><button className="v2-button-secondary" onClick={() => { setRetrySerial(value => value + 1); }}><RotateCcw size={16} aria-hidden="true" /> Retry connection</button><button className="v2-button-danger" disabled={cancelling || run.status === "cancelling"} onClick={cancel}><Square size={14} aria-hidden="true" />{cancelling || run.status === "cancelling" ? "Cancelling…" : "Cancel analysis"}</button></> : null}
+      {isActive ? <><p className="v2-aside-note">{run.status === "waiting_for_input" ? "Research is paused and awaiting your answer. Return with the same browser session before the question expires." : "Research continues if you leave this page. Return with the same browser session to follow it."}</p><button className="v2-button-secondary" onClick={() => { setRetrySerial(value => value + 1); }}><RotateCcw size={16} aria-hidden="true" /> Retry connection</button><button className="v2-button-danger" disabled={cancelling || run.status === "cancelling"} onClick={cancel}><Square size={14} aria-hidden="true" />{cancelling || run.status === "cancelling" ? "Cancelling…" : "Cancel analysis"}</button></> : null}
       {token && <Link className="v2-button" href={`/r/${token}`}>Open report <ArrowRight size={17} aria-hidden="true" /></Link>}
     </aside></div>
     {run.warnings.length > 0 && <section className="v2-panel v2-warnings"><h2>Research notes</h2><ul>{run.warnings.map((warning, index) => <li key={`${warning}-${index}`}>{warningLabel(warning)}</li>)}</ul></section>}

@@ -23,7 +23,7 @@ from app.tools.errors import ToolExecutionError
 from app.tools.runner import _admit_invocation
 from app.tools.registry import TOOL_REGISTRY
 from app.tools.youtube import product_relevance
-from app.runtime.service import RuntimeTaskError
+from app.runtime.service import RuntimeTaskError, _publication_audit_failed
 from app.knowledge.retrieval import estimate_tokens
 from app.llmops.contracts import ModelPolicyDocument
 from app.worker import _safe_runtime_task_result
@@ -85,6 +85,15 @@ def test_publication_without_an_audit_fails_with_a_safe_code(monkeypatch: pytest
     assert raised.value.code == "report_audit_missing"
 
 
+def test_publication_requires_final_audit_even_when_product_details_succeed() -> None:
+    publish = SimpleNamespace(handler="analysis.publish_report")
+    product = SimpleNamespace(workflow_task_key="extract_product_information.source_1", status="succeeded")
+    audit = SimpleNamespace(workflow_task_key="reaudit_report", status="skipped")
+    assert _publication_audit_failed(publish, [product, audit])
+    audit.status = "succeeded"
+    assert not _publication_audit_failed(publish, [product, audit])
+
+
 def test_youtube_mock_requires_the_header_key_without_a_query_key() -> None:
     with TestClient(youtube_mock_app) as client:
         assert client.get("/youtube/v3/search", params={"q": "Phase 6 complete fixture"}).status_code == 401
@@ -129,12 +138,12 @@ def test_registry_contains_target_roles_and_product_information_analyst() -> Non
     assert {spec.key: spec.content_hash for spec in AGENT_SPECS} == {
         "research_coordinator": "29a6c7d8d25d2416ae95b1fe30f221ea72fb61e43696e19298ec73d83271144c",
         "source_curator": "cbc52537bf25dc14f98e8e8f9f852beb10e73e7c537be5d518dc90176df5af8a",
-        "review_analyst": "71e944c6c4ab87b65e3a2d5efe9a9984e44570b5c4a515ff84dcaef9fb1a2c42",
-        "product_information_analyst": "7adccc849d5cf36b4aad7faefafb616ecc12564830be5c4d7ab2100625cc5935",
-        "audience_analyst": "1b52c37013523b719fc9cd63abaa1b0cca3682f258ec6e966d0cf0e2e7edc93e",
+            "review_analyst": "cf3a82a8dfeea48061d479f9619400121360296bfb0058763d3f45032b240b28",
+        "product_information_analyst": "f58481c17e0b26ccc8d5d4cbe75b529f1ea33088c02b91d26287af8a36a1d902",
+            "audience_analyst": "bfe546cfdccdbfa5ac05a3c15be7286f4f6263e547a88561cc68b885c5dfc230",
         "knowledge_curator": "441fcf10754f4aad5063797b572543879e96407f489611e9ab4ef2152ade666d",
-        "consensus_analyst": "5b92e660d4866a56815da475b363ae49785ea031e0dd97da0bc5691a93e02295",
-        "quality_auditor": "02b608bf0f343666c7f56b05b8d479c0553e1c6bc86da1e2c8bc486ba9760dc9",
+        "consensus_analyst": "0104f72cf7b7349db12602e1546c13c794a6d0a6d2ef0bf2dc3df6f55b8d0169",
+        "quality_auditor": "8f20abc9d36a5a7725a3406b278ee87b13f62c3dbe0048eff9ed84c48f504868",
     }
     assert all(evaluate_agent_spec(spec)["status"] == "passed" for spec in AGENT_SPECS)
 

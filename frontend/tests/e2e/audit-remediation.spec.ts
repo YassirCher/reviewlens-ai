@@ -44,7 +44,7 @@ test("option changes clear a previous creation failure", async ({ page }) => {
   await page.getByLabel("Include top comments").check();
   await expect(page.getByText("Connection interrupted. Retry the submission.")).toHaveCount(0);
   await expect(page.locator(".v2-admission")).toContainText("Research available");
-  await page.getByLabel("Review sources").selectOption("3");
+  await page.getByLabel("Review sources").selectOption("4");
   await expect(page.locator(".v2-admission")).toContainText("Research available");
 });
 

@@ -7,9 +7,10 @@ from typing import Any
 from app.analysis.registry import UNIVERSAL_POLICY, AgentSpec
 from app.analysis.audit import CitedAuditorInput, DecisionAuditorInput
 from app.analysis.audit_parts import PartAuditorInput
+from app.analysis.support_audit import SupportAuditorInput
 from app.analysis.review import VideoExtraction
 from app.analysis.spans import SpanVideoExtraction
-from app.analysis.audience import BoundAudienceDraft
+from app.analysis.audience import BoundAudienceDraft, ClassifiedAudienceDraft
 from app.analysis.rendering import PrioritizedSynthesisInput
 from app.analysis.synthesis import AtomicBuyingSynthesis, BuyingSynthesis, CatalogRepairSynthesisInput, EvidenceBoundBuyingSynthesis, QuoteSynthesisInput, RepairSynthesisInput, SourceBoundBuyingSynthesis
 from app.runtime.contracts import canonical_json_hash
@@ -32,7 +33,7 @@ def build_prompt_envelope(
     correction: dict[str, Any] | None = None,
 ) -> PromptEnvelope:
     combined = issubclass(spec.output_model, VideoExtraction) or issubclass(spec.output_model, SpanVideoExtraction)
-    schema_in_response = combined or issubclass(spec.output_model, (EvidenceBoundBuyingSynthesis, BoundAudienceDraft)) or spec.output_model in {BuyingSynthesis, AtomicBuyingSynthesis, SourceBoundBuyingSynthesis} or "CITATION AUDIT:" in spec.role_prompt
+    schema_in_response = combined or issubclass(spec.output_model, (EvidenceBoundBuyingSynthesis, BoundAudienceDraft, ClassifiedAudienceDraft)) or spec.output_model in {BuyingSynthesis, AtomicBuyingSynthesis, SourceBoundBuyingSynthesis} or "CITATION AUDIT:" in spec.role_prompt
     output_contract = (
         "STRICT OUTPUT SCHEMA\nReturn one object according to the supplied strict response_format JSON schema."
         if schema_in_response else
@@ -54,7 +55,7 @@ def build_prompt_envelope(
     }
     if correction:
         trusted["correction"] = correction
-    if spec.input_model in {QuoteSynthesisInput, RepairSynthesisInput, CatalogRepairSynthesisInput, PrioritizedSynthesisInput, CitedAuditorInput, DecisionAuditorInput, PartAuditorInput} and rendered_context == "<no-authorized-context />":
+    if spec.input_model in {QuoteSynthesisInput, RepairSynthesisInput, CatalogRepairSynthesisInput, PrioritizedSynthesisInput, CitedAuditorInput, DecisionAuditorInput, PartAuditorInput, SupportAuditorInput} and rendered_context == "<no-authorized-context />":
         # These successors carry their complete authorized evidence in task_input.
         # An absent extra retrieval packet must not imply that evidence is absent.
         rendered_context = ""

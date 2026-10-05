@@ -10,6 +10,7 @@ from app.admin.common import decode_cursor, decode_list_cursor, encode_cursor, e
 from app.admin.configuration import BudgetDocument
 from app.admin.evaluation import INJECTION_MARKER, _checks, golden_fixture
 from app.analysis.audit import DecisionAuditorInput, decision_audit_input
+from app.analysis.support_audit import SupportAuditorInput, support_audit_input
 from app.analysis.audit_parts import PartAuditorInput, part_audit_input
 from app.analysis.registry import AGENT_REGISTRY
 from app.analysis.spans import SpanReviewInput
@@ -46,6 +47,8 @@ def test_role_fixtures_validate_and_critical_checks_reject_injection_and_missing
             fixture = {**fixture, "canonical_product": "Aurora Headphones"}
         if spec.input_model is DecisionAuditorInput:
             fixture = decision_audit_input(fixture)
+        if spec.input_model is SupportAuditorInput:
+            fixture = support_audit_input(fixture)
         if spec.input_model is PartAuditorInput:
             fixture = part_audit_input(fixture)
         spec.input_model.model_validate(repair_synthesis_input(fixture)
@@ -69,7 +72,7 @@ def test_budget_document_rejects_bad_limits() -> None:
         "public_concurrent_runs": 1, "public_queue_capacity": 10,
         "public_run_cost_cap_usd": Decimal("0.10"),
         "public_daily_cost_cap_usd": Decimal("1.00"),
-        "min_video_count": 3, "default_video_count": 5, "max_video_count": 8,
+        "min_video_count": 3, "default_video_count": 3, "max_video_count": 5,
         "token_limits": {"task_total_tokens": {"review": 5000}},
     }
     BudgetDocument.model_validate(base)
@@ -98,3 +101,48 @@ def test_endpoint_eligibility_explains_routing_rejection() -> None:
     assert {"endpoint_unavailable", "provider_not_allowed", "strict_json_unsupported",
             "context_too_small", "completion_too_small", "privacy_policy_conflict",
             "prompt_price_over_cap"} <= set(reasons)
+
+
+def test_audience_requires_verified_endpoint_capacity() -> None:
+    policy = ModelPolicyDocument.model_validate({
+        "name": "audience fixture", "purpose": "verify individual endpoint capacity",
+        "models": ["meta-llama/llama-3.1-8b-instruct"],
+        "compatibility_mode": "json_object", "minimum_context_tokens": 8000,
+        "max_completion_tokens": 2500,
+    })
+    endpoint = {
+        "provider_slug": "fixture", "status": "available",
+        "supported_parameters": ["response_format"], "context_length": None,
+        "max_completion_tokens": None, "quantization": None,
+        "privacy": {"data_collection": False}, "pricing": {},
+    }
+    assert set(endpoint_eligibility_reasons(endpoint, policy)) == {
+        "context_capacity_unknown", "completion_capacity_unknown",
+    }
+    assert endpoint_eligibility_reasons(endpoint | {
+        "context_length": 131072, "max_completion_tokens": 16384,
+    }, policy) == []
+
+
+def test_compatible_audience_request_restricts_actual_provider_routes(monkeypatch) -> None:
+    from app.llmops import policies
+    from app.llmops.contracts import ModelPolicyDocument
+
+    policy = ModelPolicyDocument(name="audience", purpose="comments",
+        models=("meta-llama/llama-3.1-8b-instruct",), compatibility_mode="json_object",
+        max_completion_tokens=2500, minimum_context_tokens=8000,
+        provider={"data_collection": "deny", "allow_fallbacks": False, "require_parameters": True})
+    monkeypatch.setattr(policies, "validate_model_policy", lambda *args, **kwargs: {
+        "eligible_routes": {policy.models[0]: ["novita", "deepinfra", "novita"]}})
+    bounded = policies.compatible_request_policy(None, policy)
+    assert bounded.provider.to_openrouter()["only"] == ["deepinfra", "novita"]
+    assert bounded.provider.data_collection == "deny"
+    assert bounded.provider.allow_fallbacks is False
+    assert bounded.models == policy.models
+    assert policy.provider.mode == "all_compatible"
+
+    def unavailable(*args, **kwargs):
+        raise policies.PolicyCompatibilityError(["no eligible endpoint remains"])
+    monkeypatch.setattr(policies, "validate_model_policy", unavailable)
+    with pytest.raises(policies.PolicyCompatibilityError):
+        policies.compatible_request_policy(None, policy)

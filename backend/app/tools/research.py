@@ -56,7 +56,8 @@ def _comment_body(comments: YouTubeCommentsOutput) -> str:
     lines = ["# Selected audience comments", "", '<untrusted-data source="youtube-comments">']
     for comment in comments.comments:
         published = comment.published_at.isoformat() if comment.published_at else "unknown"
-        lines.append(f"- [{comment.comment_id}] likes={comment.like_count} published={published}: {comment.text}")
+        text = " ".join(comment.text.split())
+        lines.append(f"- [{comment.comment_id}] likes={comment.like_count} published={published}: {text}")
     lines.extend(["</untrusted-data>", ""])
     return "\n".join(lines)
 

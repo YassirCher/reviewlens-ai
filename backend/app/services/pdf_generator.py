@@ -78,30 +78,7 @@ def _sanitize(val: Any) -> str:
     if val is None:
         return ""
     text = str(val)
-    replacements = {
-        "\u2014": " -- ",
-        "\u2013": " - ",
-        "\u2018": "'",
-        "\u2019": "'",
-        "\u201c": '"',
-        "\u201d": '"',
-        "\u2022": "&bull;",
-        "\u00b7": "&bull;",
-        "\u2026": "...",
-        "\u2713": "[+]",
-        "\u2714": "[+]",
-        "\u2715": "[-]",
-        "\u2716": "[-]",
-    }
-    for k, v in replacements.items():
-        text = text.replace(k, v)
-    cleaned = []
-    for ch in text:
-        if ord(ch) < 256 and ord(ch) != 127:
-            cleaned.append(ch)
-        else:
-            cleaned.append(" ")
-    return html.escape("".join(cleaned))
+    return html.escape(re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", text))
 
 
 def _verdict_label(val: str) -> str:
@@ -152,6 +129,9 @@ def _claim_citations(source: dict[str, Any]) -> list[tuple[str, str]]:
 
 def generate_report_pdf(payload: dict[str, Any], token: str) -> bytes:
     """Generates an executive, publication-grade PDF dossier from a report payload."""
+    from app.services.unicode_pdf import needs_unicode_renderer, generate_unicode_pdf
+    if needs_unicode_renderer(payload):
+        return generate_unicode_pdf(payload, token)
     buffer = io.BytesIO()
     sources_list = payload.get("sources", [])
     source_numbers = {
@@ -412,9 +392,24 @@ def generate_report_pdf(payload: dict[str, Any], token: str) -> bytes:
     # -------------------------------------------------------------
     # 3. METHODOLOGICAL CONTEXT & REVIEWER BIAS NOTES
     # -------------------------------------------------------------
+    audience = payload.get("comment_analysis")
+    if isinstance(audience, dict):
+        story.append(Paragraph("AUDIENCE COMMENTS", style_body_bold))
+        labels = {"disabled": "Disabled", "unavailable": "Unavailable; grounded video evidence continues",
+                  "insufficient": "Insufficient relevant evidence", "analyzed": "Analyzed as secondary evidence"}
+        story.append(Paragraph(labels.get(audience.get("status"), "Unavailable"), style_body))
+        if audience.get("status") != "disabled":
+            story.append(Paragraph(" | ".join(f"{int(audience.get(key, 0))} {label}" for key, label in (
+                ("comments_sampled", "sampled"), ("comments_retained", "retained"),
+                ("comments_relevant", "relevant"), ("comments_translated", "translated"))), style_meta))
+        for note in audience.get("limitations", []):
+            story.append(Paragraph(_sanitize(note), style_meta))
+        story.append(Spacer(1, 12))
+
     limitations = payload.get("limitations", [])
     warning_labels = {
         "partial_source_coverage": "Some requested sources could not be analyzed.",
+        "comment_analysis_unavailable": "Comment analysis was unavailable for some sources; grounded video evidence remains available.",
         "quality_audit_warning": "Some findings were omitted because their evidence did not fully support them.",
     }
     warnings = [warning_labels.get(value, str(value).replace("_", " ").capitalize()) for value in payload.get("warnings", [])]

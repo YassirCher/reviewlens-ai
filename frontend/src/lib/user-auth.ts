@@ -8,7 +8,7 @@ export type UserProfile = {
 export type UserResearchItem = {
   run_id: string;
   product_name: string;
-  status: "queued" | "running" | "cancelling" | "complete" | "partial" | "failed" | "cancelled";
+  status: "queued" | "running" | "waiting_for_input" | "cancelling" | "complete" | "partial" | "failed" | "cancelled";
   created_at: string;
   started_at: string | null;
   completed_at: string | null;

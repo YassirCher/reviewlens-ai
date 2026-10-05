@@ -123,7 +123,7 @@ def list_user_researches(
         items.append(
             UserResearchItem(
                 run_id=run.id,
-                product_name=run.product_input,
+                product_name=getattr(run, "resolved_product_name", None) or run.product_input,
                 status=run.status,
                 created_at=run.created_at,
                 started_at=run.started_at,

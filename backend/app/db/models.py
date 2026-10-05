@@ -434,7 +434,7 @@ class AnalysisRun(UUIDPrimaryKeyMixin, TimestampMixin, OptimisticLockMixin, Base
     __tablename__ = "analysis_runs"
     __table_args__ = (
         CheckConstraint(
-            "status IN ('queued', 'running', 'complete', 'partial', 'failed', 'cancelling', 'cancelled')",
+            "status IN ('queued', 'running', 'waiting_for_input', 'complete', 'partial', 'failed', 'cancelling', 'cancelled')",
             name="status_valid",
         ),
         CheckConstraint("progress_sequence >= 0", name="progress_sequence_nonnegative"),
@@ -442,6 +442,8 @@ class AnalysisRun(UUIDPrimaryKeyMixin, TimestampMixin, OptimisticLockMixin, Base
 
     product_input: Mapped[str] = mapped_column(String(500), nullable=False)
     canonical_product: Mapped[str] = mapped_column(String(500), nullable=False)
+    resolved_product_name: Mapped[str | None] = mapped_column(String(500))
+    resolved_canonical_product: Mapped[str | None] = mapped_column(String(500))
     initiator_type: Mapped[str] = mapped_column(String(40), nullable=False)
     initiator_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     requested_options: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
@@ -475,8 +477,27 @@ Index("ix_analysis_runs_user_created", AnalysisRun.user_id, AnalysisRun.created_
 Index(
     "ix_analysis_runs_active",
     AnalysisRun.created_at,
-    postgresql_where=AnalysisRun.status.in_(("queued", "running", "cancelling")),
+    postgresql_where=AnalysisRun.status.in_(("queued", "running", "waiting_for_input", "cancelling")),
 )
+
+
+class ProductClarification(UUIDPrimaryKeyMixin, Base):
+    __tablename__ = "product_clarifications"
+    __table_args__ = (CheckConstraint("status IN ('pending', 'answered', 'expired', 'cancelled')", name="status_valid"),)
+    run_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("analysis_runs.id", ondelete="CASCADE"), nullable=False, unique=True)
+    task_run_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("task_runs.id", ondelete="CASCADE"), nullable=False)
+    question: Mapped[str] = mapped_column(String(500), nullable=False)
+    choices: Mapped[list] = mapped_column(JSONB, nullable=False)
+    resolver_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    answer: Mapped[str | None] = mapped_column(String(200))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    answered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+Index("ix_product_clarifications_pending_expiry", ProductClarification.expires_at,
+      postgresql_where=ProductClarification.status == "pending")
 
 
 class RunBudgetState(TimestampMixin, OptimisticLockMixin, Base):
@@ -511,7 +532,7 @@ class TaskRun(UUIDPrimaryKeyMixin, TimestampMixin, OptimisticLockMixin, Base):
     __table_args__ = (
         UniqueConstraint("run_id", "workflow_task_key", "source_key"),
         CheckConstraint(
-            "status IN ('blocked', 'queued', 'running', 'succeeded', 'failed', 'skipped', "
+            "status IN ('blocked', 'queued', 'running', 'waiting_for_input', 'succeeded', 'failed', 'skipped', "
             "'cancelling', 'cancelled', 'timed_out')",
             name="status_valid",
         ),

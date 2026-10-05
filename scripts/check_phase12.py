@@ -26,6 +26,7 @@ EVIDENCE = ROOT / "docs" / "release-evidence" / "phase12-cutover.json"
 APPROVED_MODELS = {
     "deepseek/deepseek-v4-flash",
     "deepseek/deepseek-v4-flash-0731",
+    "meta-llama/llama-3.1-8b-instruct",
 }
 PROTECTED_FRONTEND_FILES = (
     FRONTEND / "tsconfig.json",
@@ -280,7 +281,7 @@ def _assert_approved_models(compose: list[str]) -> None:
     if unexpected:
         raise RuntimeError(f"non-approved Phase 12 inference detected: {unexpected}")
     if seen != APPROVED_MODELS:
-        raise RuntimeError(f"both pinned Flash models were not exercised: {sorted(seen)}")
+        raise RuntimeError(f"pinned review models and the audience model were not exercised: {sorted(seen)}")
 
 
 def _stack_browser(admin_password: str) -> None:
@@ -329,6 +330,56 @@ def _audit_repair_drill(compose: list[str]) -> None:
                 or not result["knowledge_projection_transaction_verified"]
                 or result["source_count_analyzed"] != 5 or not result["review_context_verified"]):
             raise RuntimeError(f"{scenario} violated combined extraction, source coverage, or context isolation: {result}")
+
+
+def _audience_policy_drill(compose: list[str]) -> None:
+    output = support.run(compose + ["exec", "-T", "api", "python", "-m", "app.cli",
+        "analysis-fixture", "--scenario", "comments", "--wait", "--timeout-seconds", "240"],
+        capture_output=True).stdout
+    result = json.loads(output.strip().splitlines()[-1])
+    if not result.get("report_id") or result["source_count_analyzed"] != 5 or result["model_requests"] != 14:
+        raise RuntimeError(f"Audience JSON-object fixture did not publish with five bounded comment calls: {result}")
+
+
+def _clarification_restart_drill(compose: list[str]) -> None:
+    create = """
+import json
+from sqlalchemy import select
+from app.db.session import session_scope
+from app.db.models import TaskRun, ProductClarification
+from app.runtime.service import create_run
+from app.runtime.clarification import pause_for_product
+with session_scope() as db:
+    run = create_run(db, product_name='Sony WH-1000XM5', initiator_type='system_fixture',
+                     requested_options={'source_count': 3, 'analyze_comments': False})
+    task = db.scalar(select(TaskRun).where(TaskRun.run_id == run.id,
+                     TaskRun.handler == 'analysis.resolve_discovered_product'))
+    run.status, task.status = 'running', 'running'
+    pause_for_product(db, run, task, [{'id': 'wf1000xm5', 'product_name': 'Sony WF-1000XM5',
+        'sources': [{'title': 'WF-1000XM5 review', 'url': 'https://www.youtube.com/watch?v=abcdefghijk'}]}])
+    db.flush()
+    row = db.scalar(select(ProductClarification).where(ProductClarification.run_id == run.id))
+    print(json.dumps({'run_id': str(run.id), 'question_id': str(row.id)}))
+"""
+    output = support.run(compose + ["exec", "-T", "api", "python", "-c", create], capture_output=True).stdout
+    identity = json.loads(output.strip().splitlines()[-1])
+    support.run(compose + ["restart", "worker"])
+    verify = f"""
+import uuid
+from sqlalchemy import select, func
+from app.db.session import session_scope
+from app.db.models import AnalysisRun, ProductClarification, TaskAttempt, TaskRun
+from app.runtime.service import repair_unfinished_runs, request_cancellation
+repair_unfinished_runs()
+with session_scope() as db:
+    run = db.get(AnalysisRun, uuid.UUID('{identity['run_id']}'))
+    question = db.get(ProductClarification, uuid.UUID('{identity['question_id']}'))
+    assert run.status == 'waiting_for_input' and question.status == 'pending'
+    assert db.scalar(select(func.count(TaskAttempt.id)).join(TaskRun).where(TaskRun.run_id == run.id)) == 0
+    request_cancellation(db, run.id)
+print('Clarification survived worker restart with zero research dispatch.')
+"""
+    support.run(compose + ["exec", "-T", "api", "python", "-c", verify])
 
 
 def _stack_checks() -> None:
@@ -408,6 +459,8 @@ def _stack_checks() -> None:
         _assert_frontend_redirect()
         support.run(compose + ["run", "--rm", "foundation-tests"])
         _audit_repair_drill(compose)
+        _clarification_restart_drill(compose)
+        _audience_policy_drill(compose)
         _stack_browser(admin_password)
         _assert_approved_models(compose)
         _dependency_outage_drill(compose, "redis")

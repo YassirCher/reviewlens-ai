@@ -28,6 +28,7 @@ from app.analysis.contracts import (
 )
 from app.analysis.prompting import build_prompt_envelope
 from app.analysis.grounding import ground_report
+from app.analysis.support_audit import SupportAuditorInput, SupportedAuditResult, support_audit_input, supported_audit_schema, verified_sources
 from app.analysis.projection import project_claims
 from app.analysis.product_info import (
     ProductExtractionDraft,
@@ -45,8 +46,8 @@ from app.analysis.synthesis import AtomicBuyingSynthesis, AtomicSynthesisInput, 
 from app.analysis.audit import AuditDecisionError, CatalogAuditorInput, CitedAuditorInput, DecisionAuditorInput, FindingAuditResult, cited_audit_input, compact_audit_input, decision_audit_input, finding_audit_schema
 from app.analysis.audit_parts import PartAuditorInput, ReferencedAuditResult, part_audit_input, referenced_audit_schema
 from app.analysis.audit_parts import OwnedAuditResult, owned_audit_schema
-from app.analysis.spans import CaptionBindingError, SpanVideoExtraction, SpanReviewInput, caption_spans, span_extraction_schema, bind_span_extraction
-from app.analysis.audience import AudienceBindingError, BoundAudienceDraft, audience_schema, comment_catalog, bind_audience
+from app.analysis.spans import CaptionBindingError, SpanVideoExtraction, SpanReviewInput, caption_spans, span_extraction_schema, bind_span_extraction, owned_use_candidates
+from app.analysis.audience import AudienceBindingError, BoundAudienceDraft, ClassifiedAudienceDraft, ClassifiedAudienceInput, GroundedAudienceDraft, audience_schema, grounded_classification_schema, comment_catalog, original_comments, bounded_comment_catalog, bind_audience, bind_classifications
 from app.analysis.rendering import CompleteBuyingSynthesis
 from app.config import Settings, settings
 from app.db.models import (
@@ -71,8 +72,10 @@ from app.knowledge.retrieval import ContextBudgetExceeded, build_context_packet,
 from app.knowledge.service import KnowledgeGraphError, create_node, create_relation, create_workspace, read_version_body
 from app.knowledge.storage import MarkdownValidationError
 from app.llmops.accounting import BudgetRejected
+from app.llmops.policies import PolicyCompatibilityError, compatible_request_policy
 from app.llmops.contracts import ChatInvocation, ChatMessage, InvocationContext, ModelPolicyDocument, OpenRouterError
 from app.llmops.gateway import OpenRouterGateway
+from app.public.intent import discovered_choices
 from app.runtime.contracts import canonical_json_hash
 from app.runtime.service import RuntimeTaskError, task_is_cancelled
 from app.tools.contracts import (
@@ -86,6 +89,7 @@ from app.tools.contracts import (
     YouTubeTranscriptOutput,
     YouTubeTranscriptInput,
     YouTubeVideoDetailsOutput,
+    YouTubeVideoMetadata,
 )
 from app.tools.errors import ToolExecutionError
 from app.tools.evidence import transcript_excerpt_matches
@@ -100,6 +104,28 @@ logger = logging.getLogger(__name__)
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _target(run: AnalysisRun) -> str:
+    return getattr(run, "resolved_canonical_product", None) or run.canonical_product
+
+
+def _display_target(run: AnalysisRun) -> str:
+    return getattr(run, "resolved_product_name", None) or run.product_input
+
+
+def _effective_discovery(run: AnalysisRun, *, config: Settings = settings) -> dict:
+    original = _task_output(run.id, "discover_candidates") or {}
+    if not getattr(run, "resolved_product_name", None):
+        return original
+    candidates = original.get("candidates", [])
+    fields = YouTubeVideoMetadata.model_fields
+    metadata = [YouTubeVideoMetadata.model_validate(item.get("metadata") or
+                {key: value for key, value in item.items() if key in fields}) for item in candidates]
+    scores = {video.video_id: score for video, score in rank_candidates(_display_target(run), metadata, config=config)}
+    return {**original, "canonical_product": _target(run), "candidates": [
+        {**item, "deterministic_score": scores[item["video_id"]].total,
+         "deterministic_exclusion": scores[item["video_id"]].excluded_reason} for item in candidates]}
 
 
 def _json_body(label: str, payload: dict[str, Any]) -> str:
@@ -128,8 +154,9 @@ def _comment_body(comments: YouTubeCommentsOutput) -> str:
     lines = ["# Selected audience comments", "", '<untrusted-data source="youtube-comments">']
     for comment in comments.comments:
         published = comment.published_at.isoformat() if comment.published_at else "unknown"
+        text = " ".join(comment.text.split())
         lines.append(
-            f"- [{comment.comment_id}] likes={comment.like_count} published={published}: {comment.text}"
+            f"- [{comment.comment_id}] likes={comment.like_count} published={published}: {text}"
         )
     lines.extend(["</untrusted-data>", ""])
     return "\n".join(lines)
@@ -291,6 +318,8 @@ async def _discover_candidates(
     *,
     config: Settings,
 ) -> dict[str, Any]:
+    # Planning may choose search queries, never silently replace the user's identity.
+    plan = plan.model_copy(update={"canonical_label": _display_target(run)})
     candidate_pool = min(config.youtube_candidate_cap, max(20, plan.requested_source_count * 4))
     search = YouTubeSearchOutput.model_validate(
         await invoke_tool(
@@ -397,6 +426,7 @@ async def _discover_candidates(
                 "source_node_id": str(node_id),
                 "source_version_id": str(version_id),
                 "published_at": video.published_at.isoformat() if video.published_at else None,
+                "metadata": video.model_dump(mode="json"),
             }
         )
         candidates.append(candidate)
@@ -416,7 +446,7 @@ async def _fetch_transcript(
     *,
     config: Settings,
 ) -> dict[str, Any]:
-    discovery = _task_output(run.id, "discover_candidates") or {}
+    discovery = _effective_discovery(run)
     curated = _task_output(run.id, "curate_sources") or {}
     curation = SourceCuration.model_validate({key: curated[key] for key in ("decisions", "ordered_video_ids")})
     candidates = {item["video_id"]: item for item in discovery.get("candidates", [])}
@@ -572,7 +602,7 @@ async def _fetch_transcript(
 
 
 async def _curated_source_queues(run: AnalysisRun, curation: SourceCuration, config: Settings) -> dict:
-    discovery = _task_output(run.id, "discover_candidates") or {}
+    discovery = _effective_discovery(run)
     candidates = {item["video_id"]: item for item in discovery.get("candidates", [])}
     eligible = {item.video_id for item in curation.decisions if item.eligible}
     language = discovery.get("requested_language", "en")
@@ -675,6 +705,7 @@ async def _fetch_comments(
         "source_index": source_index,
         "source_id": source["source_id"],
         "comment_set_node_id": str(comment_node_id),
+        "comment_set_version_id": str(comment_version_id),
         "comments_sampled": comments.comments_sampled,
         "comments_retained": len(comments.comments),
     }
@@ -684,13 +715,13 @@ def _agent_task_input(spec: AgentSpec, task: TaskRun, run: AnalysisRun) -> tuple
     source_index = int(task.input_payload.get("source_index", 0) or 0)
     if spec.key == "research_coordinator":
         return {
-            "product_name": run.product_input,
+            "product_name": _display_target(run),
             "requested_source_count": int(run.requested_options.get("source_count", 5)),
             "requested_language": str(run.requested_options.get("language", "en")),
             "analyze_comments": bool(run.requested_options.get("analyze_comments", False)),
         }, ()
     if spec.key == "source_curator":
-        discovery = _task_output(run.id, "discover_candidates") or {}
+        discovery = _effective_discovery(run)
         clean = [
             {
                 **{key: value for key, value in item.items() if key in CandidateContext.model_fields},
@@ -734,7 +765,7 @@ def _agent_task_input(spec: AgentSpec, task: TaskRun, run: AnalysisRun) -> tuple
         if not chunk_ids:
             return {"_skip": "transcript_unavailable", "source_index": source_index}, ()
         return {
-            "canonical_product": run.canonical_product,
+            "canonical_product": _target(run),
             "source_id": source["source_id"],
             "transcript_node_id": source["transcript_node_id"],
         }, (uuid.UUID(source["source_id"]), uuid.UUID(chunk_ids[0]))
@@ -745,6 +776,8 @@ def _agent_task_input(spec: AgentSpec, task: TaskRun, run: AnalysisRun) -> tuple
         return {
             "source_id": comments["source_id"],
             "comment_set_node_id": comments["comment_set_node_id"],
+            "product_name": _display_target(run),
+            "translation_language": "fr" if str(run.requested_options.get("language", "en")).startswith("fr") else "en",
             "comments_sampled": comments["comments_sampled"],
             "comments_retained": comments["comments_retained"],
         }, (uuid.UUID(comments["comment_set_node_id"]),)
@@ -758,11 +791,15 @@ def _agent_task_input(spec: AgentSpec, task: TaskRun, run: AnalysisRun) -> tuple
             raise RuntimeTaskError("no_valid_source_analyses", category="quality")
         return {"source_analyses": reviews, "audience_analyses": audiences}, ()
     if spec.key == "consensus_analyst":
-        discovery = _task_output(run.id, "discover_candidates") or {}
+        discovery = _effective_discovery(run)
         report_under_repair = None
         if task.input_payload.get("correction_stage"):
             audit = _task_output(run.id, "audit_report") or {}
             original = _task_output(run.id, "build_consensus") or {}
+            if audit.get("source_verification_retry"):
+                # Keep the original cited findings for the existing final audit call.
+                # Rewriting the report cannot repair an over-rejected source audit.
+                return {"_shortcut": original}, ()
             if audit.get("grounding_terminal"):
                 return {"_shortcut": original}, ()
             if (audit.get("audit") or {}).get("verdict") in {"pass", "pass_with_warnings"}:
@@ -772,8 +809,8 @@ def _agent_task_input(spec: AgentSpec, task: TaskRun, run: AnalysisRun) -> tuple
         else:
             issues = []
         return {
-            "product_display_name": run.product_input,
-            "product_canonical_name": discovery.get("canonical_product", run.canonical_product),
+            "product_display_name": _display_target(run),
+            "product_canonical_name": discovery.get("canonical_product", _target(run)),
             "requested_source_count": int(run.requested_options.get("source_count", 5)),
             "source_analyses": reviews,
             "audience_analyses": audiences,
@@ -849,7 +886,7 @@ def _bounded_agent_policy(policy: ModelPolicyDocument, spec: AgentSpec) -> Model
             # a reasoning model can exhaust the request before emitting JSON.
             # OpenRouter enforces that only one of "effort" and "max_tokens" can be specified.
             # Using "effort": "none" eliminates reasoning token overhead, preventing chat_content_truncated.
-            "reasoning": {"effort": "none", "exclude": True},
+            "reasoning": {} if policy.compatibility_mode == "json_object" else {"effort": "none", "exclude": True},
         }
     )
 
@@ -954,7 +991,7 @@ async def _call_agent(
         # Legacy snapshots keep their original input contract.
         input_payload = dict(payload)
         if spec.input_model is SpanReviewInput:
-            input_payload["canonical_product"] = run.canonical_product
+            input_payload["canonical_product"] = _target(run)
         if spec.input_model is AtomicSynthesisInput:
             input_payload = compact_synthesis_input(input_payload)
         if spec.input_model is QuoteSynthesisInput:
@@ -965,6 +1002,9 @@ async def _call_agent(
             input_payload = catalog_repair_synthesis_input(input_payload)
         if spec.input_model is PrioritizedSynthesisInput:
             input_payload = prioritized_synthesis_input(input_payload)
+        if spec.key == "audience_analyst" and spec.input_model is not ClassifiedAudienceInput:
+            input_payload.pop("product_name", None)
+            input_payload.pop("translation_language", None)
         input_payload.pop("claim_catalog", None)
         if spec.input_model is CatalogAuditorInput:
             input_payload = compact_audit_input(input_payload)
@@ -974,6 +1014,8 @@ async def _call_agent(
             input_payload = decision_audit_input(input_payload)
         if spec.input_model is PartAuditorInput:
             input_payload = part_audit_input(input_payload)
+        if spec.input_model is SupportAuditorInput:
+            input_payload = support_audit_input(input_payload)
         input_payload.pop("audit_diagnostics", None)
         if spec.key == "consensus_analyst" and "report_under_repair" not in spec.input_model.model_fields:
             input_payload.pop("report_under_repair", None)
@@ -1002,21 +1044,47 @@ async def _call_agent(
         run,
         spec,
         seeds,
-        run.canonical_product,
+        _target(run),
         config=config,
         budget_override=budget_override,
     )
     spans = ()
     comment_refs, comment_dates = set(), set()
+    comment_texts: dict[str, str] = {}
+    comment_selection: dict[str, Any] = {}
+    comment_catalog_at = run.created_at
     if issubclass(spec.output_model, SpanVideoExtraction):
-        spans = caption_spans(rendered, run.canonical_product)
+        spans = caption_spans(rendered, _target(run))
         if not spans:
             raise RuntimeTaskError("caption_span_catalog_empty", category="quality")
         rendered = '<untrusted-data source="assigned-video-caption-catalog">\n' + "\n".join(
             json.dumps(span.model_dump(mode="json"), ensure_ascii=False, separators=(",", ":")) for span in spans) + '\n</untrusted-data>'
+        candidates = owned_use_candidates(spans)
+        if candidates:
+            rendered += '\nCandidate use-duration refs (hints, not proof): ' + ', '.join(candidates) + '. Explicitly decide ownership_span_refs; select only when the cited reviewer used the requested model.'
         context_tokens = estimate_tokens(rendered)
-    if issubclass(spec.output_model, BoundAudienceDraft):
-        rendered, comment_refs, comment_dates = comment_catalog(rendered, run.created_at)
+    if issubclass(spec.output_model, (BoundAudienceDraft, ClassifiedAudienceDraft)):
+        if issubclass(spec.output_model, GroundedAudienceDraft):
+            fetched = _task_output(run.id, f"fetch_comments.source_{task.input_payload['source_index']}") or {}
+            with session_scope() as db:
+                workspace = db.scalar(select(Workspace).where(Workspace.run_id == run.id))
+                node = db.get(ContextNode, uuid.UUID(payload['comment_set_node_id']))
+                version_id = fetched.get('comment_set_version_id') or (node.current_version_id if node else None)
+                version = db.get(ContextNodeVersion, uuid.UUID(str(version_id))) if version_id else None
+                if not workspace or not node or node.workspace_id != workspace.id or node.node_type != NodeType.COMMENT_SET or not version or version.node_id != node.id:
+                    raise RuntimeTaskError('comment_source_lineage_invalid', category='validation')
+                rendered = read_version_body(workspace, version, config=config)[1]
+                # Comments posted during a run can be valid acquired evidence.
+                # Replay uses the immutable acquisition time, not wall-clock now.
+                comment_catalog_at = version.created_at
+            rendered, comment_refs, comment_selection = bounded_comment_catalog(rendered, comment_catalog_at)
+            if not comment_refs:
+                return {"skipped": True, "reason": "insufficient_audience_evidence", "audience_artifact": {
+                    "status": "insufficient", "comments_sampled": payload['comments_sampled'],
+                    "comments_retained": 0, "comments_relevant": 0, "comments_translated": 0,
+                    "classifications": [], "selection": comment_selection}}
+        rendered, comment_refs, comment_dates = comment_catalog(rendered, comment_catalog_at)
+        comment_texts = original_comments(rendered)
         rendered = '<untrusted-data source="retained-audience-comments">\n' + rendered + '\n</untrusted-data>'
         context_tokens = estimate_tokens(rendered)
     correction = attempt_input.get("correction")
@@ -1062,6 +1130,11 @@ async def _call_agent(
         ):
             raise RuntimeTaskError("agent_snapshot_mismatch", category="configuration")
         policy = _bounded_agent_policy(ModelPolicyDocument.model_validate(policy_row.policy), spec)
+        if issubclass(spec.output_model, ClassifiedAudienceDraft):
+            try:
+                policy = compatible_request_policy(db, policy, config=config)
+            except PolicyCompatibilityError as exc:
+                raise RuntimeTaskError("audience_route_unavailable", category="configuration") from exc
         estimated_cost = _model_estimated_cost(
             db, policy.models[0], prompt_tokens, policy.max_completion_tokens
         )
@@ -1092,6 +1165,8 @@ async def _call_agent(
         ),
         response_schema=(span_extraction_schema(spans, spec.output_model) if issubclass(spec.output_model, SpanVideoExtraction) else
                          audience_schema(spec.output_model) if issubclass(spec.output_model, BoundAudienceDraft) else
+                         grounded_classification_schema() if spec.output_model is GroundedAudienceDraft else
+                         supported_audit_schema(SupportAuditorInput.model_validate(task_input_data)) if spec.output_model is SupportedAuditResult else
                          owned_audit_schema(PartAuditorInput.model_validate(task_input_data)) if spec.output_model is OwnedAuditResult else
                          video_extraction_schema(spec.output_model) if issubclass(spec.output_model, VideoExtraction) else
                          referenced_audit_schema(PartAuditorInput.model_validate(task_input_data))
@@ -1137,9 +1212,20 @@ async def _call_agent(
         ) from exc
     try:
         if issubclass(spec.output_model, SpanVideoExtraction):
-            extraction, diagnostics = bind_span_extraction(result.content, spans, run.canonical_product)
+            extraction, diagnostics = bind_span_extraction(result.content, spans, _target(run), spec.output_model)
             object.__setattr__(extraction, "_span_diagnostics", diagnostics)
             return extraction
+        if issubclass(spec.output_model, ClassifiedAudienceDraft):
+            analysis, artifact = bind_classifications(result.content, source_id=uuid.UUID(payload["source_id"]),
+                sampled=payload["comments_sampled"], refs=comment_refs,
+                translation_language=payload["translation_language"],
+                original_texts=comment_texts, product=_target(run), grounded=spec.output_model is GroundedAudienceDraft)
+            if comment_selection:
+                artifact['selection'] = comment_selection
+            if analysis is None:
+                return {"audience_artifact": artifact, "skipped": True, "reason": "insufficient_audience_evidence"}
+            object.__setattr__(analysis, "_audience_artifact", artifact)
+            return analysis
         if issubclass(spec.output_model, BoundAudienceDraft):
             audience, diagnostics = bind_audience(result.content, source_id=uuid.UUID(payload["source_id"]),
                 sampled=payload["comments_sampled"], refs=comment_refs, dates=comment_dates)
@@ -1621,6 +1707,10 @@ def _score(
     return preview_scoring(request).model_dump(mode="json")
 
 
+def _needs_product_recovery(initial: dict[str, Any]) -> bool:
+    return bool(initial.get("source_id")) and len(initial.get("facts") or ()) < 2
+
+
 async def _execute_agent(
     attempt_id: uuid.UUID,
     task: TaskRun,
@@ -1639,6 +1729,12 @@ async def _execute_agent(
     payload, seeds = _agent_task_input(spec, task, run)
     if "_skip" in payload:
         return {"skipped": True, "reason": payload["_skip"], "source_index": payload.get("source_index")}
+    if task.workflow_task_key.startswith("recover_product_information.source_"):
+        source_index = int(task.input_payload.get("source_index", 0) or 0)
+        initial = _task_output(run.id, f"extract_product_information.source_{source_index}") or {}
+        if not _needs_product_recovery(initial):
+            return {"skipped": True, "reason": "product_information_sufficient" if initial.get("source_id")
+                    else "source_unavailable", "source_index": source_index}
     if "_shortcut" in payload:
         return {**payload["_shortcut"], "correction_skipped": True}
     if spec.key == "source_curator" and _all_source_candidates_excluded(payload):
@@ -1686,7 +1782,11 @@ async def _execute_agent(
     if spec.key == "source_curator":
         return await _curated_source_queues(run, SourceCuration.model_validate(result), config)
     if spec.key == "audience_analyst":
+        if isinstance(result, dict) and result.get("skipped"):
+            return result
         output = _postprocess_audience(attempt_id, run, AudienceAnalysisDraft.model_validate(result), config=config)
+        if hasattr(result, "_audience_artifact"):
+            output["audience_artifact"] = result._audience_artifact
         if hasattr(result, "_binding_diagnostics"):
             output["binding_diagnostics"] = result._binding_diagnostics
         return output
@@ -1729,6 +1829,7 @@ async def _execute_agent(
             "source_analyses": reviews,
             "audience_analyses": audiences,
             "synthesis_diagnostics": synthesis_diagnostics,
+            "claim_catalog": payload.get("claim_catalog", []),
             "synthesis_output_hash": canonical_json_hash(result.model_dump(mode="json")),
         }
     if spec.key == "quality_auditor":
@@ -1742,7 +1843,11 @@ async def _execute_agent(
         diagnostics: dict[str, Any] = {}
         if isinstance(result, (FindingAuditResult, ReferencedAuditResult, OwnedAuditResult)):
             try:
-                if isinstance(result, (ReferencedAuditResult, OwnedAuditResult)):
+                if isinstance(result, SupportedAuditResult):
+                    model_audit, diagnostics = result.as_audit(SupportAuditorInput.model_validate(support_audit_input(payload)))
+                    reviews, pruning = verified_sources(reviews, diagnostics["source_claim_rejections"], consensus.get("claim_catalog", []))
+                    diagnostics.update(pruning)
+                elif isinstance(result, (ReferencedAuditResult, OwnedAuditResult)):
                     model_audit, diagnostics = result.as_audit(PartAuditorInput.model_validate(part_audit_input(payload)))
                 else:
                     model_audit, diagnostics = result.as_audit(DecisionAuditorInput.model_validate(decision_audit_input(payload)))
@@ -1768,7 +1873,29 @@ async def _execute_agent(
         if audit.verdict != "fail" and any(item.get("action") == "omitted" for item in diagnostics["synthesis"]):
             audit = audit.model_copy(update={"verdict": "pass_with_warnings", "issues": (*audit.issues,
                 AuditIssue(code="synthesis_finding_omitted", field_path="report_draft"))})
-        scoring = _score(reviews, consensus.get("audience_analyses", []),
+        retained_ids = {review["source_id"] for review in reviews}
+        if not reviews:
+            # A model can reject every source claim even when the reviewed videos
+            # contain usable citations. Keep the failed decision as a durable
+            # artifact and spend the workflow's existing final audit call on a
+            # second independent check. Publication still requires verified
+            # sources and a passing audit.
+            return {
+                "audit": AuditResult(verdict="fail", issues=(AuditIssue(
+                    code="no_verified_source_claims", field_path="source_analyses"),)).model_dump(mode="json"),
+                "consensus_task": consensus_key,
+                "safe_draft": safe_draft.model_dump(mode="json"),
+                "grounding_terminal": bool(task.input_payload.get("reaudit_stage")),
+                "source_verification_retry": not bool(task.input_payload.get("reaudit_stage")),
+                "audit_diagnostics": diagnostics,
+                "source_analyses": [],
+            }
+        if diagnostics.get("source_claims_removed"):
+            safe_draft = safe_draft.model_copy(update={"limitations": (*safe_draft.limitations,
+                "Some proposed reviewer observations were omitted because their citations did not establish every material detail.")[:10]})
+            if audit.verdict == "pass":
+                audit = audit.model_copy(update={"verdict": "pass_with_warnings"})
+        scoring = _score(reviews, [item for item in consensus.get("audience_analyses", []) if item["source_id"] in retained_ids],
                          int(run.requested_options.get("source_count", 5)), safe_draft)
         return {
             "audit": audit.model_dump(mode="json"),
@@ -1777,6 +1904,7 @@ async def _execute_agent(
             "scoring": scoring,
             "grounding_terminal": grounding_terminal,
             "audit_diagnostics": diagnostics,
+            **({"source_analyses": reviews} if isinstance(result, SupportedAuditResult) else {}),
         }
     return result.model_dump(mode="json")
 
@@ -1790,7 +1918,7 @@ def _postprocess_product_information(run: AnalysisRun, source: dict,
     metadata, transcript_body = _product_source_material(run, source, config)
     rejected: list[dict[str, str]] = []
     source_args = dict(title=str(metadata.get("title") or ""), description=str(metadata.get("description") or ""),
-        transcript_body=transcript_body, video_id=source["video_id"], canonical_product=run.canonical_product,
+        transcript_body=transcript_body, video_id=source["video_id"], canonical_product=_target(run),
         diagnostics=rejected)
     facts, variants, sample = (validate_span_products(span_payload, spans or {}, **source_args) if span_payload is not None
                               else validate_extraction(draft, **source_args))
@@ -1851,18 +1979,25 @@ def _publish_report(
     consensus = _task_output(run.id, consensus_key) or _task_output(run.id, "build_consensus") or {}
     draft = FinalReportDraft.model_validate(audit_payload.get("safe_draft") or consensus.get("draft", {}))
     scoring = audit_payload.get("scoring") or consensus.get("scoring", {})
-    reviews = consensus.get("source_analyses", [])
-    audiences = consensus.get("audience_analyses", [])
+    reviews = audit_payload.get("source_analyses", consensus.get("source_analyses", []))
+    retained_ids = {item["source_id"] for item in reviews}
+    audiences = [item for item in consensus.get("audience_analyses", []) if item["source_id"] in retained_ids]
     if not reviews or not scoring.get("publishable"):
         raise RuntimeTaskError("report_publication_gate_failed", category="quality")
     warnings = list(scoring.get("warning_codes", []))
+    if isinstance(getattr(run, "warning_summary", None), dict) and run.warning_summary.get("comment_analysis_unavailable"):
+        warnings.append("comment_analysis_unavailable")
     if audit.verdict == "pass_with_warnings":
         warnings.append("quality_audit_warning")
     requested = int(run.requested_options.get("source_count", 5))
-    product_outputs = _outputs_with_prefix(run.id, "extract_product_information.source_")
+    product_outputs = (_outputs_with_prefix(run.id, "extract_product_information.source_")
+                       + _outputs_with_prefix(run.id, "recover_product_information.source_"))
+    if "source_analyses" in audit_payload:
+        product_outputs = [item for item in product_outputs if item.get("source_id") in retained_ids]
     product_info = merge_product_info(product_outputs)
     has_product_tasks = _has_task_prefix(run.id, "extract_product_information.source_")
-    sample_by_source = {item.get("source_id"): item.get("sample_used") for item in product_outputs}
+    sample_by_source = {item.get("source_id"): item.get("sample_used") for item in product_outputs
+                        if (item.get("sample_used") or {}).get("units")}
 
     def sample_for(source_id: str) -> SampleUsed:
         try:
@@ -1999,7 +2134,7 @@ async def _execute(
             workspace = create_workspace(db, run.id, config=config)
             workspace_id = workspace.id
         return {
-            "product_name": run.product_input,
+            "product_name": _display_target(run),
             "source_count": source_count,
             "analyze_comments": bool(run.requested_options.get("analyze_comments", False)),
             "workspace_id": str(workspace_id),
@@ -2007,6 +2142,10 @@ async def _execute(
     if handler == "analysis.discover_candidates":
         plan = QueryPlan.model_validate(_task_output(run.id, "plan_research") or {})
         return await _discover_candidates(attempt_id, run, plan, config=config)
+    if handler == "analysis.resolve_discovered_product":
+        discovery = _effective_discovery(run)
+        return {"clarification_choices": discovered_choices(_display_target(run), discovery.get("candidates", [])),
+                "requested_product": run.product_input}
     if handler == "analysis.fetch_transcript":
         return await _fetch_transcript(
             attempt_id,

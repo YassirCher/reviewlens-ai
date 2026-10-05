@@ -9,11 +9,13 @@ const PENDING_KEY = "reviewlens:v2:pending-submission";
 
 type Notice = { key: string; kind: "preflight" | "creation"; text: string; retryAt: number | null };
 
-export function V2Intake() {
+export function V2Intake({ initialProduct = "" }: { initialProduct?: string }) {
   const router = useRouter();
-  const [name, setName] = useState("");
-  const [videoCount, setVideoCount] = useState(5);
+  const [name, setName] = useState(initialProduct);
+  const [videoCount, setVideoCount] = useState(3);
   const [comments, setComments] = useState(false);
+  const [locale, setLocale] = useState<"en" | "fr">("en");
+  const [confirmedName, setConfirmedName] = useState<string | null>(null);
   const [estimateRecord, setEstimate] = useState<{ key: string; data: Preflight; retryAt: number | null } | null>(null);
   const [checking, setChecking] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -24,7 +26,8 @@ export function V2Intake() {
   const generation = useRef(0);
   const activeCheck = useRef<AbortController | null>(null);
   const validation = productError(name);
-  const input: AnalysisInput = { product_name: name.trim().replace(/\s+/g, " "), video_count: videoCount, analyze_comments: comments };
+  const input: AnalysisInput = { product_name: name.trim().replace(/\s+/g, " "), video_count: videoCount, analyze_comments: comments, locale,
+    ...(confirmedName === name ? { intent_confirmation: { product_name: name.trim().replace(/\s+/g, " "), exact_model: true as const } } : {}) };
   const inputKey = JSON.stringify(input);
   const estimate = estimateRecord?.key === inputKey ? estimateRecord.data : null;
   const message = notice?.key === inputKey ? notice : null;
@@ -137,11 +140,19 @@ export function V2Intake() {
       <div className="v2-section-top"><div><p className="v2-eyebrow">START A RESEARCH RUN</p><h2 id="v2-composer-title">What are you considering?</h2></div><span className="v2-step">01 — PRODUCT</span></div>
       <form onSubmit={submit} noValidate>
         <label className="v2-label" htmlFor="v2-product">Product name or exact model</label>
-        <div className="v2-input-row"><input id="v2-product" autoComplete="off" value={name} disabled={submitting} maxLength={500} aria-invalid={Boolean(touched && validation)} aria-describedby="v2-product-help v2-product-error" placeholder="e.g. Sony WH-1000XM5 headphones" onChange={(event) => { setName(event.target.value); setEstimate(null); setChecking(false); setMessage(null); }} onBlur={() => setTouched(true)} onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }} /><button className="v2-button v2-submit" type="submit" disabled={submitting || Boolean(validation)}>{submitting ? "Starting research…" : "Analyze product"}<ArrowRight size={18} aria-hidden="true" /></button></div>
+        <div className="v2-input-row"><input id="v2-product" autoComplete="off" value={name} disabled={submitting} maxLength={500} aria-invalid={Boolean(touched && validation)} aria-describedby="v2-product-help v2-product-error" placeholder="e.g. Sony WH-1000XM5 headphones" onChange={(event) => { setName(event.target.value); setConfirmedName(null); setEstimate(null); setChecking(false); setMessage(null); }} onBlur={() => setTouched(true)} onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }} /><button className="v2-button v2-submit" type="submit" disabled={submitting || Boolean(validation)}>{submitting ? "Starting research…" : "Analyze product"}<ArrowRight size={18} aria-hidden="true" /></button></div>
         <p id="v2-product-help" className="v2-help">Include the brand and model for better source matching. For example: “POCO F7” or “Dyson V15 Detect”.</p>
         <p id="v2-product-error" className="v2-error" role="alert">{touched && validation ? validation : ""}</p>
 
-        <details className="v2-advanced"><summary>Research options <span>Choose how many reviews to compare and whether to include comments</span></summary><div className="v2-option-grid"><div><label className="v2-label" htmlFor="v2-video-count">Review sources</label><select id="v2-video-count" value={videoCount} disabled={submitting} onChange={(event) => { setVideoCount(Number(event.target.value)); setEstimate(null); setChecking(false); setMessage(null); }}>{[3,4,5,6,7,8].map(count => <option key={count} value={count}>{count} videos{count === 5 ? " · default" : ""}</option>)}</select><p className="v2-help">More sources can improve coverage but take longer and use more analysis capacity.</p></div><div><label className="v2-switch-label" htmlFor="v2-comments"><span><MessageSquareText size={18} aria-hidden="true" /> Include top comments</span><input id="v2-comments" type="checkbox" checked={comments} disabled={submitting} onChange={(event) => { setComments(event.target.checked); setEstimate(null); setChecking(false); setMessage(null); }} /></label><p className="v2-help">Comments are secondary signals, never a substitute for independent reviews.</p></div></div></details>
+        {estimate?.intent_resolution?.status === "requires_clarification" && <section className="v2-clarification" aria-labelledby="v2-intent-heading">
+          <h3 id="v2-intent-heading">Which product do you mean?</h3>
+          <p>{estimate.intent_resolution.question}</p>
+          <p className="v2-help">Update the product field with the exact model, then select Analyze product. No research has started.</p>
+          {estimate.intent_resolution.reason === "unknown_model" && <label className="v2-switch-label">
+            <span>This is the complete brand and model name</span><input type="checkbox" checked={confirmedName === name} disabled={submitting} onChange={event => { setConfirmedName(event.target.checked ? name : null); setEstimate(null); setMessage(null); }} />
+          </label>}
+        </section>}
+        <details className="v2-advanced"><summary>Research options <span>Choose how many reviews to compare and whether to include comments</span></summary><div className="v2-option-grid"><div><label className="v2-label" htmlFor="v2-video-count">Review sources</label><select id="v2-video-count" value={videoCount} disabled={submitting} onChange={(event) => { if (Number(event.target.value) === videoCount) return; setVideoCount(Number(event.target.value)); setEstimate(null); setChecking(false); setMessage(null); }}>{[3,4,5].map(count => <option key={count} value={count}>{count} videos{count === 3 ? " · default" : ""}</option>)}</select><p className="v2-help">More sources can improve coverage but take longer and use more analysis capacity.</p></div><div><label className="v2-switch-label" htmlFor="v2-comments"><span><MessageSquareText size={18} aria-hidden="true" /> Include top comments</span><input id="v2-comments" type="checkbox" checked={comments} disabled={submitting} onChange={(event) => { setComments(event.target.checked); setEstimate(null); setChecking(false); setMessage(null); }} /></label><p className="v2-help">Comments are secondary signals, never a substitute for independent reviews.</p></div><div><label className="v2-label" htmlFor="v2-report-language">Evidence language</label><select id="v2-report-language" value={locale} disabled={submitting} onChange={event => { setLocale(event.target.value as "en" | "fr"); setEstimate(null); setMessage(null); }}><option value="en">English</option><option value="fr">French</option></select><p className="v2-help">Comments in other languages are translated for analysis; originals remain available.</p></div></div></details>
         <div className="v2-admission" aria-live="polite">{checking ? <><Clock3 size={16} aria-hidden="true" /> Checking availability…</> : estimate && !validation ? <>{estimate.allowed ? <Check size={16} aria-hidden="true" /> : <ShieldCheck size={16} aria-hidden="true" />}<span>{estimate.allowed ? `Research available · ${estimate.remaining_public_quota.hourly_remaining} hourly request${estimate.remaining_public_quota.hourly_remaining === 1 ? "" : "s"} remaining · estimate is non-binding` : admissionMessage(estimate.denial_code, estimate.recovery)}</span></> : <><ShieldCheck size={16} aria-hidden="true" /> Availability and quota are checked before research begins.</>}</div>
         {message && <p className="v2-alert v2-alert-error" role="alert">{message.text}</p>}
       </form>

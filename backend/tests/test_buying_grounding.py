@@ -221,6 +221,28 @@ def test_passing_first_audit_skips_correction_and_reaudit(monkeypatch: pytest.Mo
     assert reaudit["_shortcut"] == first_audit
 
 
+def test_empty_verified_source_audit_uses_existing_reaudit_call(monkeypatch: pytest.MonkeyPatch) -> None:
+    draft, reviews = _fixture()
+    run = SimpleNamespace(id=uuid.uuid4())
+    original = {"draft": draft.model_dump(mode="json"), "source_analyses": reviews}
+    first_audit = {"audit": {"verdict": "fail", "issues": [{
+        "code": "no_verified_source_claims", "field_path": "source_analyses",
+    }]}, "source_verification_retry": True, "grounding_terminal": False}
+    monkeypatch.setattr(executor, "_task_output", lambda _run_id, key: {
+        "audit_report": first_audit, "build_consensus": original, "correct_consensus": original,
+    }.get(key))
+    monkeypatch.setattr(executor, "_outputs_with_prefix", lambda *_args: [{"analysis": review} for review in reviews])
+    correction, _ = executor._agent_task_input(
+        AGENT_REGISTRY["consensus_analyst"], SimpleNamespace(input_payload={"correction_stage": True}), run,
+    )
+    reaudit, _ = executor._agent_task_input(
+        AGENT_REGISTRY["quality_auditor"], SimpleNamespace(input_payload={"reaudit_stage": True}), run,
+    )
+    assert correction["_shortcut"] == original
+    assert "_shortcut" not in reaudit
+    assert reaudit["source_analyses"] == reviews
+
+
 def test_missing_central_evidence_remains_terminal(monkeypatch: pytest.MonkeyPatch) -> None:
     draft, reviews = _fixture()
     for review in reviews:

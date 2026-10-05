@@ -11,6 +11,7 @@ app = FastAPI(title="ReviewLens OpenRouter contract mock")
 RUN_SCENARIOS: dict[str, str] = {}
 ROLE_CALLS: Counter[tuple[str, str]] = Counter()
 INFERENCE_MODELS: Counter[tuple[str, str]] = Counter()
+AUDIENCE_MODEL = "meta-llama/llama-3.1-8b-instruct"
 DEEPSEEK_FLASH_MODELS = {
     "deepseek/deepseek-v4-flash",
     "deepseek/deepseek-v4-flash-0731",
@@ -23,7 +24,7 @@ def _require_auth(authorization: str | None) -> None:
 
 
 def _allowed_inference_models() -> set[str]:
-    configured = os.getenv("PHASE12_ALLOWED_INFERENCE_MODELS", ",".join(sorted(DEEPSEEK_FLASH_MODELS)))
+    configured = os.getenv("PHASE12_ALLOWED_INFERENCE_MODELS", ",".join(sorted(DEEPSEEK_FLASH_MODELS | {AUDIENCE_MODEL})))
     return {item.strip() for item in configured.split(",") if item.strip()}
 
 
@@ -102,6 +103,17 @@ def models(authorization: str | None = Header(default=None)) -> dict:
                 "pricing": {"prompt": "0.000001", "completion": "0.000002"},
                 "top_provider": {"max_completion_tokens": 16384},
             },
+            {
+                "id": "meta-llama/llama-3.1-8b-instruct",
+                "canonical_slug": "meta-llama/llama-3.1-8b-instruct",
+                "name": "Llama 3.1 8B audience fixture",
+                "description": "Local Phase 12 pinned-model contract fixture",
+                "context_length": 65536,
+                "architecture": {"input_modalities": ["text"], "output_modalities": ["text"]},
+                "supported_parameters": ["response_format", "temperature"],
+                "pricing": {"prompt": "0.000001", "completion": "0.000002"},
+                "top_provider": {"max_completion_tokens": 16384},
+            },
         ]
     }
 
@@ -156,8 +168,8 @@ def endpoints(author: str, slug: str, authorization: str | None = Header(default
                     "id": f"fixture/{model}",
                     "provider_slug": "fixture",
                     "provider_name": "Fixture Provider",
-                    "context_length": 65536 if model in DEEPSEEK_FLASH_MODELS else 4096,
-                    "max_completion_tokens": 16384 if model in DEEPSEEK_FLASH_MODELS else 1024,
+                    "context_length": 65536 if model in DEEPSEEK_FLASH_MODELS | {AUDIENCE_MODEL} else 4096,
+                    "max_completion_tokens": 16384 if model in DEEPSEEK_FLASH_MODELS | {AUDIENCE_MODEL} else 1024,
                     "quantization": "fp16",
                     "supported_parameters": ["response_format", "temperature"],
                     "pricing": {"prompt": "0.000001", "completion": "0.000002"},
@@ -203,9 +215,17 @@ async def chat(
     if body.get("provider", {}).get("require_parameters") is not True:
         raise HTTPException(status_code=400, detail="require_parameters missing")
     response_format = body.get("response_format", {})
-    if response_format.get("type") != "json_schema":
+    if response_format.get("type") not in {"json_schema", "json_object"}:
         raise HTTPException(status_code=400, detail="strict response format missing")
     schema_name = response_format.get("json_schema", {}).get("name", "")
+    if response_format.get("type") == "json_object":
+        if requested_models != [AUDIENCE_MODEL]:
+            raise HTTPException(status_code=400, detail="audience model required")
+        if body.get("provider", {}).get("only") != ["fixture"]:
+            raise HTTPException(status_code=400, detail="audience must restrict requests to validated endpoints")
+        schema_name = "ClassifiedAudienceDraft"
+    elif AUDIENCE_MODEL in requested_models:
+        raise HTTPException(status_code=400, detail="audience JSON object contract required")
     trace_id = str(body.get("metadata", {}).get("trace_id", "unknown"))
     task_input: dict = {}
     messages = body.get("messages") or []
@@ -218,6 +238,9 @@ async def chat(
             task_input = trusted.get("task_input", {})
             if evaluation_case := trusted.get("evaluation_case"):
                 task_input["_evaluation_case_id"] = evaluation_case
+    if schema_name == "ClassifiedAudienceDraft":
+        comment_text = "\n".join(str(item.get("content", "")) for item in messages)
+        task_input["_comment_refs"] = list(dict.fromkeys(re.findall(r"^- \[([^\]]+)\] likes=", comment_text, re.M)))
     if schema_name == "ResearchCoordinatorInput":
         raise HTTPException(status_code=400, detail="wrong schema selected")
     content = ({"phase10_invalid": True} if mock_failure == "schema_rejection"
@@ -363,6 +386,13 @@ def _structured_content(schema_name: str, trace_id: str, task_input: dict) -> di
                 }]}],
             }
         return {"facts": [], "variants": [], "sample_units": []}
+    if schema_name == "ClassifiedAudienceDraft":
+        return {"comments": [{"ref": ref, "relevant": ref != "gold-c",
+                              "sentiment": "neutral" if ref in {"gold-c", "gold-e"} else "negative" if ref == "gold-d" else "positive",
+                              "language": "es" if ref == "gold-e" else "en",
+                              "translation": "I have Aurora Headphones, no opinion yet." if ref == "gold-e" else None}
+                             for ref in task_input.get("_comment_refs", [])],
+                "recurring_pros": [], "recurring_cons": [], "repeated_issues": []}
     if schema_name in {"BoundAudienceDraft", "CompactAudienceDraft"}:
         return {"positive_pct": 60, "neutral_pct": 25, "negative_pct": 15,
                 "recurring_pros": [], "recurring_cons": [], "repeated_issues": [],
@@ -474,12 +504,12 @@ def _structured_content(schema_name: str, trace_id: str, task_input: dict) -> di
             "who_should_avoid": ["buyers focused only on lowest price"],
             "limitations": ["YouTube transcript evidence only"],
         }
-    if schema_name == "OwnedAuditResult":
+    if schema_name in {"OwnedAuditResult", "SupportedAuditResult"}:
         # Contract fixtures exercise gates, not live model semantic accuracy.
         scenario = RUN_SCENARIOS.get(trace_id, "complete")
         should_fail = (scenario in {"audit_fail", "audit_empty_correction", "audit_unchanged_correction"}
                        or scenario in {"audit_correction", "audit_uppercase_correction"} and ROLE_CALLS[(trace_id, schema_name)] == 1)
-        return {"decisions": {finding["field_path"]: {"supported": not should_fail,
+        response = {"decisions": {finding["field_path"]: {"supported": not should_fail,
                     "category": "material" if should_fail else None,
                     "rejected_part_ref": finding["statement"][0]["part_ref"] if should_fail else None,
                     "explanation": "Fixture-only rejection exercising repair." if should_fail else None}
@@ -488,6 +518,15 @@ def _structured_content(schema_name: str, trace_id: str, task_input: dict) -> di
                     "rejected_part_ref": task_input["report_draft"]["summary"][0]["part_ref"],
                     "explanation": "The supplied battery quote does not support the exaggerated summary."}]
                     if task_input.get("_evaluation_case_id") else []}
+        if schema_name == "SupportedAuditResult":
+            findings = [*task_input.get("source_claims", []), *(f for field in ("consensus_pros", "consensus_cons") for f in task_input["report_draft"][field])]
+            for index, disagreement in enumerate(task_input["report_draft"].get("disagreements", [])):
+                for side in ("side_a", "side_b"):
+                    findings.append({"field_path": f"report_draft.disagreements[{index}].{side}", "statement": disagreement[side], "citations": disagreement[side + "_citations"]})
+            for finding in findings:
+                decision = response["decisions"].setdefault(finding["field_path"], {"supported": True, "category": None, "rejected_part_ref": None, "explanation": None})
+                decision["supporting_parts"] = {part["part_ref"]: [q["evidence_ref"] for q in finding["citations"]] for part in finding["statement"]} if decision["supported"] else {}
+        return response
     if schema_name in {"FindingAuditResult", "ReferencedAuditResult"}:
         scenario = RUN_SCENARIOS.get(trace_id, "complete")
         should_fail = (scenario in {"audit_fail", "audit_empty_correction", "audit_unchanged_correction"}

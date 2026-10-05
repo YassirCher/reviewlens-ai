@@ -1,0 +1,813 @@
+{
+  "provenance": "Public transcript snippets and coding-agent labels from the prior authorized live pair; not independently human-adjudicated. Ambiguous cases excluded from definitive retention metrics.",
+  "cases": [
+    {
+      "kind": "source_claim",
+      "case": "iphone",
+      "key": "IS1C1",
+      "expected_supported": true,
+      "statement": "Photo quality is disappointing; iPhone photos often look overly bright, lack contrast, and have no shadows, ceding ground to rivals like Google.",
+      "cited_excerpts": [
+        "its camera system, it would not be this iPhone. I don't know what's happened with Apple's camera systems, but somewhere the company just lost its way and ceded ground to rivals like Google. I can almost always tell when somebody sends me a photo that that photo was taken on an iPhone because it",
+        "often looks overly bright, lacks contrast, and has like basically no shadows. Google's Pixel"
+      ],
+      "label_reason": "Both excerpts jointly support brightness, contrast, shadows and the attributed rival comparison.",
+      "adjudication": "supported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "iphone",
+      "key": "IS1C2",
+      "expected_supported": false,
+      "statement": "Apple Intelligence shipped without a smarter Siri; the assistant has gotten worse and often kicks to ChatGPT, and most users find notification summaries more funny than useful.",
+      "cited_excerpts": [
+        "was doing something different, even when these new features were in reality very similar to the competition from Google and Samsung. 6 months later, however, the term Apple Intelligence feels unmoored from its central premise: a smarter, more intelligent Siri, because the company failed to",
+        "ship that. What actually shipped: writing tools across the OS, Image Playgrounds, cleaning up backgrounds of photos, notification summaries (which are more funny than they are useful in my experience), priority messages in the Mail app, new animations, Genmoji, but no personalized and"
+      ],
+      "label_reason": "Assistant deterioration/ChatGPT are absent. Personal notification experience is generalized to most users.",
+      "adjudication": "unsupported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "iphone",
+      "key": "IS1C3",
+      "expected_supported": false,
+      "statement": "Battery life is very good; most days end with 45-50% remaining, and under 8 hours screen time it lasts the full day with low power mode only needed the last hour.",
+      "cited_excerpts": [
+        "usage. If you have small hands or just don't like big phones, the 6.3-inch Pro will probably be a better choice. It has the exact same camera system as the Pro Max but a smaller battery. Speaking of which, battery life on the 16 Pro Max is very good. It just sips power. Most days I end",
+        "the day with 50 to 45% battery left. I did get to test out this phone under heavy usage when I got sick before filming this video. With 8 hours of screen time, it was able to last me throughout the entire day. I only had to turn on low power mode for the last hour. Face ID continues to pretty"
+      ],
+      "label_reason": "The passage says WITH eight hours; the claim changes the measurement to UNDER eight hours.",
+      "adjudication": "unsupported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "iphone",
+      "key": "IS1C4",
+      "expected_supported": false,
+      "statement": "The phone is noticeably larger than previous versions and weighs too much, straining the reviewer's hand on heavy usage days.",
+      "cited_excerpts": [
+        "was really worried about when I first got it. It is noticeably larger than the previous version, but 6 months later the size of this phone has been fine. The main problem I've had with it is still it weighs a bit too much for my liking. It strained my hand a bit on days with heavy"
+      ],
+      "label_reason": "The excerpt ends at 'days with heavy'; the necessary usage condition is outside its displayed citation.",
+      "adjudication": "unsupported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "iphone",
+      "key": "IS1C5",
+      "expected_supported": true,
+      "statement": "Camera Control button misfires account for a good amount of interactions; enabling double-click to open reduces misfires.",
+      "cited_excerpts": [
+        "though the apps you can select are limited by Apple. Camera Control button misfires do account for a good amount of my interactions with this button. Thankfully, to reduce the chances of that, you can enable a double-click to open the camera with this button in settings."
+      ],
+      "label_reason": "Misfires and the double-click mitigation are explicit and belong to this reviewer.",
+      "adjudication": "supported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "iphone",
+      "key": "IS1C6",
+      "expected_supported": true,
+      "statement": "Writing tools lack explanations for changes and highlighting, leading the reviewer to still use Grammarly instead.",
+      "cited_excerpts": [
+        "they'll instead treat them like they're blown up giant images. The writing tools I found to be less useful than I had originally thought they'd be. They're missing explanations for why they made changes and highlighting words or phrases that could be improved",
+        "like Grammarly does. 6 months later, I still find I'm using Grammarly over Apple's writing tools. The A18 Pro chip is another feature I haven't found myself particularly marveling at. Like, I do use it, and this phone has been fast for sure, but for my use cases at least,"
+      ],
+      "label_reason": "The two excerpts establish missing explanations/highlighting and continued Grammarly use.",
+      "adjudication": "supported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "iphone",
+      "key": "IS2C1",
+      "expected_supported": true,
+      "statement": "Camera Control button requires significant press effort causing shaky photos; most users in the reviewer's team experienced shake when pressing it.",
+      "cited_excerpts": [
+        "ओपन भी करी बट पता है सबसे बड़ी प्रॉब्लम क्या है जो एटलीस्ट मैंने फेस करी है कि जब भी मैंने कैमरा कंट्रोल बटन से फोटो खींचने की कोशिश करी है ना वो ज्यादातर फोटो शेकी आ जाती है देखो मुझे लगा हो सकता है कि मैं ही जो हूं कैमरा कंट्रोल बटन ढंग से ऑपरेट नहीं कर पा रहा तो इस",
+        "चीज को वेरीफाई करने के लिए मैंने अपनी पूरी टीम को बोला भाई आप सब पिक्चर क्लिक करो इस कैमरा कंट्रोल बटन से और सब जब भी फोटो खींच रहे थे ना हल्का सा शेक आ रहा था तो मैं इस चीज को कंफर्म कर सकता हूं भाई कि कैमरा कंट्रोल बटन को प्रेस करने में एफर्ट लगता है उस वजह से मोमेंट आ"
+      ],
+      "label_reason": "Hindi excerpts establish pressing effort, shake and the informal team check; no controlled-test inference.",
+      "adjudication": "supported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "iphone",
+      "key": "IS2C2",
+      "expected_supported": true,
+      "statement": "Phone is large and uncomfortable for long chats, especially with a case; reviewer found it heavy and awkward.",
+      "cited_excerpts": [
+        "लगता है इतने बड़े साइज के फोन से यूज टू होने में मेरे हिसाब से लंबे समय के लिए अगर कोई भी चैट वगैरह करर नहीं होते ना तो अनकंफर्ट बल एक्सपीरियंस तो होता है और अगर कोई केस भी लगा ले तो यार फोन और हैवी भी हो जाता है और थोड़ा और ज्यादा अनकंफर्ट बल हो जाता है बट फिर केस लगाना"
+      ],
+      "label_reason": "Hindi excerpt supports uncomfortable long chatting and additional weight with a case.",
+      "adjudication": "supported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "iphone",
+      "key": "IS2C3",
+      "expected_supported": false,
+      "statement": "Frame and display scratch easily without case/screen guard; reviewer observed small scratches on frame and many on display after 90 days of no case use.",
+      "cited_excerpts": [
+        "भी बहुत जरूरी है देखो मैंने इस रिव्यू के लिए इस फोन पे कोई केस नहीं लगाया था देखने के लिए कि ड्यूरेबल कैसी है तो कैमरे पे दिखाने की कोशिश करता हूं इसके फ्रेम पे ना छोटे-छोटे स्क्रैचेज आ गए हैं और वाइट कलर के स्क्रैचेज होते हैं और ब्लैक कलर का फोन है ना तो थोड़े ज्यादा",
+        "दिखते हैं इनफैक्ट डिस्प्ले पे स्क्रैचेज भी बहुत ज्यादा है तो लाइक स्क्रीन गार्ड और कवर दोनों बहुत नेसेसरी है आई के लिए और इतने सारे अलग-अलग फोन टेस्ट मैं करता हूं यार मुझे आपको लगेगा कि यार मैंने ₹1 45000 अगर खर्च करे हैं ना तो मुझे पूरा कंप्लीट एक्सपीरियंस मिल रहा है मतलब इन तीन"
+      ],
+      "label_reason": "Observed scratches and no case during the review are supported; 90 days of continuous no-case use is not.",
+      "adjudication": "unsupported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "iphone",
+      "key": "IS2C4",
+      "expected_supported": false,
+      "statement": "Battery backup is fantastic and reliable, delivering 8-9+ hours screen-on time even under heavy use; reviewer calls it unbeatable.",
+      "cited_excerpts": [
+        "भी कोई कलर्स की ट्यूनिंग में कोई कमी नहीं लगती है अच्छा फ्लैगशिप एक्सपीरियंस ही रहता है बट अगर स्पेसिफिकली बैटरी डिपार्टमेंट की बात करूं तो यार सुपर इंप्रेसिव की कैटेगरी में आएगा मतलब इन 3 महीने की यूसेज में जो कि ऑन एंड ऑफ थी मेरे को हर बार फैंटास्टिक बैटरी बैकअप",
+        "मिला इस फोन के अंदर और अगर स्क्रीन ऑन टाइम बताऊं तो ठ से 9 घंटे का स्क्रीन ऑन टाइम मिलना एक फोन में फैंटास्टिक माना जाता है और कभी-कभी तो इस फोन ने मेरे को 9 घंटे से भी ज्यादा स्क्रीन ऑन टाइम दिया है तो यार ये जो रिलायबिलिटी है बैटरी बैकअप की ये तो अनबीटेबल है और मैं जितने"
+      ],
+      "label_reason": "Initial screen-time value is an ambiguous ASR word, not an unambiguous eight. Heavy use is outside these citations.",
+      "adjudication": "unsupported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "iphone",
+      "key": "IS2C5",
+      "expected_supported": true,
+      "statement": "Charging speed is poor: 0-80% takes 1 hour, but 80-100% takes an additional 45 minutes; reviewer considers this a drawback.",
+      "cited_excerpts": [
+        "भी स्क्रीनशॉट दिखा रहा हूं ये कोई लाइट यूसेज नहीं थी हैवी यूसेज की है मैंने फोन की तब ये बैटरी बैकअप मिला है बट इसी का उल्टा जो चार्जिंग स्पीड है यार वो इस फोन की अच्छी नहीं है आई मीन 0 से 80 पर ये फोन 1 घंटे में चार्ज हो जाता है जो कि पुराने वाले आई के मुकाबले फिर भी ठीक है",
+        "बट 80 पर से 100% चार्ज होने में इस फोन को और 45 मिनट्स लगते हैं अब पता नहीं कि apple365.bet चार्जिंग दे अपने फोन को एक बहुत फैंटास्टिक रेफरेंस बताता हूं मैं आपको मैंने कुछ दिन पहले ना एक वीडियो बनाई थी जहां पर मैंने इस iphoneox.com"
+      ],
+      "label_reason": "Hindi passages state zero-to-eighty in one hour and eighty-to-one-hundred in another 45 minutes.",
+      "adjudication": "uncertain",
+      "adjudication_reason": "ASR omits explicit percent words at 80 and has units requiring adjudication."
+    },
+    {
+      "kind": "source_claim",
+      "case": "iphone",
+      "key": "IS2C6",
+      "expected_supported": false,
+      "statement": "Software stability is lacking 3 months post-launch: apps freeze, touch becomes unresponsive, scroll refresh rate drops to ~30Hz, and home screen icon rearrangement is buggy; reviewer notes these issues have reduced but still occur.",
+      "cited_excerpts": [
+        "कंट्रोल सेंटर बनाया बहुत अच्छा लगा और इन कस्टमाइजेशन के साथ-साथ जो पहले से iphone11 आया है बहुत हद तक बग्स फिक्स हो चुके हैं बट इन तीन महीनों में कितनी बार मैंने फेस करा है कि मैं कोई ऐप यूज कर रहा हूं सडन वो ऐप चलना बंद हो गई है मैं स्क्रीन पर टच करे जा रहा हूं और रिस्पॉन्ड ही नहीं",
+        "कुछ कर रहा फिर ऐप बंद करके वापस स्टार्ट करनी पड़ती थी बट आई रिपीट कि अब ये होना बहुत कम हो गया है और भी बहुत कुछ हुआ है कि अगर मैं कोई ऐप में कुछ भी स्क्रॉल कर रहा हूं तो रिफ्रेश रेट बहुत कम हो जाता था लाइक 30 हर्ट्स के अराउंड फिर जो है लॉक अनलॉक करना पड़ता था फोन बस एक चीज मेरे समझ नहीं आई कि अगर"
+      ],
+      "label_reason": "Freeze/touch/30-Hz observations are present, but home-screen icon rearrangement is absent.",
+      "adjudication": "unsupported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "iphone",
+      "key": "IS3C1",
+      "expected_supported": false,
+      "statement": "Battery health remained at 100% after one year of use as a main device, attributed to charging habits including using the phone to record during charging events, though the reviewer notes this outcome is hit or miss.",
+      "cited_excerpts": [
+        "16 Pro Max as my main device for the past year. And I want to give my final update on wear and tear, battery health, charging habits, my overall experience, and what I'm most looking forward to when it comes to the",
+        "iPhone 16 Pro Max to record, and I was still using my battery. So, I don't think that really determined too much of it. Maybe it preserved it a little bit more. So, that's how I kept my battery health at 100%. But I think at this point it's kind of hit or miss. For storage, I have 256 GB of storage,"
+      ],
+      "label_reason": "One-year main-device use and 100% health are cited; charging-event attribution is absent/overstated against the reviewer's qualification.",
+      "adjudication": "unsupported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "iphone",
+      "key": "IS3C2",
+      "expected_supported": true,
+      "statement": "256 GB storage with iCloud (2 TB via Apple One plan) was sufficient; the reviewer never worried about storage and recommends this configuration.",
+      "cited_excerpts": [
+        "but I use iCloud storage. So, I get the two terbte option with the Apple 1 plan. I would say 256 GB is pretty good. I didn't really ever have to worry about storage. So, I would stick to that if you are thinking about buying this phone or even with the"
+      ],
+      "label_reason": "256 GB recommendation and iCloud/Apple One context are explicit; 'terbte' is an ASR unit limitation.",
+      "adjudication": "uncertain",
+      "adjudication_reason": "Ambiguous ASR terbte does not prove 2 TB."
+    },
+    {
+      "kind": "source_claim",
+      "case": "iphone",
+      "key": "IS3C3",
+      "expected_supported": true,
+      "statement": "The iPhone 16 Pro Max is the best flagship Apple offers and the phone to get unless one is an Android user.",
+      "cited_excerpts": [
+        "iPhone 16 Pro Max in 2025? Of course, it's the best flagship Apple has to offer. Unless you're an Android user, this is going to be the phone to get. And with the"
+      ],
+      "label_reason": "Recommendation is explicitly this reviewer's Apple flagship opinion, with Android qualification.",
+      "adjudication": "supported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "iphone",
+      "key": "IS3C4",
+      "expected_supported": false,
+      "statement": "The reviewer will definitely get the iPhone 16 Pro Max in 2025.",
+      "cited_excerpts": [
+        "16 Pro Max. It's really not much of a difference in terms of experience. Now, looking ahead, I'll definitely be getting the"
+      ],
+      "label_reason": "Quote ends 'getting the'; the next product's identity is missing. Existing-title target must not fill this gap.",
+      "adjudication": "unsupported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "iphone",
+      "key": "IS3C5",
+      "expected_supported": true,
+      "statement": "No complaints about the iPhone 16 Pro Max from the reviewer.",
+      "cited_excerpts": [
+        "iPhone 16 Pro Max. No complaints. Even happier that my battery health is at 100%. It's pretty cool. If you have the 16 Pro Max, let us know in the comments below what your experience has been like. I actually have the Pixel"
+      ],
+      "label_reason": "The reviewer's no-complaints statement is explicit and attributed.",
+      "adjudication": "supported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "iphone",
+      "key": "IS3C6",
+      "expected_supported": false,
+      "statement": "Using the phone to record during charging may have preserved battery health slightly, but the reviewer does not consider it a major factor.",
+      "cited_excerpts": [
+        "iPhone 16 Pro Max to record, and I was still using my battery. So, I don't think that really determined too much of it. Maybe it preserved it a little bit more. So, that's how I kept my battery health at 100%. But I think at this point it's kind of hit or miss. For storage, I have 256 GB of storage,"
+      ],
+      "label_reason": "Tentative preservation is quoted, but recording DURING charging is not established in this excerpt.",
+      "adjudication": "unsupported"
+    },
+    {
+      "kind": "central_finding",
+      "case": "iphone",
+      "key": "ee74f80e-9331-566c-b6ac-c0fbb93d8559",
+      "expected_supported": true,
+      "statement": "Performance: The reviewer reports: The A18 Pro chip makes the phone fast for everyday use.",
+      "cited_excerpts": [
+        "like Grammarly does. 6 months later, I still find I'm using Grammarly over Apple's writing tools. The A18 Pro chip is another feature I haven't found myself particularly marveling at. Like, I do use it, and this phone has been fast for sure, but for my use cases at least,"
+      ],
+      "label_reason": "Attributed speed statement is explicit.",
+      "adjudication": "supported"
+    },
+    {
+      "kind": "central_finding",
+      "case": "iphone",
+      "key": "5472b503-1cee-583b-bfe4-8bfc0d81cf7b",
+      "expected_supported": true,
+      "statement": "Overall recommendation: The reviewer reports: The iPhone 16 Pro Max is the best flagship Apple has to offer in 2025.",
+      "cited_excerpts": [
+        "iPhone 16 Pro Max in 2025? Of course, it's the best flagship Apple has to offer. Unless you're an Android user, this is going to be the phone to get. And with the"
+      ],
+      "label_reason": "Attributed Apple flagship recommendation is explicit.",
+      "adjudication": "supported"
+    },
+    {
+      "kind": "central_finding",
+      "case": "iphone",
+      "key": "c65ad5d5-c3d5-5c89-b06b-06a838e18ec3",
+      "expected_supported": false,
+      "statement": "Display: The reviewer reports: The display shows many scratches even with careful use, making a screen guard and cover necessary.",
+      "cited_excerpts": [
+        "दिखते हैं इनफैक्ट डिस्प्ले पे स्क्रैचेज भी बहुत ज्यादा है तो लाइक स्क्रीन गार्ड और कवर दोनों बहुत नेसेसरी है आई के लिए और इतने सारे अलग-अलग फोन टेस्ट मैं करता हूं यार मुझे आपको लगेगा कि यार मैंने ₹1 45000 अगर खर्च करे हैं ना तो मुझे पूरा कंप्लीट एक्सपीरियंस मिल रहा है मतलब इन तीन"
+      ],
+      "label_reason": "'Even with careful use' is not in the scratch quotation.",
+      "adjudication": "unsupported"
+    },
+    {
+      "kind": "central_finding",
+      "case": "iphone",
+      "key": "b088a2fd-a247-5539-a95f-b8d4accbb675",
+      "expected_supported": true,
+      "statement": "Camera control button: The reviewer reports: The Camera Control button misfires account for a good amount of interactions; enabling double-click to open camera reduces misfires.",
+      "cited_excerpts": [
+        "though the apps you can select are limited by Apple. Camera Control button misfires do account for a good amount of my interactions with this button. Thankfully, to reduce the chances of that, you can enable a double-click to open the camera with this button in settings."
+      ],
+      "label_reason": "Misfires and double-click mitigation are both cited.",
+      "adjudication": "supported"
+    },
+    {
+      "kind": "central_finding",
+      "case": "iphone",
+      "key": "dd72ce7a-8aa9-5edc-8dea-4ade73131f25",
+      "expected_supported": false,
+      "statement": "Size and weight: The reviewer reports: The phone is noticeably larger than the previous version and weighs a bit too much, straining the hand on heavy usage days.",
+      "cited_excerpts": [
+        "was really worried about when I first got it. It is noticeably larger than the previous version, but 6 months later the size of this phone has been fine. The main problem I've had with it is still it weighs a bit too much for my liking. It strained my hand a bit on days with heavy"
+      ],
+      "label_reason": "Quote stops at 'days with heavy', omitting the complete condition.",
+      "adjudication": "unsupported"
+    },
+    {
+      "kind": "central_finding",
+      "case": "iphone",
+      "key": "8b3e6c06-7ba9-5b99-ba22-732018b5ad66",
+      "expected_supported": false,
+      "statement": "Apple intelligence features: The reviewer reports: Apple Intelligence feels unmoored from its central premise because the promised smarter Siri failed to ship.",
+      "cited_excerpts": [
+        "was doing something different, even when these new features were in reality very similar to the competition from Google and Samsung. 6 months later, however, the term Apple Intelligence feels unmoored from its central premise: a smarter, more intelligent Siri, because the company failed to"
+      ],
+      "label_reason": "The selected quote stops at 'failed to'. 'Ship that' exists elsewhere but is not this finding's displayed citation.",
+      "adjudication": "unsupported"
+    },
+    {
+      "kind": "central_finding",
+      "case": "iphone",
+      "key": "9cba8806-d214-5448-8de9-6f74e21e6a5e",
+      "expected_supported": false,
+      "statement": "Build durability: The reviewer reports: The frame shows small scratches and white color scratches are more visible on the black phone.",
+      "cited_excerpts": [
+        "भी बहुत जरूरी है देखो मैंने इस रिव्यू के लिए इस फोन पे कोई केस नहीं लगाया था देखने के लिए कि ड्यूरेबल कैसी है तो कैमरे पे दिखाने की कोशिश करता हूं इसके फ्रेम पे ना छोटे-छोटे स्क्रैचेज आ गए हैं और वाइट कलर के स्क्रैचेज होते हैं और ब्लैक कलर का फोन है ना तो थोड़े ज्यादा"
+      ],
+      "label_reason": "Selected Hindi quote stops before 'visible'; the next excerpt is not attached to this finding.",
+      "adjudication": "unsupported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "sony",
+      "key": "SS1C1",
+      "expected_supported": true,
+      "statement": "Rated 30-hour playback with noise cancellation on; reviewer found battery life excellent in practice.",
+      "cited_excerpts": [
+        "they’re rated for 30 hours of playback with noise cancellation on and in my experience, their battery life has been excellent as well as their standby battery. Noise Cancellation is the next thing I really like about these headphones. As you’d come to"
+      ],
+      "label_reason": "Thirty hours is explicitly a rating with ANC on; experience is attributed separately.",
+      "adjudication": "supported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "sony",
+      "key": "SS1C2",
+      "expected_supported": true,
+      "statement": "Noise cancellation is excellent, comparable to AirPods Max, and cancels out almost everything in crowded office and airplane settings.",
+      "cited_excerpts": [
+        "expect from Sony, they’re excellent, and comparable to my pair of AirPods Max, another pair of noise canceling earbuds I absolutely love And if you want to hear how I think these headphones compare against each other, I'll link to the",
+        "you experience as well as the EQ. Those are the two things I've mainly used it for and the noise cancelation is great in a variety of situations from working in a crowded office to being on an airplane and Sony’s is one of the best, it cancels out pretty much everything."
+      ],
+      "label_reason": "Comparison, crowded-office and airplane experience are explicitly quoted.",
+      "adjudication": "supported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "sony",
+      "key": "SS1C3",
+      "expected_supported": true,
+      "statement": "Sound quality is not the absolute best the reviewer has used, but EQ and LDAC support allow customization; default sound is heavy in mids and bass.",
+      "cited_excerpts": [
+        "Next up sound. Now, while I don't think these headphones are the absolute best sounding pair of headphones i've ever used, Sony did include two features on them that really does help you find the way they sound. And these features are the equalizer and LDAC support. LDAC is a proprietary",
+        "By default, I think the XM5s are a little heavy in the mids and definitely a bit heavy with the base. So, the EQ feature allows me to adjust them a bit to make them sound a bit more bright, and reduce the base a bit. But of course, how something sounds is a bit subjective. So if you have"
+      ],
+      "label_reason": "The two excerpts support subjective tuning, EQ and LDAC without changing speaker ownership.",
+      "adjudication": "supported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "sony",
+      "key": "SS1C4",
+      "expected_supported": false,
+      "statement": "Comfort is a downside due to shallow ear cups causing ear soreness after about one hour, and non-breathable fake leather material making ears feel hot.",
+      "cited_excerpts": [
+        "they’re much lighter headphones compared to some of the competition weighing only 249g. Now while they're weight is great overall, the comfort of these headphones for me has actually been a bit of a downside and that's because of the space in each ear cup,",
+        "it is way less than other sets of headphones, which means there's less room for your ear to kind of spread out when you put on these headphones. And I find that I'll wear these for about an hour before one of my ears"
+      ],
+      "label_reason": "Quotes establish limited space but stop before the ear effect; soreness, fake leather and heat are not cited.",
+      "adjudication": "unsupported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "sony",
+      "key": "SS1C5",
+      "expected_supported": true,
+      "statement": "Adaptive sound control feature can be annoying in home/office because switching profiles disturbs listening and default dings are not obvious.",
+      "cited_excerpts": [
+        "these around a home or an office, then switching between sound profiles while it does work, I actually find for those situations the home and office like this feature can actually be kind of annoying because each time it switches to a sound profile, it kind of disturbs what",
+        "i'm listening to. And this is especially true when you first use these headphones because by default, each time they switch to a new sound profile, you get this really annoying ding, which you can turn off, but its not exactly obvious when you’re wearing the headphones what is causing the ding,"
+      ],
+      "label_reason": "Both home/office conditions and the disruptive default ding are shown. Positive regression control.",
+      "adjudication": "supported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "sony",
+      "key": "SS1C6",
+      "expected_supported": true,
+      "statement": "Transparency mode sounds underwater and is not the best the reviewer has heard; mic quality for calls is good.",
+      "cited_excerpts": [
+        "ambient sound around you. But when you're listening to transparency mode on the XM5s, it still kind of sounds like you're underwater a bit and it's by far not the best transparency mode I have ever heard on a set of headphones. Although, if you are using these for work calls,",
+        "one thing that is actually pretty good on them is their mic quality. And here's an example of how they're mic sound. These are the brand new Sony XM5s, and I know the product name is too long. Anyways, these are how their mics sound. Also, if you notice when you wear these headphones, they just"
+      ],
+      "label_reason": "Transparency criticism and good microphone assessment appear in the paired excerpts.",
+      "adjudication": "supported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "sony",
+      "key": "SS2C1",
+      "expected_supported": false,
+      "statement": "The WH-1000XM5 has the best noise cancellation among wireless headphones, with improved suppression of higher frequencies and voices compared to prior models.",
+      "cited_excerpts": [
+        "that design flaw they're still premium lightweight comfortable noise cancelling headphones and they have yet again bumped up the noise cancellation capabilities pretty significantly so I've been saying for years they're the King of the Hill for travel because as far as white noise is concerned like",
+        "airplane engine road noise all that sort of stuff they do an A+ job at canceling that right when I put these on I immediately noticed it's even stronger it still crushes that droning low end but now some of the more higher frequencies are better canel out too appliances Wier"
+      ],
+      "label_reason": "Improved higher-frequency cancellation is quoted; best among all wireless headphones and voices are not established.",
+      "adjudication": "unsupported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "sony",
+      "key": "SS2C2",
+      "expected_supported": false,
+      "statement": "The new design does not fold, resulting in a much larger carrying case that is less travel-friendly than the folding XM4.",
+      "cited_excerpts": [
+        "obviously super comfortable had great noise cancellation and lots of features and good sound quality but they also folded up like this and fit into uh their little case just like that toss that in a bag and you're good to go this new version with this new design does",
+        "not fold at all so with this new sliding headband design which is kind of like the Bose 700's and the airpods Max and so many others that's the only way of adjusting the size of the headphones so they no longer fold down into a smaller size and so as a result the case you"
+      ],
+      "label_reason": "Non-folding is shown, but the quote ends 'the case you' before the larger-case consequence.",
+      "adjudication": "unsupported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "sony",
+      "key": "SS2C3",
+      "expected_supported": false,
+      "statement": "Comfort is improved due to softer vegan leather earpads and lighter weight, making them the most comfortable noise-cancelling headphones the reviewer has tried.",
+      "cited_excerpts": [
+        "see that they have this new shape that is this pretty minimal sharp and clean look there is still a dark and a light this light is a sort of a cream colored version and there's a lot of good things about this design the ear cups are slightly bigger and wider the new vegan",
+        "leather material is so much softer it is it's kind of amazing it combines that with the super lightweight of the whole headphones to make this entire pair more comfortable to wear for long periods of time honestly I'm just going to say this is the most comfortable pair of noise"
+      ],
+      "label_reason": "Softness/lightness and this reviewer's comfort superlative are present, but the compared category is cut at 'noise'.",
+      "adjudication": "unsupported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "sony",
+      "key": "SS2C4",
+      "expected_supported": true,
+      "statement": "Sound quality is excellent and very similar to the XM4, with a new 30mm carbon fiber driver and LDAC support; among the best-sounding wireless ANC headphones for Android users.",
+      "cited_excerpts": [
+        "actually a specific enhanced voices toggle it just doesn't quite reach the airpods level as far as hearing your own voice but then for actual musical sound quality they are very similar to last year which is to say excellent and they do have a new 30mm carbon fiber driver",
+        "and there is still ldac support if you have the right combination of smartphone and music Source but I think I can safely say if I have an Android phone the these to me are among the absolute best sounding noise cancelling wireless headphones available again they don't"
+      ],
+      "label_reason": "Both sound/driver detail and qualified Android/LDAC recommendation are explicit.",
+      "adjudication": "uncertain",
+      "adjudication_reason": "Last year does not establish XM4."
+    },
+    {
+      "kind": "source_claim",
+      "case": "sony",
+      "key": "SS2C5",
+      "expected_supported": true,
+      "statement": "Transparency mode has 20 levels of adjustment and is better than Bose but not as natural as AirPods Max, sounding somewhat muffled especially for voices.",
+      "cited_excerpts": [
+        "20 levels of adjustment in the app of how much transparency gets through they're really good they are definitely better than the bows but the airpods max are still on a completely different level as far as transparency mode those are the best I've ever heard in any",
+        "headphones it sounds like you're not wearing headphones you just hear everyone's voices and everything perfectly clearly and these just don't get that good like these just sound like a somewhat muffled version of reality uh especially with voices and the higher frequency stuff even though there is"
+      ],
+      "label_reason": "Twenty levels and qualified Bose/AirPods comparison are supported across both excerpts.",
+      "adjudication": "supported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "sony",
+      "key": "SS2C6",
+      "expected_supported": true,
+      "statement": "Battery life remains 30 hours, same as XM4, but fast charging provides 3 hours of playback from a 3-minute charge.",
+      "cited_excerpts": [
+        "were some rumors about the battery life getting bumped from 30 to 40 hours which would have been crazy but that's not what happened they are rated for the same 30 hours of battery life as the mark 4S and from my experience so far they've right about matched it uh so 40",
+        "like would have been nice and amazing but I still think 30 and the use I've gotten out of these is still very good the one improvement though uh is the charging faster charging so you can plug these in for 3 minutes and get 3 hours of listening out of it so if you just"
+      ],
+      "label_reason": "Rating versus predecessor and three-minute/three-hour charging are distinguished and cited.",
+      "adjudication": "supported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "sony",
+      "key": "SS3C1",
+      "expected_supported": true,
+      "statement": "The Sony WH-1000XM5 headphones reduce outside noise loudness by about 84%, falling short of Bose QC Ultra but surpassing AirPods Max.",
+      "cited_excerpts": [
+        "headphones can reduce the loudness of outside Noise by about 84% which Falls a little short on the performance from the Bose QC Ultra headphones but it actually does surpass thec performance of the airpods max suffice it to say that the XM 5S are a great option for frequent"
+      ],
+      "label_reason": "84% refers to outside-noise reduction, with both comparisons; not a sound-quality score. Positive control.",
+      "adjudication": "supported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "sony",
+      "key": "SS3C2",
+      "expected_supported": true,
+      "statement": "The headphones have a frequency response that aligns closely with the reviewer's preference curve, with a bass overemphasis that may cause ear fatigue over long periods.",
+      "cited_excerpts": [
+        "the xm5 headphones aligns pretty closely with our preference curve which is a measurement of what we think sounds good to most people yes there is a bit of an overemphasis in the Bas and trouble frequencies but I didn't find this to be an issue even when listening to Bas",
+        "heavy edmr pop tracks however over a longer listening periods my ears did feel a bit fatigued from the lowend over emphasis so if I were you I'd just go into the Sony app and turn down the clear Bas slider by a notch or two for a more pleasant listening experience especially during longer listening"
+      ],
+      "label_reason": "Preference-curve observation and low-end fatigue are correctly linked and qualified.",
+      "adjudication": "supported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "sony",
+      "key": "SS3C3",
+      "expected_supported": false,
+      "statement": "The headphones use Bluetooth 5.2 and support SBC, AAC, and LDAC codecs, but lack aptX Lossless, LC3, and USB-C audio, which are available on newer competitors.",
+      "cited_excerpts": [
+        "Bluetooth 5.2 which isn't the latest or greatest and also means that these headphones don't support things like orac cast or the lc3 codec also the headphones only support a handful of Bluetooth codecs including SBC AAC and L now LD is a great inclusion especially since it provides better streaming",
+        "quality than SBC and AAC but it is far from the best nowadays Bose Sennheiser and even newcomer Sonos are making headphones with Snapdragon sound which allow you to stream audio wirelessly using the appex lossless codec for near CD like audio quality and you can't get"
+      ],
+      "label_reason": "Codec discussion is present (with ASR limitations), but lack of USB-C audio is absent.",
+      "adjudication": "unsupported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "sony",
+      "key": "SS3C4",
+      "expected_supported": true,
+      "statement": "The build quality is excellent with a thin headband and hollow construction making them light and comfortable for hours, though less durable than the predecessor.",
+      "cited_excerpts": [
+        "sure to stay tuned for that all right let's start with the good first off Sony did an excellent job with the build quality and it still holds up to today's standards now sure it doesn't feel as durable as its thicker looking predecessor but the thinner headband here and the Hollow construction makes",
+        "the headphones feel really light on the head and I have no problems wearing the headphones for hours on end I'd like in the comfort of the xm5 headphones to something like the Bose Qui Comfort 45 which I still consider to be the most comfortable headphones I've ever worn"
+      ],
+      "label_reason": "Build, perceived durability, thin/hollow construction and long-wear comfort are paired and attributed.",
+      "adjudication": "supported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "sony",
+      "key": "SS3C5",
+      "expected_supported": false,
+      "statement": "The Sony Headphones Connect app provides useful features including equalizer, ambient sound controls, adaptive sound, and 360 Reality Audio setup.",
+      "cited_excerpts": [
+        "headphones still have great software support via the Sony headphones Connect app inside the app you get access to a ton of useful features like The Equalizer which can be used for fine-tuning the sound to your liking Ambient sound controls adaptive sound controls for adjusting the ANC and"
+      ],
+      "label_reason": "EQ/ambient/adaptive controls are explicit; 360 Reality Audio is not in the displayed quote.",
+      "adjudication": "unsupported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "sony",
+      "key": "SS3C6",
+      "expected_supported": true,
+      "statement": "The headphones still hold up today as a great overall choice if the user's priority is not lossless audio streaming, and are worth investing in at a sale price.",
+      "cited_excerpts": [
+        "video but back to the main question does the Sony wh1000 xm5 still hold up today and should you buy it now well yes I think it definitely still holds up today so long as your priority is not lossless audio listening connection limitations aside the xm5 headphones still offer a great design",
+        "excellent noise cancelling performance amazing app support and great sound quality that will sound good to most people these headphones get the fundamentals right and if you can get these cans at a sale price then the xm5 headphones are absolutely worth investing in long term these are"
+      ],
+      "label_reason": "The lossless-priority qualification and conditional sale-price recommendation are explicit.",
+      "adjudication": "supported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "sony",
+      "key": "SS4C1",
+      "expected_supported": true,
+      "statement": "The XM5 case is annoyingly large and the non-folding design makes portability worse than the XM4, which is a major drawback.",
+      "cited_excerpts": [
+        "going on let's start with the case it is huge I played this down a little bit in my first review of these because I genuinely thought that other people were overreacting but now I'm not so sure because the more you use these headphones the more you carry them around with you which is what what I do",
+        "way the fact you can't do that which again is something that I thought that other people were overreacting about actually the more you use them the more you think why don't they fold because if these folded this case wouldn't have to be this big so ironically the case is"
+      ],
+      "label_reason": "Both actual case size and the causal non-folding criticism are cited.",
+      "adjudication": "uncertain",
+      "adjudication_reason": "The cited case/nonfolding phrases do not name XM4."
+    },
+    {
+      "kind": "source_claim",
+      "case": "sony",
+      "key": "SS4C2",
+      "expected_supported": true,
+      "statement": "Sound and noise cancelling are great in isolation, but the XM5 sound is personally not quite as good as the XM4, though noise cancelling is better on the XM5.",
+      "cited_excerpts": [
+        "for noise canc we've reached a point where it's pretty much universally great across most noise cancelling headphones I personally think that the sound of the XM 5S remains very very good indeed when listened in isolation I think when you compare them with their predecessors",
+        "with the XM 4S they're not quite as good for me personally but sound is a very subjective thing and you can EQ these just as well as you can EQ the XM 4S so soundwise and actually noise cancelling wise I still think noise cancelling is better on the XM 5S compared to the XM"
+      ],
+      "label_reason": "Subjective sound preference and ANC superiority over the predecessor are separated.",
+      "adjudication": "supported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "sony",
+      "key": "SS4C3",
+      "expected_supported": false,
+      "statement": "Durability is a surprise positive: after 3 months of non-kid-glove use the lightweight recycled plastic build holds up well, though it initially feels cheaper than the XM4.",
+      "cited_excerpts": [
+        "4S but both sound and noise cancelling they're great there's nothing more to say they are fantastic headphones in that regard I think durability deserves a special mention with the XM 5s and they are a bit of a winner in that area which is a surprise because when you",
+        "first get these and first get them out the box they are unnervingly light now I've only had these for 3 months but I haven't handled them with kid gloves and they have put up to being chucked around a little bit which is really encouraging given how light they are and that"
+      ],
+      "label_reason": "Three months/non-kid-glove handling are supported; recycled plastic and initially cheaper than XM4 are absent.",
+      "adjudication": "unsupported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "sony",
+      "key": "SS4C4",
+      "expected_supported": true,
+      "statement": "Comfort is okay with less padding than XM4, but the lightness makes long-wear comfort fine for the reviewer personally.",
+      "cited_excerpts": [
+        "lightness is fantastic on your head and when it comes to comfort they're actually okay yes they do have less padding here than the XM 4S I made quite a big thing about that in my first review but the more you use them the less of an that is for me personally and",
+        "this does differ from person to person but for me personally these are a very comfortable pair of headphones and I've worned them for long stretches with no issues whatsoever oh and the battery life absolutely fantastic as always particularly when it comes to standby"
+      ],
+      "label_reason": "Less padding, lightness, individual fit and long stretches are explicit.",
+      "adjudication": "supported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "sony",
+      "key": "SS4C5",
+      "expected_supported": true,
+      "statement": "Battery life is absolutely fantastic, especially standby time, matching the XM4's monster performance.",
+      "cited_excerpts": [
+        "this does differ from person to person but for me personally these are a very comfortable pair of headphones and I've worned them for long stretches with no issues whatsoever oh and the battery life absolutely fantastic as always particularly when it comes to standby",
+        "time just like the xm4 these are a monster when it comes to battery life now I've mentioned the XM 4S quite a bit in this video and that's because they are completely unavoidable I'm afraid these are Sony's greatest Tri but also their biggest problem they're just so so good and in fact having used"
+      ],
+      "label_reason": "Standby praise and predecessor comparison are explicit.",
+      "adjudication": "supported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "sony",
+      "key": "SS4C6",
+      "expected_supported": false,
+      "statement": "The XM4 is a much better buy than the XM5 due to lower price (about £220 vs £375), better sound, design, and case; the XM5 is only recommended for those wanting the latest and greatest with money to spare.",
+      "cited_excerpts": [
+        "their successes for about 3 months now I can confidently say that the XM 4S are a much better pair of headphones than the XM 5S I'm sorry Sony and I think this is for three reasons it's the sound it's the design and it's the case and the other thing in fact the main thing",
+        "actually to be fair is the price and that is the main reason why I still recommend the xm4 over the XM 5S you can basically buy these for about £220 in the UK If you shop around whereas the XM 5S retail at £375 they're just not worth that extra spend so if you're wondering whether you"
+      ],
+      "label_reason": "Historical UK prices and XM4 preference are cited; the latest-and-greatest buyer exception is not.",
+      "adjudication": "unsupported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "sony",
+      "key": "SS5C1",
+      "expected_supported": false,
+      "statement": "The XM5s have industry-leading active noise cancellation with twice the processing power and microphones of the XM4s, including an inward-facing microphone that reduces high-pitched artifacts.",
+      "cited_excerpts": [
+        "course sony if there are others there up to that standard let me know in the comments on the xm5s they claim that they have twice as much processing power and microphones and the xm4s and that includes an inward facing microphone that picks up any remaining artifacts",
+        "that makes its way through the external mics that means i can get rid of some of those higher pitched wines and whistles that the xm4s would sometimes let through at least that's what they claim so does it actually accomplish that well let's listen to how it stacks up against"
+      ],
+      "label_reason": "Excerpts explicitly frame the extra processing/microphones as a manufacturer's claim before testing; claim removes that qualification.",
+      "adjudication": "unsupported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "sony",
+      "key": "SS5C2",
+      "expected_supported": false,
+      "statement": "The XM5s feel more comfortable than XM4s and AirPods Max due to less head tension and softer materials, though the floating earcup mechanism can feel fragile.",
+      "cited_excerpts": [
+        "i assume especially for the black model like this is that grease and sweat can really make this thing look gnarly amongst all the headphones here the xm5s feel the most comfortable for me with less head tension than xm4s and airpods max and they do kind of have a similar",
+        "feel to that of the qc45 but a bit more consistent and much softer on the ears and the top of the head while it doesn't feel as premium as the airpods max with its heavy metal build the xm5s have a feeling of being extremely refined but strangely fragile that comes from the"
+      ],
+      "label_reason": "Fit/material comparison is shown; attribution of fragility to a floating-earcup mechanism is outside these excerpts.",
+      "adjudication": "unsupported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "sony",
+      "key": "SS5C3",
+      "expected_supported": true,
+      "statement": "The XM5s do not fold up like the XM4s, which may be a drawback for travelers.",
+      "cited_excerpts": [
+        "feel the cheapest amongst all these the xm5s also adopt the smooth tube design of the airpods max instead of notch design unfortunately it doesn't fold up like the xm4 so that may or may not matter to you depending on how much you travel let's listen to the next sample"
+      ],
+      "label_reason": "Non-folding and its conditional travel relevance are explicit.",
+      "adjudication": "supported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "sony",
+      "key": "SS5C4",
+      "expected_supported": true,
+      "statement": "The XM5s lose the NFC pairing feature that was available on previous 1000X models.",
+      "cited_excerpts": [
+        "xm5s lose the nfc pairing feature that was available on previous 1000xm models so that's unfortunate but much like the xm4 there is android quick pair abilities which is very nice now this song is a very mid-rangey warm and soulful track listen to her vocals the"
+      ],
+      "label_reason": "Loss of NFC relative to earlier models is explicitly quoted.",
+      "adjudication": "supported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "sony",
+      "key": "SS5C5",
+      "expected_supported": true,
+      "statement": "The XM5s have a soft-touch coating and leather-like material that can show grease and sweat, especially on the black model.",
+      "cited_excerpts": [
+        "to the xm4 and avoid that feeling of tons of plastic like what you get on the bose qc45s and that's because of the soft touch coating on the ear cups and a leather-like material that covers the entire headband and the actual ear cushions themselves the one downside and",
+        "i assume especially for the black model like this is that grease and sweat can really make this thing look gnarly amongst all the headphones here the xm5s feel the most comfortable for me with less head tension than xm4s and airpods max and they do kind of have a similar"
+      ],
+      "label_reason": "Coating/material and grease/sweat concern are paired, with 'can' preserving the tentative concern.",
+      "adjudication": "supported"
+    },
+    {
+      "kind": "source_claim",
+      "case": "sony",
+      "key": "SS5C6",
+      "expected_supported": true,
+      "statement": "The XM5s support Google Assistant, Alexa, and Siri activation, and have Android quick pair abilities.",
+      "cited_excerpts": [
+        "explore this a bit more later it also has support for the google assistant and alexa or you can hold it down to activate siri if you're on an apple device there's also a sensor on the inside that you can't see that will detect whether you're wearing it or not which is quite nice unfortunately the",
+        "xm5s lose the nfc pairing feature that was available on previous 1000xm models so that's unfortunate but much like the xm4 there is android quick pair abilities which is very nice now this song is a very mid-rangey warm and soulful track listen to her vocals the"
+      ],
+      "label_reason": "Assistant activation and Android quick pair are both quoted.",
+      "adjudication": "supported"
+    },
+    {
+      "kind": "central_finding",
+      "case": "sony",
+      "key": "7a5cf93a-0fbe-5d98-8d32-c64f588b4125",
+      "expected_supported": true,
+      "statement": "Noise cancellation: The reviewer reports: Noise cancellation is excellent, cancels out pretty much everything in crowded office and airplane situations.",
+      "cited_excerpts": [
+        "you experience as well as the EQ. Those are the two things I've mainly used it for and the noise cancelation is great in a variety of situations from working in a crowded office to being on an airplane and Sony’s is one of the best, it cancels out pretty much everything."
+      ],
+      "label_reason": "Crowded-office/airplane conditions and attributed opinion are shown.",
+      "adjudication": "supported"
+    },
+    {
+      "kind": "central_finding",
+      "case": "sony",
+      "key": "d04a7d69-8a8e-5095-9c43-d690f8fd9e56",
+      "expected_supported": true,
+      "statement": "Noise cancellation: The reviewer reports: ANC crushes droning low-end noise and now cancels more higher frequencies too.",
+      "cited_excerpts": [
+        "airplane engine road noise all that sort of stuff they do an A+ job at canceling that right when I put these on I immediately noticed it's even stronger it still crushes that droning low end but now some of the more higher frequencies are better canel out too appliances Wier"
+      ],
+      "label_reason": "Low-end and higher-frequency improvement are both explicit.",
+      "adjudication": "supported"
+    },
+    {
+      "kind": "central_finding",
+      "case": "sony",
+      "key": "e2bf9a88-95e0-5e09-9c72-81bd52f4e48b",
+      "expected_supported": true,
+      "statement": "Noise cancellation: The reviewer reports: Reduces outside noise loudness by about 84%, surpassing AirPods Max performance.",
+      "cited_excerpts": [
+        "headphones can reduce the loudness of outside Noise by about 84% which Falls a little short on the performance from the Bose QC Ultra headphones but it actually does surpass thec performance of the airpods max suffice it to say that the XM 5S are a great option for frequent"
+      ],
+      "label_reason": "Correct 84% ANC measurement and AirPods comparison, not sound-score conflation.",
+      "adjudication": "supported"
+    },
+    {
+      "kind": "central_finding",
+      "case": "sony",
+      "key": "820341a1-95ce-5a98-bfba-b3ab16ac5248",
+      "expected_supported": true,
+      "statement": "Sound quality: The reviewer reports: Default sound is a little heavy in mids and bass, but EQ allows adjustment. (Default tuning has heavy bass and mids; EQ can brighten sound.)",
+      "cited_excerpts": [
+        "By default, I think the XM5s are a little heavy in the mids and definitely a bit heavy with the base. So, the EQ feature allows me to adjust them a bit to make them sound a bit more bright, and reduce the base a bit. But of course, how something sounds is a bit subjective. So if you have"
+      ],
+      "label_reason": "Tuning and EQ adjustment are explicit.",
+      "adjudication": "supported"
+    },
+    {
+      "kind": "central_finding",
+      "case": "sony",
+      "key": "28578374-0a0c-5a70-a8e6-89e568b564cf",
+      "expected_supported": true,
+      "statement": "Sound quality: The reviewer reports: Over longer listening, low-end overemphasis caused ear fatigue; recommend reducing clear bass slider. (Over longer periods, low-end emphasis may cause ear fatigue.)",
+      "cited_excerpts": [
+        "heavy edmr pop tracks however over a longer listening periods my ears did feel a bit fatigued from the lowend over emphasis so if I were you I'd just go into the Sony app and turn down the clear Bas slider by a notch or two for a more pleasant listening experience especially during longer listening"
+      ],
+      "label_reason": "Low-end fatigue and clear-bass adjustment are explicit.",
+      "adjudication": "supported"
+    },
+    {
+      "kind": "central_finding",
+      "case": "sony",
+      "key": "193ddc0a-48a8-5cd7-9221-bdde2468efce",
+      "expected_supported": false,
+      "statement": "Comfort: Less room for ears inside cups; reviewer wears about an hour before ear touches. (Ear cups have less internal space; reviewer's ears touch after about an hour.)",
+      "cited_excerpts": [
+        "it is way less than other sets of headphones, which means there's less room for your ear to kind of spread out when you put on these headphones. And I find that I'll wear these for about an hour before one of my ears"
+      ],
+      "label_reason": "The sole citation ends before the ear-touch effect.",
+      "adjudication": "unsupported"
+    },
+    {
+      "kind": "central_finding",
+      "case": "sony",
+      "key": "db108b25-f48a-5a78-b3ca-4d08682deb13",
+      "expected_supported": false,
+      "statement": "Portability: The reviewer reports: New design does not fold at all; case is larger than previous folding models. (Headphones do not fold; case is large.)",
+      "cited_excerpts": [
+        "not fold at all so with this new sliding headband design which is kind of like the Bose 700's and the airpods Max and so many others that's the only way of adjusting the size of the headphones so they no longer fold down into a smaller size and so as a result the case you"
+      ],
+      "label_reason": "The sole citation ends before the larger-case assertion.",
+      "adjudication": "unsupported"
+    },
+    {
+      "kind": "central_finding",
+      "case": "sony",
+      "key": "418fdbe3-3d6a-5403-b8b6-f73b84b60a98",
+      "expected_supported": false,
+      "statement": "Connectivity: The reviewer reports: Bluetooth 5.2, no LC3 or Snapdragon Sound; LDAC is best codec but not latest. (Bluetooth 5.2; lacks LC3 codec and Snapdragon Sound; LDAC is best codec supported.)",
+      "cited_excerpts": [
+        "Bluetooth 5.2 which isn't the latest or greatest and also means that these headphones don't support things like orac cast or the lc3 codec also the headphones only support a handful of Bluetooth codecs including SBC AAC and L now LD is a great inclusion especially since it provides better streaming"
+      ],
+      "label_reason": "The sole citation omits the next passage establishing Snapdragon Sound and newer codecs.",
+      "adjudication": "unsupported"
+    },
+    {
+      "kind": "central_finding",
+      "case": "sony",
+      "key": "31cd657a-d917-5ef7-8173-fba739860360",
+      "expected_supported": true,
+      "statement": "Adaptive sound control: The reviewer reports Adaptive sound control feature can be annoying in home/office because switching profiles disturbs listening and default dings are not obvious.",
+      "cited_excerpts": [
+        "these around a home or an office, then switching between sound profiles while it does work, I actually find for those situations the home and office like this feature can actually be kind of annoying because each time it switches to a sound profile, it kind of disturbs what",
+        "i'm listening to. And this is especially true when you first use these headphones because by default, each time they switch to a new sound profile, you get this really annoying ding, which you can turn off, but its not exactly obvious when you’re wearing the headphones what is causing the ding,"
+      ],
+      "label_reason": "Two excerpts establish both conditions and the disturbance; correctly retained positive case.",
+      "adjudication": "supported"
+    }
+  ]
+}

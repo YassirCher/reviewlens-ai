@@ -8,6 +8,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.analysis.product_info import ProductInfo, SampleUsed
+from app.public.intent import IntentConfirmation, IntentResolution
 
 
 class StrictModel(BaseModel):
@@ -16,7 +17,8 @@ class StrictModel(BaseModel):
 
 class AnalysisRequest(StrictModel):
     product_name: str = Field(min_length=1, max_length=500)
-    video_count: int | None = Field(default=None, ge=3, le=8)
+    video_count: int | None = Field(default=None, ge=3, le=5)
+    intent_confirmation: IntentConfirmation | None = None
     analyze_comments: bool = False
     locale: str | None = Field(default=None, min_length=2, max_length=20)
 
@@ -82,6 +84,30 @@ class PreflightResponse(StrictModel):
     remaining_public_quota: QuotaRemaining
     estimate: PreflightEstimate
     recovery: AdmissionRecovery | None = None
+    intent_resolution: IntentResolution | None = None
+
+
+class ClarificationSource(StrictModel):
+    title: str
+    url: str
+
+
+class ClarificationChoice(StrictModel):
+    id: str
+    product_name: str
+    sources: tuple[ClarificationSource, ...] = Field(max_length=2)
+
+
+class ProductClarification(StrictModel):
+    id: uuid.UUID
+    question: str
+    choices: tuple[ClarificationChoice, ...] = Field(max_length=5)
+    expires_at: datetime
+    resolver_version: str
+
+
+class ClarificationAnswer(StrictModel):
+    choice_id: str = Field(min_length=1, max_length=200)
 
 
 class CreateResponse(StrictModel):
@@ -118,6 +144,18 @@ class StatusResponse(StrictModel):
     report_url: str | None
     progress_sequence: int = Field(ge=0)
     product_info: ProductInfo | None = None
+    original_product_name: str | None = None
+    clarification: ProductClarification | None = None
+
+
+class PublicCommentSummary(StrictModel):
+    status: Literal["disabled", "unavailable", "insufficient", "analyzed"]
+    sources_analyzed: int = Field(default=0, ge=0, le=8)
+    comments_sampled: int = Field(default=0, ge=0)
+    comments_retained: int = Field(default=0, ge=0)
+    comments_relevant: int | None = Field(default=0, ge=0)
+    comments_translated: int | None = Field(default=0, ge=0)
+    limitations: tuple[str, ...] = ()
 
 
 class PublicEvidence(StrictModel):
@@ -212,6 +250,7 @@ class PublicReportResponse(StrictModel):
     total_tokens: int = Field(ge=0)
     model_call_count: int = Field(ge=0)
     usage_pending: bool
+    comment_analysis: PublicCommentSummary | None = None
 
 
 class GraphNode(StrictModel):

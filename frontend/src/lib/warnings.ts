@@ -1,6 +1,7 @@
 import type { RunStatus } from "./v2";
 
 const LABELS: Record<string, string> = {
+  comment_analysis_unavailable: "Comment analysis was unavailable for some sources. Grounded video evidence remains available.",
   quality_audit_warning: "Some findings were omitted because their evidence did not fully support them.",
   partial_source_coverage: "Some requested sources could not be analyzed.",
   single_source_no_consensus: "Only one source was available; agreement between reviewers is unconfirmed.",

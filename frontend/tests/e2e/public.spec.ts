@@ -65,7 +65,7 @@ test("intake checks quota and creates an owner-session run without a provider pi
   await expect(page.getByLabel("Product name or exact model")).toBeVisible();
   await expect(page.getByText("Auto provider")).toHaveCount(0);
   await page.getByText("Research options", { exact: false }).click();
-  await expect(page.getByLabel("Review sources")).toHaveValue("5");
+  await expect(page.getByLabel("Review sources")).toHaveValue("3");
   await expect(page.getByLabel("Include top comments")).not.toBeChecked();
   await page.getByLabel("Product name or exact model").fill("Quota widget");
   await expect(page.getByText(/limit has been reached/i)).toBeVisible();

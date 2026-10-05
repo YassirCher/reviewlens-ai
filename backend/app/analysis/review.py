@@ -126,8 +126,9 @@ def normalize_usage(review: SourceAnalysisDraft, transcript: str) -> tuple[Sourc
     text, phrase = words(spoken), words(raw)
     start = text.find(phrase) if phrase else -1
     nearby = text[max(0, start - 100):start + len(phrase)] if start >= 0 else ""
-    supported = bool(review.usage_period_mentioned and start >= 0 and re.search(
-        r"\b(?:using|used|owned|ownership|testing|tested|reviewing|living|spent|use)\b", nearby))
+    use_stated = re.search(r"\b(?:using|used|owned|ownership|testing|tested|reviewing|living|spent|use)\b", nearby)
+    main_device_stated = re.search(r"\b(?:my|our)\s+(?:main|primary|daily)\s+(?:device|phone|headphones|earbuds)\b", nearby)
+    supported = bool(review.usage_period_mentioned and start >= 0 and (use_stated or main_device_stated))
     if re.search(r"\b(?:son|daughter|child|brother|sister)\b.{0,25}\b(?:old|age)\b|\b(?:battery|runtime|playback|charging)\b.{0,30}\b(?:lasts?|hours?)\b", phrase):
         supported = False
     # Estimate alone is never proof of an ownership duration.

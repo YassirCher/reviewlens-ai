@@ -291,7 +291,7 @@ async def refresh_catalogs(
         await refresh_model_catalog("embedding", client=gateway, redis_client=cache, config=config),
         await refresh_provider_catalog(client=gateway, redis_client=cache, config=config),
     ]
-    for model_slug in config.v2_agent_model_slugs:
+    for model_slug in dict.fromkeys((*config.v2_agent_model_slugs, config.v2_audience_chat_model)):
         results.append(
             await refresh_model_endpoints(
                 model_slug,

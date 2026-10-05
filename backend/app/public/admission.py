@@ -160,8 +160,8 @@ def normalize_options(payload: Any, policy: BudgetPolicyVersion) -> tuple[str, d
         display, _ = normalize_product_name(payload.product_name)
     except ValueError as exc:
         raise V2Error(422, "validation_error", "The request is invalid.", details={"product_name": "invalid"}) from exc
-    count = payload.video_count if payload.video_count is not None else policy.default_video_count
-    if not policy.min_video_count <= count <= policy.max_video_count:
+    count = payload.video_count if payload.video_count is not None else 3
+    if not max(3, policy.min_video_count) <= count <= min(5, policy.max_video_count):
         raise V2Error(422, "validation_error", "The request is invalid.", details={"video_count": "out_of_range"})
     language = getattr(payload, "locale", None) or "en"
     return display, {"source_count": count, "analyze_comments": payload.analyze_comments, "language": language}
@@ -190,7 +190,7 @@ def _quota_decision(
     ip_hour = db.scalar(select(func.count(RunSubmission.id)).where(RunSubmission.ip_hash == ip_hash, RunSubmission.created_at > hour)) or 0
     ip_day = db.scalar(select(func.count(RunSubmission.id)).where(RunSubmission.ip_hash == ip_hash, RunSubmission.created_at > day)) or 0
     session_day = db.scalar(select(func.count(RunSubmission.id)).where(RunSubmission.actor_type == "public", RunSubmission.actor_id == session_id, RunSubmission.created_at > day)) or 0
-    active = db.scalar(select(func.count(AnalysisRun.id)).where(AnalysisRun.initiator_type == "public", AnalysisRun.initiator_id == session_id, AnalysisRun.status.in_(("queued", "running", "cancelling")))) or 0
+    active = db.scalar(select(func.count(AnalysisRun.id)).where(AnalysisRun.initiator_type == "public", AnalysisRun.initiator_id == session_id, AnalysisRun.status.in_(("queued", "running", "waiting_for_input", "cancelling")))) or 0
     remaining = {
         "hourly_remaining": max(0, policy.public_runs_per_hour - ip_hour),
         "daily_ip_remaining": max(0, policy.public_runs_per_day - ip_day),
@@ -315,7 +315,10 @@ def preflight(
         raise V2Error(503, "admission_unavailable", "Analysis admission is temporarily unavailable.", retryable=True) from exc
     active, policy = _limits(db, config)
     product, options = normalize_options(payload, policy)
-    estimated_tokens, estimated_cost, cost_band = _estimate(db, active, policy, options, config)
+    from app.public.intent import resolve_intent
+    intent = resolve_intent(product, getattr(payload, "intent_confirmation", None))
+    estimated_tokens, estimated_cost, cost_band = ((0, 0, "low") if intent.status == "requires_clarification"
+                                                   else _estimate(db, active, policy, options, config))
     now = utc_now()
     quota, limiting_reasons, reset_times = _quota_decision(db, redis, policy, session_id, ip_hash, now)
     queued = db.scalar(select(func.count(AnalysisRun.id)).where(AnalysisRun.initiator_type == "public", AnalysisRun.status == "queued")) or 0
@@ -324,7 +327,7 @@ def preflight(
         daily.consumed_cost_microusd + daily.reserved_cost_microusd if daily else 0
     )
     estimated_max = usd_to_microusd(policy.public_run_cost_cap_usd)
-    reasons = []
+    reasons = ["product_clarification_required"] if intent.status == "requires_clarification" else []
     if not active.public_analysis_enabled or not config.public_analysis_enabled:
         reasons.append("public_analysis_disabled")
         limiting_reasons.append("paused")
@@ -348,6 +351,7 @@ def preflight(
         "remaining_public_quota": quota,
         "estimate": {"token_band": {"min": 0, "max": estimated_tokens}, "cost_band": cost_band, "non_binding": True},
         "recovery": _recovery(now, limiting_reasons, reset_times),
+        "intent_resolution": intent.model_dump(mode="json"),
     }
 
 
@@ -411,7 +415,10 @@ def create_analysis(
         if policy is None or policy.lifecycle != "published":
             raise V2Error(503, "analysis_not_configured", "Analysis is temporarily unavailable.", retryable=True)
         product, options = normalize_options(payload, policy)
-        request_hash = canonical_json_hash({"product_name": product, **options})
+        request_identity = {"product_name": product, **options}
+        if getattr(payload, "intent_confirmation", None):
+            request_identity["intent_confirmation"] = payload.intent_confirmation.model_dump()
+        request_hash = canonical_json_hash(request_identity)
         existing = db.scalar(select(RunSubmission).where(RunSubmission.actor_type == actor_type, RunSubmission.actor_id == actor_id, RunSubmission.idempotency_key == idempotency_key))
         if existing:
             if existing.request_hash != request_hash:
@@ -422,6 +429,10 @@ def create_analysis(
                 run.user_id = user_id
             db.commit()
             return run
+        from app.public.intent import resolve_intent
+        intent = resolve_intent(product, getattr(payload, "intent_confirmation", None))
+        if intent.status != "resolved":
+            raise V2Error(409, "product_clarification_required", intent.question or "Please clarify the product model.", details={"intent_resolution": intent.model_dump(mode="json")})
         active, policy = _limits(db, config)
         if actor_type == "public":
             if not active.public_analysis_enabled or not config.public_analysis_enabled:

@@ -42,6 +42,7 @@ class Settings(BaseSettings):
 
     # Initial seed model. Published policies and active pointers own routing.
     v2_agent_chat_models: str = "deepseek/deepseek-v4-flash"
+    v2_audience_chat_model: str = "meta-llama/llama-3.1-8b-instruct"
     v2_agent_max_concurrency: int = Field(default=4, ge=1, le=32)
     v2_analysis_run_timeout_seconds: int = Field(default=1800, ge=60, le=3600)
 
@@ -121,9 +122,9 @@ class Settings(BaseSettings):
     youtube_transcript_chunk_max_characters: int = Field(default=8000, ge=500, le=100000)
     youtube_tool_max_output_bytes: int = Field(default=1000000, ge=1000, le=10000000)
     youtube_live_smoke_enabled: bool = False
-    default_video_count: int = Field(default=5, ge=3, le=8)
-    min_video_count: int = Field(default=3, ge=1, le=8)
-    max_video_count: int = Field(default=8, ge=3, le=12)
+    default_video_count: int = Field(default=3, ge=3, le=5)
+    min_video_count: int = Field(default=3, ge=3, le=5)
+    max_video_count: int = Field(default=5, ge=3, le=5)
     public_runs_per_hour: int = Field(default=3, ge=0)
     public_runs_per_day: int = Field(default=10, ge=0)
     public_concurrent_runs: int = Field(default=2, ge=0)
@@ -208,6 +209,8 @@ class Settings(BaseSettings):
             errors.append("V2_AGENT_CHAT_MODELS must contain exactly one model slug in Phase 6")
         elif any("/" not in item for item in self.v2_agent_model_slugs):
             errors.append("V2_AGENT_CHAT_MODELS must contain canonical author/model slugs")
+        if not self.v2_audience_chat_model.strip() or "/" not in self.v2_audience_chat_model or "," in self.v2_audience_chat_model:
+            errors.append("V2_AUDIENCE_CHAT_MODEL must be one canonical author/model slug")
         if self.youtube_retry_max_seconds < self.youtube_retry_base_seconds:
             errors.append(
                 "YOUTUBE_RETRY_MAX_SECONDS must be greater than or equal to "

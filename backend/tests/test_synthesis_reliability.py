@@ -274,7 +274,9 @@ def test_executor_retry_includes_index_ownership_and_output_hash(monkeypatch):
     monkeypatch.setattr(executor, "_call_agent", AsyncMock(return_value=result))
     monkeypatch.setattr(executor, "_outputs_with_prefix", lambda _id, prefix: [{"analysis": r} for r in fixture["source_analyses"]] if prefix.startswith("analyze_review") else [])
     with pytest.raises(RuntimeTaskError) as error:
-        asyncio.run(executor._execute_agent(uuid.uuid4(), SimpleNamespace(agent_version_id=uuid.uuid4()), SimpleNamespace(id=uuid.uuid4()), None, {}, config=None))
+        asyncio.run(executor._execute_agent(uuid.uuid4(), SimpleNamespace(
+            agent_version_id=uuid.uuid4(), workflow_task_key="build_consensus", input_payload={}),
+            SimpleNamespace(id=uuid.uuid4()), None, {}, config=None))
     assert error.value.invalid_output_hash == canonical_json_hash(result.model_dump(mode="json"))
     issue = error.value.validator_results["issues"][0]
     assert issue["loc"] == ["assertions", 0, "evidence_refs"] and issue["ownership"] == "unknown"

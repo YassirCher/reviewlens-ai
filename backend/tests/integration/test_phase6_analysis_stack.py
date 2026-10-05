@@ -63,7 +63,8 @@ def test_phase6_seed_snapshot_and_database_immutability() -> None:
         original_prompt = agent.system_prompt if agent else None
     assert snapshot is not None
     assert len(snapshot.snapshot["agents"]) == 5
-    assert len(tasks) == 25
+    assert len(tasks) == 26
+    assert sum(task.handler == "analysis.resolve_discovered_product" for task in tasks) == 1
     assert any(task.workflow_task_key.startswith("analyze_review.source_") for task in tasks)
     assert all(not task.workflow_task_key.startswith("fetch_comments.source_") for task in tasks)
     assert original_prompt and evaluation_id is not None
@@ -124,3 +125,43 @@ def test_phase8_curator_policy_publishes_compatible_version_without_rewriting_ol
     assert frozen is not None
     assert any(item["id"] == str(old_agent.id) and item["content_hash"] == old_agent.content_hash for item in frozen.snapshot["agents"])
     assert all(item["id"] != str(new_agent.id) for item in frozen.snapshot["agents"])
+
+
+def test_pinned_rollback_survives_development_reseed() -> None:
+    from app.config import settings
+
+    asyncio.run(refresh_catalogs())
+    with session_scope() as db:
+        active = db.get(ActiveConfiguration, 1)
+        original_environment = active.environment
+        original_flags = dict(active.feature_flags or {})
+        active.environment = "development"
+        development = settings.model_copy(update={"app_env": "development"})
+        prior = seed_analysis_configuration(db, config=development)
+        active.feature_flags = {**original_flags, "seeded_configuration_pinned": True}
+    successor_config = development.model_copy(update={
+        "v2_analysis_run_timeout_seconds": development.v2_analysis_run_timeout_seconds - 1,
+        "public_daily_cost_cap_usd": development.public_daily_cost_cap_usd - 1,
+    })
+    try:
+        with session_scope() as db:
+            successor = seed_analysis_configuration(db, config=successor_config)
+            active = db.get(ActiveConfiguration, 1)
+            assert successor["workflow_version_id"] != prior["workflow_version_id"]
+            assert successor["budget_policy_version_id"] != prior["budget_policy_version_id"]
+            assert str(active.workflow_version_id) == prior["workflow_version_id"]
+            assert str(active.budget_policy_version_id) == prior["budget_policy_version_id"]
+        with session_scope() as db:
+            repeat = seed_analysis_configuration(db, config=successor_config)
+            active = db.get(ActiveConfiguration, 1)
+            assert repeat == successor
+            assert str(active.workflow_version_id) == prior["workflow_version_id"]
+            active.feature_flags = original_flags
+            seed_analysis_configuration(db, config=successor_config)
+            assert str(active.workflow_version_id) == successor["workflow_version_id"]
+    finally:
+        with session_scope() as db:
+            active = db.get(ActiveConfiguration, 1)
+            active.environment = original_environment
+            active.feature_flags = original_flags
+            seed_analysis_configuration(db)

@@ -2,8 +2,15 @@ param([int]$TimeoutSeconds = 300, [string]$EnvironmentFile = '')
 
 function Invoke-LocalDocker {
     param([string[]]$Arguments)
-    $output = & docker @Arguments 2>&1
-    if ($LASTEXITCODE -ne 0) { throw ('Docker command failed: ' + $Arguments[0] + '. Check the local Docker logs and configuration.') }
+    # Windows PowerShell wraps native stderr as ErrorRecord, including successful
+    # Compose progress. Judge Docker by its exit code, while retaining output.
+    $previousErrorPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $output = & docker @Arguments 2>&1
+        $commandExitCode = $LASTEXITCODE
+    } finally { $ErrorActionPreference = $previousErrorPreference }
+    if ($commandExitCode -ne 0) { throw ('Docker command failed: ' + $Arguments[0] + '. Check the local Docker logs and configuration.') }
     return (($output | ForEach-Object { $_.ToString() }) -join "`n")
 }
 
@@ -70,8 +77,8 @@ function Invoke-ReviewLensLocalStack {
         }
         $health = Invoke-RestMethod -Uri 'http://localhost:8000/health/ready' -TimeoutSec 10
         if ($health.status -notin @('ready', 'degraded')) { throw 'The API is live but research readiness has not passed.' }
-        if ($health.status -eq 'degraded') { Write-Warning 'Research is ready with degraded optional graph/vector projections.' }
-        Write-Host 'ReviewLens research is ready: http://localhost:3000'
+        if ($health.status -eq 'degraded') { Write-Warning 'Services are ready with degraded optional graph/vector projections.' }
+        Write-Host 'ReviewLens services are ready: http://localhost:3000'
     } finally { Pop-Location; $env:REVIEWLENS_ENV_FILE = $previousEnvironmentFile }
 }
 

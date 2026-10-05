@@ -289,3 +289,13 @@ Validate the local context vault with:
 ```bash
 python scripts/check_context.py
 ```
+
+### Human product clarification and comments
+
+New research defaults to three videos and accepts at most five. Incomplete product names require clarification before admission; related discovery results can pause a run for up to 15 minutes within its original deadline. Audience comments use the dedicated `V2_AUDIENCE_CHAT_MODEL` policy (Llama 3.1 8B by default), with reference-bound classification, deterministic percentages and translations of non-English/non-French comments. Unavailable audience analysis is displayed as a warning while validated video evidence continues. Historical reports retain their original snapshots and counts.
+
+Acceptance rollback may pin the active workflow and budget using the internal `seeded_configuration_pinned` feature flag. Subsequent local launches preserve those selections. Re-enable public admission only after required live quality acceptance passes.
+
+### Multilingual PDF runtime
+
+The backend image packages Chromium and licensed Noto fonts for multilingual exports; it does not download fonts or fetch remote resources during export. For a backend virtual environment outside Docker, install the pinned backend dependencies and run `python -m playwright install chromium` once (Linux also needs Playwright's documented system libraries). The renderer waits for fonts, limits concurrency and enforces a 45-second export deadline. English-only payloads retain the ReportLab renderer. Font source checksums and OFL licenses are under `backend/app/assets/fonts/`.

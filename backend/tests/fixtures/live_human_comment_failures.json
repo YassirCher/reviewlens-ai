@@ -1,0 +1,39 @@
+{
+  "capture_date": "2026-10-03",
+  "provenance": "Previously authorized Sony WH-1000XM5 live run; sanitized excerpts, independent human labels.",
+  "product_name": "Sony WH-1000XM5",
+  "truncated_finding": "Noise cancellation: Noise cancellation reduces outside noise by about 84% and scores 4.2/5, with one reviewer calling it the most comfortable noise-cancelling headphones they've t",
+  "truncated_usage": "I've been using Sony's xm5 headphones for about 3 months now and well they're",
+  "sound_claim": "Out-of-box sound quality scores 4.2/5 from a virtual panel, with a bass emphasis that may cause fatigue over long periods.",
+  "sound_quotes": [
+    "got a 4.2 out of 5 and at this point",
+    "longer listening periods my ears did"
+  ],
+  "anc_claim": "Noise cancelling reduces outside noise by about 84%, surpassing AirPods Max but falling short of Bose QC Ultra.",
+  "anc_quotes": [
+    "performance according to our test these",
+    "outside Noise by about 84% which Falls a"
+  ],
+  "comfort_claim": "The XM5 is the most comfortable pair of noise-cancelling headphones the reviewer has ever tried, with softer vegan leather and a lightweight build.",
+  "comfort_quotes": [
+    "is the most comfortable pair of noise",
+    "cancelling headphones I've ever tried"
+  ],
+  "labels": {
+    "truncated_finding": false,
+    "anc_sound_score_conflation": false,
+    "foreign_comfort_attribution": false,
+    "correct_sound_score": true,
+    "correct_anc_reduction": true,
+    "correct_comfort_owner": true
+  },
+  "iphone_failure": {
+    "model_output": {
+      "positive_pct": 0,
+      "neutral_pct": 0,
+      "negative_pct": 0
+    },
+    "acquired_comments_per_source": 20,
+    "label": "Invalid distribution; successor calculates from classified references."
+  }
+}

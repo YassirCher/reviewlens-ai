@@ -24,9 +24,10 @@ from app.db.models import AnalysisRun, Report, ReportPublication, TaskAttempt, T
 from app.db.session import session_scope
 from app.errors import V2Error
 from app.public.admission import client_ip_hash, create_analysis, preflight, resolve_session
-from app.analysis.product_info import ProductInfo
+from app.analysis.product_info import ProductInfo, canonicalize_product_info
 from app.public.contracts import (
     AnalysisRequest,
+    ClarificationAnswer,
     CreateResponse,
     GraphResponse,
     PreflightResponse,
@@ -36,6 +37,7 @@ from app.public.contracts import (
 from app.public.reports import product_info_from_tasks, public_display_payload, report_token, token_hash, usage_summary
 from app.runtime.outbox import read_progress
 from app.runtime.service import request_cancellation
+from app.runtime.clarification import pending_for_run, answer_product
 from app.services.admin_auth import AdminAuthService, AuthenticatedAdmin
 from app.services.audit_service import add_audit_event
 
@@ -150,7 +152,9 @@ def _status(db: Session, run: AnalysisRun) -> StatusResponse:
     return StatusResponse(
         run_id=run.id,
         status=run.status,
-        product_name=run.product_input,
+        product_name=getattr(run, "resolved_product_name", None) or run.product_input,
+        original_product_name=run.product_input if getattr(run, "resolved_product_name", None) else None,
+        clarification=pending_for_run(db, run.id) if run.status == "waiting_for_input" else None,
         created_at=run.created_at,
         started_at=run.started_at,
         completed_at=run.completed_at,
@@ -181,7 +185,7 @@ def _status(db: Session, run: AnalysisRun) -> StatusResponse:
         report_url=report_url,
         progress_sequence=run.progress_sequence,
         product_info=(
-            ProductInfo.model_validate(publication.payload["product_info"])
+            canonicalize_product_info(ProductInfo.model_validate(publication.payload["product_info"]))
             if publication and publication.payload.get("product_info")
             else product_info_from_tasks(db, run.id) if publication is None else None
         ),
@@ -190,6 +194,8 @@ def _status(db: Session, run: AnalysisRun) -> StatusResponse:
 
 def _public_failure(db: Session, run: AnalysisRun, tasks: list[TaskRun]) -> dict[str, str]:
     """Allowlist safe explanations; never serialize task inputs or upstream errors."""
+    if getattr(run, "error_code", None) == "product_clarification_expired":
+        return {"code": "product_clarification_expired", "message": "The product clarification expired. Completed research was preserved; start a new analysis when ready."}
     attempts = list(db.scalars(
         select(TaskAttempt).join(TaskRun, TaskRun.id == TaskAttempt.task_run_id)
         .where(TaskRun.run_id == run.id)
@@ -325,6 +331,17 @@ def analysis_status(run_id: uuid.UUID, request: Request, response: Response, db:
     db.commit()
     response.headers.update(_NO_STORE)
     return result
+
+
+@router.post("/analyses/{run_id}/clarifications/{clarification_id}/answer", response_model=StatusResponse)
+def answer_clarification(run_id: uuid.UUID, clarification_id: uuid.UUID, payload: ClarificationAnswer,
+                         request: Request, response: Response, db: Session = Depends(get_v2_db)) -> StatusResponse:
+    _authorized_run(db, request, run_id, mutation=True)
+    _check_origin(request)
+    run = answer_product(db, run_id, clarification_id, payload.choice_id)
+    db.commit()
+    response.headers.update(_NO_STORE)
+    return _status(db, run)
 
 
 @router.post("/analyses/{run_id}/cancel")

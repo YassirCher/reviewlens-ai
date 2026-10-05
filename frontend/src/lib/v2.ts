@@ -3,9 +3,14 @@ export type AnalysisInput = {
   product_name: string;
   video_count: number;
   analyze_comments: boolean;
+  locale?: "en" | "fr";
+  intent_confirmation?: { product_name: string; exact_model: true };
 };
 
+export type IntentResolution = { status: "resolved" | "requires_clarification"; reason: string | null; question: string | null; canonical_name: string | null; resolver_version: string };
+export type ProductClarification = { id: string; question: string; expires_at: string; resolver_version: string; choices: { id: string; product_name: string; sources: { title: string; url: string }[] }[] };
 export type Preflight = {
+  intent_resolution?: IntentResolution | null;
   normalized_options: AnalysisInput & { locale: string };
   allowed: boolean;
   denial_code: string | null;
@@ -27,6 +32,7 @@ export type AdmissionRecovery = {
 };
 
 export function admissionMessage(code: string | null, recovery?: AdmissionRecovery | null, fallback?: string): string {
+  if (code === "product_clarification_required") return "Please clarify the exact model below before starting research.";
   const reasons = recovery?.reasons || [];
   if (reasons.includes("paused") || code === "public_analysis_disabled") return "New research is temporarily paused.";
   if (reasons.includes("run_budget")) return "This request exceeds the capacity per run. Try fewer review sources.";
@@ -67,8 +73,10 @@ export type ProductInfo = { facts: ProductFact[]; variants: ProductVariant[]; co
 export type SampleUsed = { units: { role: string; details: { label: string; value: string; evidence: ProductEvidence }[] }[] };
 export type RunStatus = {
   run_id: string;
-  status: "queued" | "running" | "cancelling" | "complete" | "partial" | "failed" | "cancelled";
+  status: "queued" | "running" | "waiting_for_input" | "cancelling" | "complete" | "partial" | "failed" | "cancelled";
   product_name: string;
+  original_product_name?: string | null;
+  clarification?: ProductClarification | null;
   created_at: string;
   started_at: string | null;
   completed_at: string | null;
@@ -115,7 +123,9 @@ export type DecisionGuide = {
   buy_if_finding_ids: string[]; caveat_finding_ids: string[]; tested_source_ids: string[];
   long_term_period: string | null; long_term_source_id: string | null; unknowns: string[];
 };
+export type CommentSummary = { status: "disabled" | "unavailable" | "insufficient" | "analyzed"; sources_analyzed: number; comments_sampled: number; comments_retained: number; comments_relevant: number | null; comments_translated: number | null; limitations: string[] };
 export type Report = {
+  comment_analysis?: CommentSummary | null;
   schema_version: 1; report_id: string; product_name: string; status: "complete" | "partial";
   source_count_requested: number; source_count_analyzed: number; overall_score: number;
   verdict: string; confidence: number; confidence_band: string; summary: string;
@@ -183,6 +193,13 @@ export function getRun(id: string, signal?: AbortSignal): Promise<RunStatus> {
 export function cancelRun(id: string): Promise<{ run_id: string; status: string }> {
   if (!validRunId(id)) return Promise.reject(new V2ApiError("not_found", "Analysis not found.", false, null, 404));
   return fetch(api(`/api/v2/analyses/${id}/cancel`), { method: "POST", credentials: "include", cache: "no-store" }).then(checked<{ run_id: string; status: string }>);
+}
+export function answerClarification(id: string, clarificationId: string, choiceId: string): Promise<RunStatus> {
+  if (!validRunId(id) || !validRunId(clarificationId)) return Promise.reject(new V2ApiError("not_found", "Question not found.", false, null, 404));
+  return fetch(api(`/api/v2/analyses/${id}/clarifications/${clarificationId}/answer`), {
+    method: "POST", credentials: "include", cache: "no-store", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ choice_id: choiceId }),
+  }).then(checked<RunStatus>);
 }
 export function getReport(token: string, signal?: AbortSignal): Promise<Report> {
   if (!validToken(token)) return Promise.reject(new V2ApiError("not_found", "Report not found.", false, null, 404));

@@ -88,8 +88,12 @@ def create_test_environment(path: Path) -> tuple[str, str, str]:
         "OPENROUTER_MANAGEMENT_KEY": "",
         "OPENROUTER_BASE_URL": "http://openrouter-mock:8089/api/v1",
         "V2_AGENT_CHAT_MODELS": "deepseek/deepseek-v4-flash",
+        "V2_AUDIENCE_CHAT_MODEL": "meta-llama/llama-3.1-8b-instruct",
+        "MIN_VIDEO_COUNT": "3",
+        "DEFAULT_VIDEO_COUNT": "3",
+        "MAX_VIDEO_COUNT": "5",
         "PHASE12_ALLOWED_INFERENCE_MODELS": (
-            "deepseek/deepseek-v4-flash,deepseek/deepseek-v4-flash-0731"
+            "deepseek/deepseek-v4-flash,deepseek/deepseek-v4-flash-0731,meta-llama/llama-3.1-8b-instruct"
         ),
         "V2_AGENT_MAX_CONCURRENCY": "4",
         "V2_ANALYSIS_RUN_TIMEOUT_SECONDS": "900",

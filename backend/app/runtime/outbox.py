@@ -154,7 +154,7 @@ def _publish_task_dispatch(item: RuntimeOutbox, redis_client: Redis, config: Set
             expected_attempt = int(item.payload["attempt_number"])
             if (
                 task.status != TaskStatus.QUEUED
-                or run.status in {RunStatus.CANCELLING, RunStatus.CANCELLED}
+                or run.status in {RunStatus.CANCELLING, RunStatus.CANCELLED, RunStatus.WAITING_FOR_INPUT}
                 or task.current_attempt + 1 != expected_attempt
             ):
                 return
@@ -297,7 +297,8 @@ def read_progress(
             for _, fields in rows
         ]
         expected = list(range(after_sequence + 1, after_sequence + len(events) + 1))
-        if events and [item["sequence"] for item in events] == expected:
+        required_count = min(current_sequence - after_sequence, limit or current_sequence)
+        if len(events) == required_count and [item["sequence"] for item in events] == expected:
             return {"source": "redis", "current_sequence": current_sequence, "events": events}
     except Exception as exc:
         logger.info(
