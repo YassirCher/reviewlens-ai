@@ -6,6 +6,8 @@ ReviewLens compares selected YouTube product reviews and turns them into a buyin
 
 **Full-stack project:** Next.js, FastAPI, PostgreSQL, Redis/Celery, OpenRouter, Neo4j, and Qdrant. The application runs locally with Docker Compose.
 
+[User guide](USERS.md) · [Admin guide](ADMIN.md) · [App walkthrough & architecture](APP.md) · [Real example](USERS.md#worked-example-sony-wh-1000xm5)
+
 [See how it works](#how-it-works) · [Engineering decisions](#engineering-decisions) · [Run locally](#run-locally) · [Verification](#verification)
 
 ![ReviewLens product research home screen](docs/assets/reviewlens-home.png)
@@ -44,7 +46,7 @@ flowchart LR
 
 The public UI is built with Next.js. FastAPI admits requests through `/api/v2`, snapshots the active workflow, and exposes progress through resumable events. PostgreSQL is the source of truth for runs and evidence metadata; readable node bodies live in versioned Markdown. Neo4j and Qdrant are rebuildable graph and vector projections. OpenRouter is the server-side model gateway.
 
-For implementation detail, see the [Phase 12 contract map](docs/release-evidence/phase12-conformance.md) and the [two-product audit case study](docs/release-evidence/two-product-audit-verification.md).
+For illustrated usage instructions, read the [user guide](USERS.md) and [admin guide](ADMIN.md). For architecture diagrams and a guide to the implementation, read [Inside ReviewLens](APP.md). The [Phase 12 contract map](docs/release-evidence/phase12-conformance.md) and [two-product audit case study](docs/release-evidence/two-product-audit-verification.md) provide verification evidence.
 
 ## Run locally
 
@@ -82,3 +84,16 @@ CI configuration is in [`.github/workflows/phase12-acceptance.yml`](.github/work
 - Comment analysis uses a bounded sample and never overrides the reviewed video evidence.
 
 ReviewLens is an active engineering project. The repository documents what the system verifies, where it degrades, and which results remain unproven across a broad range of products.
+
+<details>
+<summary>Repository navigation and runtime status</summary>
+
+The V2 research experience is the only runtime. The legacy V1 UI and API contracts are retired; `/research` permanently redirects to `/`, and product APIs use `/api/v2`.
+
+[APP.md](APP.md) is the application and architecture guide, including the runtime and migration boundary and links to the implementation. [USERS.md](USERS.md) and [ADMIN.md](ADMIN.md) explain the public and operator workflows with screenshots from a real analysis.
+
+The local specification vault starts at `context/00_INDEX_AND_PROJECT_OVERVIEW.md`, with implementation maps under `context/codebase/00_CODEBASE_MAP.md`. The `context/` directory is excluded from version control; the published guides above provide navigation for this GitHub repository.
+
+Deploying over an existing Phase 11 environment requires an authoritative `docs/release-evidence/phase12-cutover.json` export and the evidence gate described in the [retirement runbook](docs/operations/phase12-retirement.md). Local development does not require that production artifact.
+
+</details>

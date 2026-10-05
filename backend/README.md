@@ -2,6 +2,8 @@
 
 FastAPI backend for the durable V2 research runtime and protected admin control plane. All product APIs live under `/api/v2`. The retired V1 routes return `404`; compatibility telemetry and cutover observations remain queryable as historical data.
 
+[Project overview](../README.md) · [Application architecture](../APP.md) · [User guide](../USERS.md) · [Admin guide](../ADMIN.md)
+
 ## Setup
 
 From the repository root:

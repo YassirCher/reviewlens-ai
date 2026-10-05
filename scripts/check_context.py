@@ -84,7 +84,11 @@ class ContextAudit:
     def _documentation_files() -> list[Path]:
         root_docs = [
             ROOT / "README.md",
-            ROOT / "ARCHITECTURE.md",
+            ROOT / "APP.md",
+            ROOT / "USERS.md",
+            ROOT / "ADMIN.md",
+            ROOT / "backend" / "README.md",
+            ROOT / "frontend" / "README.md",
             ROOT / "AGENTS.md",
             ROOT / "REBUILD_PHASES.md",
         ]
@@ -423,7 +427,7 @@ class ContextAudit:
                 "context/00_index_and_project_overview.md",
                 "context/codebase/00_codebase_map.md",
             ),
-            ROOT / "ARCHITECTURE.md": (
+            ROOT / "APP.md": (
                 "v2 runtime architecture",
                 "legacy application and wire contracts are retired",
                 "compatibility telemetry",

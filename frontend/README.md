@@ -2,6 +2,8 @@
 
 Next.js 16 and React 19 frontend for the V2 public research flow and protected admin cockpit.
 
+[Project overview](../README.md) · [Application architecture](../APP.md) · [User guide](../USERS.md) · [Admin guide](../ADMIN.md)
+
 ## Routes
 
 - `/` — research intake
