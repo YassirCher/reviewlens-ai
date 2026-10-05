@@ -148,9 +148,13 @@ For rollback, create and review a draft based on the desired earlier configurati
 
 Open **Knowledge**, select a workspace, then select a graph node or use **Readable workspace graph list → Inspect**. The node inspector shows available versions and stored text. Use the associated run link to return to the execution trace.
 
-![Loaded example workspace graph and a stored evidence node in the inspector](docs/assets/admin-knowledge.jpg)
+![Loaded example workspace graph with themed controls and a populated minimap](docs/assets/admin-knowledge.jpg)
 
-*The bounded graph contains real records from this run. The inspector has loaded a cited transcript excerpt and its version count.*
+*The graph is zoomed in to show its node cards. Controls, relation labels, and the populated minimap follow the app's theme. Long titles stay within each card; hover for the full title or use the readable list.*
+
+![A selected evidence node with its fully loaded transcript excerpt and version count](docs/assets/admin-knowledge-node.jpg)
+
+*Click a node card or focus it and press **Enter** to open the inspector. This real evidence excerpt was captured after its body loaded.*
 
 ![Knowledge workspaces with their current projection status](docs/assets/admin-workspace.jpg)
 

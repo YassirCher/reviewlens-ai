@@ -891,6 +891,44 @@
   background: var(--admin-s1);
   border: 1px solid var(--admin-border);
   border-radius: 8px;
+  overflow: hidden;
+}
+
+.admin-graph .react-flow {
+  --xy-background-color: var(--admin-s1);
+  --xy-edge-label-background-color: var(--admin-s2);
+  --xy-edge-label-color: var(--admin-muted);
+  --xy-controls-button-background-color: var(--admin-s2);
+  --xy-controls-button-background-color-hover: var(--admin-s3);
+  --xy-controls-button-color: var(--admin-text);
+  --xy-controls-button-color-hover: var(--admin-text);
+  --xy-controls-button-border-color: var(--admin-border-strong);
+  --xy-controls-box-shadow: var(--admin-card-shadow);
+  --xy-minimap-background-color: var(--admin-s2);
+  --xy-minimap-mask-background-color: color-mix(in srgb, var(--admin-bg) 75%, transparent);
+  --xy-minimap-mask-stroke-color: var(--admin-subtle);
+  --xy-attribution-background-color: var(--admin-s2);
+}
+
+.admin-graph .react-flow__controls,
+.admin-graph .react-flow__minimap {
+  border: 1px solid var(--admin-border-strong);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.admin-graph .react-flow__controls-button {
+  width: 44px;
+  height: 44px;
+}
+
+.admin-graph .react-flow__controls-button:focus-visible {
+  outline: 2px solid var(--admin-primary);
+  outline-offset: -3px;
+}
+
+.admin-graph .react-flow__attribution a {
+  color: var(--admin-muted);
 }
 
 .admin-graph-node {
@@ -899,9 +937,48 @@
   border-radius: 7px;
   padding: 9px;
   color: var(--admin-text);
-  width: 180px;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   font-size: 12px;
+  font-family: inherit;
+  text-align: left;
+  line-height: 18px;
   overflow-wrap: anywhere;
+  overflow: hidden;
+}
+
+.admin-graph-node small {
+  color: var(--admin-muted);
+  font-size: 10px;
+  line-height: 14px;
+}
+
+.admin-graph-node strong {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+
+.admin-graph-node:focus-visible {
+  border-color: var(--admin-teal);
+  box-shadow: 0 0 0 2px var(--admin-teal);
+  outline: none;
+}
+
+button.admin-graph-node {
+  cursor: pointer;
+}
+
+button.admin-graph-node:hover {
+  border-color: var(--admin-teal);
+}
+
+.admin-graph-hint {
+  margin: 12px 0 8px;
 }
 
 .admin-graph-alt {

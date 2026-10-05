@@ -10,13 +10,19 @@ type GraphLink = { source: string; target: string; label: string };
 
 export function AdminGraph({ items, links, title, onSelect }: { items: GraphItem[]; links: GraphLink[]; title: string; onSelect?: (id: string) => void }) {
   const { resolvedTheme } = useTheme();
-  const isLight = resolvedTheme === "light";
   const graph = useMemo(() => {
-    const nodes: Node[] = items.slice(0, 100).map((item, index) => ({ id: item.id,
-      position: { x: (index % 5) * 230, y: Math.floor(index / 5) * 115 },
-      data: { label: <div className="admin-graph-node"><small>{item.kind}</small><strong>{item.label}</strong></div> },
-      style: { background: "transparent", border: 0, padding: 0 },
-    }));
+    const nodes: Node[] = items.slice(0, 100).map((item, index) => {
+      const label = <><small>{item.kind}</small><strong>{item.label}</strong></>;
+      return { id: item.id,
+        position: { x: (index % 5) * 230, y: Math.floor(index / 5) * 132 },
+        width: 180,
+        height: 96,
+        data: { label: onSelect
+          ? <button type="button" className="admin-graph-node nodrag" aria-label={`Inspect ${item.kind}: ${item.label}`} title={item.label} onClick={() => onSelect(item.id)}>{label}</button>
+          : <div className="admin-graph-node" title={item.label}>{label}</div> },
+        style: { background: "transparent", border: 0, padding: 0 },
+      };
+    });
     const ids = new Set(nodes.map(node => node.id));
     const edges: Edge[] = links.filter(item => ids.has(item.source) && ids.has(item.target)).slice(0, 200)
       .map((item, index) => ({
@@ -24,13 +30,42 @@ export function AdminGraph({ items, links, title, onSelect }: { items: GraphItem
         source: item.source,
         target: item.target,
         label: item.label,
-        style: { stroke: isLight ? "#94A3B8" : "#64748b" },
-        labelStyle: { fill: isLight ? "#475569" : "#aab4c3" },
+        style: { stroke: "var(--admin-subtle)" },
+        labelStyle: { fill: "var(--admin-muted)" },
       }));
     return { nodes, edges };
-  }, [items, links, isLight]);
+  }, [items, links, onSelect]);
 
-  return <div><div className="admin-graph" role="region" aria-label={title + " canvas"}><ReactFlow nodes={graph.nodes} edges={graph.edges} fitView nodesDraggable={false} nodesConnectable={false} nodesFocusable={false} edgesFocusable={false} elementsSelectable={false} zoomOnDoubleClick={false} minZoom={0.25} maxZoom={1.5}><Background color={isLight ? "#E2E8F0" : "#2a3342"} /><MiniMap pannable /><Controls showInteractive={false} /></ReactFlow></div><details className="admin-graph-alt"><summary>Readable {title} list ({items.length} nodes, {links.length} relations)</summary><ul className="admin-list">{items.map(item => <li key={item.id}><div><strong>{item.label}</strong><br /><span className="admin-muted">{item.kind} · {item.id}</span></div>{onSelect && <button className="admin-secondary" onClick={() => onSelect(item.id)}>Inspect</button>}</li>)}</ul><h3>Relations</h3><ul>{links.map((link, index) => <li key={index}>{link.source} → {link.target} ({link.label})</li>)}</ul></details></div>;
+  return <div>
+    <div className="admin-graph" role="region" aria-label={title + " canvas"}>
+      <ReactFlow
+        nodes={graph.nodes}
+        edges={graph.edges}
+        colorMode={resolvedTheme}
+        fitView
+        fitViewOptions={{ padding: 0.15, minZoom: 0.1, maxZoom: 1 }}
+        nodesDraggable={false}
+        nodesConnectable={false}
+        nodesFocusable={false}
+        edgesFocusable={false}
+        elementsSelectable={false}
+        zoomOnDoubleClick={false}
+        minZoom={0.1}
+        maxZoom={1.5}
+      >
+        <Background color="var(--admin-border)" />
+        <MiniMap pannable nodeColor="var(--admin-primary)" style={{ width: 144, height: 104 }} />
+        <Controls showInteractive={false} />
+      </ReactFlow>
+    </div>
+    <p className="admin-muted admin-graph-hint">Zoom in to read nodes, or use the readable list below.</p>
+    <details className="admin-graph-alt">
+      <summary>Readable {title} list ({items.length} nodes, {links.length} relations)</summary>
+      <ul className="admin-list">{items.map(item => <li key={item.id}><div><strong>{item.label}</strong><br /><span className="admin-muted">{item.kind} · {item.id}</span></div>{onSelect && <button className="admin-secondary" onClick={() => onSelect(item.id)}>Inspect</button>}</li>)}</ul>
+      <h3>Relations</h3>
+      <ul>{links.map((link, index) => <li key={index}>{link.source} → {link.target} ({link.label})</li>)}</ul>
+    </details>
+  </div>;
 }
 
 export function WorkflowGraph({ dag }: { dag: Record<string, unknown> }) {
