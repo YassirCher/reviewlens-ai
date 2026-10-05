@@ -150,7 +150,7 @@ Open **Knowledge**, select a workspace, then select a graph node or use **Readab
 
 ![Loaded example workspace graph with themed controls and a populated minimap](docs/assets/admin-knowledge.jpg)
 
-*The graph is zoomed in to show its node cards. Controls, relation labels, and the populated minimap follow the app's theme. Long titles stay within each card; hover for the full title or use the readable list.*
+*This close-up uses approximately 100% graph zoom so node titles are readable. The minimap shows the full workspace. Controls and relation labels follow the app's theme. Hover for a full title or use the readable list.*
 
 ![A selected evidence node with its fully loaded transcript excerpt and version count](docs/assets/admin-knowledge-node.jpg)
 
