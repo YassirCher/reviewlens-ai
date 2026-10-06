@@ -15,6 +15,7 @@ quarantine_mount=$(docker volume inspect reviewlens_markdown_quarantine --format
 tar -C "$workspace_mount" -czf "$backup_dir/workspaces.tar.gz" .
 tar -C "$quarantine_mount" -czf "$backup_dir/quarantine.tar.gz" .
 cp release.json "$backup_dir/release.json"
+install -m 0600 .env.production "$backup_dir/production.env"
 sha256sum "$backup_dir"/* >"$backup_dir/SHA256SUMS"
 "${compose[@]}" start api worker scheduler >/dev/null
 trap - EXIT

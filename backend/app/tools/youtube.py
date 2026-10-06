@@ -720,7 +720,7 @@ class TranscriptProvider:
                 _mark_route_blocked(route)
                 logger.warning(
                     "YouTube caption route %s failed with %s; rotating to next route",
-                    route,
+                    "direct" if route == "direct" else "configured proxy",
                     type(exc).__name__,
                 )
                 continue

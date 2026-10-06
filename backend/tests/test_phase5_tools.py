@@ -451,6 +451,24 @@ def test_transcript_rotating_route_all_blocked_bounded_attempts(monkeypatch: pyt
     assert _is_route_blocked("http://p2.example:8080") is True
 
 
+def test_transcript_failure_log_keeps_proxy_credentials_private(caplog) -> None:
+    proxy = "http://fixture-user:fixture-password@private-proxy.example:8080"
+
+    class BlockedClient:
+        def list(self, video_id):
+            raise RequestBlocked(video_id)
+
+    provider = TranscriptProvider(config=_config(youtube_transcript_proxy_url=proxy),
+                                  client_factory=lambda route: BlockedClient())
+    with pytest.raises(ToolExecutionError, match="transcript_access_blocked"):
+        provider.fetch(YouTubeTranscriptInput(video_id="fixture1"))
+    assert "configured proxy" in caplog.text
+    assert "RequestBlocked" in caplog.text
+    assert proxy not in caplog.text
+    assert "fixture-password" not in caplog.text
+    assert "private-proxy.example" not in caplog.text
+
+
 def test_transcript_circuit_breaker_prevents_subsequent_slot_attempts() -> None:
     calls = 0
 

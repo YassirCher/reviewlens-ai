@@ -11,6 +11,10 @@ from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 
+class UploadRejected(RuntimeError):
+    pass
+
+
 def upload(account: str, directory: Path) -> None:
     if not re.fullmatch(r"[a-z0-9]{3,24}", account) or not directory.is_dir():
         raise ValueError("Invalid backup destination or directory")
@@ -41,7 +45,7 @@ def upload(account: str, directory: Path) -> None:
                 response = connection.getresponse()
                 response.read()
                 if response.status != 201:
-                    raise RuntimeError(f"Backup upload rejected: HTTP {response.status}")
+                    raise UploadRejected(f"HTTP {response.status}")
         finally:
             connection.close()
 
@@ -50,5 +54,6 @@ if __name__ == "__main__":
     try:
         upload(sys.argv[1], Path(sys.argv[2]))
     except Exception as exc:
-        print(f"Backup upload failed: {type(exc).__name__}", file=sys.stderr)
+        detail = str(exc) if isinstance(exc, UploadRejected) else type(exc).__name__
+        print(f"Backup upload failed: {detail}", file=sys.stderr)
         raise SystemExit(1) from None
