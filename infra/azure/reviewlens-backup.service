@@ -1,0 +1,10 @@
+[Unit]
+Description=ReviewLens coordinated private Azure backup
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+UMask=0077
+ExecStart=/usr/bin/bash /srv/reviewlens/current/infra/azure/backup.sh
+TimeoutStartSec=600

@@ -2,9 +2,11 @@
 
 **Inspect research runs, govern configuration, and monitor model usage.**
 
-[Project overview](README.md) · [User guide](USERS.md) · [Architecture](APP.md)
+[Project overview](README.md) · [User guide](USERS.md) · [Architecture](APP.md) · [Deployment](DEPLOYMENT.md)
 
 This guide covers the protected control plane at [http://localhost:3000/admin](http://localhost:3000/admin). Configure the local stack and administrator account using the [setup instructions](README.md#run-locally).
+
+The deployed control plane is at [Azure admin sign-in](https://reviewlens-yassir.spaincentral.cloudapp.azure.com/admin/login). It has a separate production database, so the local example runs shown here will not appear there. See [DEPLOYMENT.md](DEPLOYMENT.md) for production status, maintenance, and backup procedures.
 
 Screenshots show the running local control plane after its data loaded. Run traces follow the real Sony example in the [user guide](USERS.md#worked-example-sony-wh-1000xm5). Costs, catalog prices, active versions, alerts, and projection states reflect this installation at capture time and can change.
 

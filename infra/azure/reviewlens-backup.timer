@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily ReviewLens backup at 03:00 UTC
+
+[Timer]
+OnCalendar=*-*-* 03:00:00 UTC
+Persistent=true
+Unit=reviewlens-backup.service
+
+[Install]
+WantedBy=timers.target

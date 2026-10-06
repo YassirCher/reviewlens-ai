@@ -6,7 +6,7 @@ ReviewLens researches products through selected YouTube reviews. This guide foll
 
 For instructions with screenshots, see the [user guide](USERS.md) and [admin guide](ADMIN.md). The [real Sony example](USERS.md#worked-example-sony-wh-1000xm5) follows a product request through its finished report; the [matching admin walkthrough](ADMIN.md#worked-example-inspect-the-same-sony-run) inspects the recorded execution.
 
-[Project overview](README.md) · [User journey](#1-the-user-journey) · [Architecture](#2-system-architecture) · [Research workflow](#4-the-research-workflow) · [Evidence checks](#5-how-evidence-is-validated) · [Code guide](#10-where-to-read-the-code)
+[Project overview](README.md) · [Deployment](DEPLOYMENT.md) · [User journey](#1-the-user-journey) · [Architecture](#2-system-architecture) · [Research workflow](#4-the-research-workflow) · [Evidence checks](#5-how-evidence-is-validated) · [Code guide](#10-where-to-read-the-code)
 
 ![ReviewLens research home screen](docs/assets/reviewlens-home.png)
 
@@ -82,7 +82,7 @@ flowchart TB
 
 The Compose `migrate` service applies database migrations and seeds configuration before the API and workers start. Named volumes preserve the database and Markdown workspaces across restarts. See [the service definitions](docker-compose.yml) for the executable topology.
 
-Docker Desktop shows these services inside one **reviewlens** Compose group. Each service retains its own container; the migration container exits after setup. The [Azure deployment plan](docs/operations/azure-deployment-plan.md) describes a proposed hosted demo using this topology.
+Docker Desktop shows these services inside one **reviewlens** Compose group. Each service retains its own container; the migration container exits after setup. The [Azure deployment guide](DEPLOYMENT.md) records the actual VM deployment, with Caddy added for HTTPS, private service ports, persistent disks, and backups.
 
 ### V2 runtime architecture and retirement
 

@@ -6,7 +6,9 @@ ReviewLens compares selected YouTube product reviews and turns them into a buyin
 
 **Full-stack project:** Next.js, FastAPI, PostgreSQL, Redis/Celery, OpenRouter, Neo4j, and Qdrant. The application runs locally with Docker Compose.
 
-[User guide](USERS.md) · [Admin guide](ADMIN.md) · [App walkthrough & architecture](APP.md) · [Real example](USERS.md#worked-example-sony-wh-1000xm5)
+[User guide](USERS.md) · [Admin guide](ADMIN.md) · [App walkthrough & architecture](APP.md) · [Deployment](DEPLOYMENT.md) · [Real example](USERS.md#worked-example-sony-wh-1000xm5)
+
+**Hosted preview:** [ReviewLens on Azure](https://reviewlens-yassir.spaincentral.cloudapp.azure.com). The HTTPS deployment is running; new cloud research is paused while YouTube caption access is configured. See the [deployment status and verified checks](DEPLOYMENT.md).
 
 [See how it works](#how-it-works) · [Engineering decisions](#engineering-decisions) · [Run locally](#run-locally) · [Verification](#verification)
 
@@ -64,7 +66,7 @@ For illustrated usage instructions, read the [user guide](USERS.md) and [admin g
 
 Open [http://localhost:3000](http://localhost:3000) for research, [http://localhost:3000/admin](http://localhost:3000/admin) for the protected cockpit, or [http://localhost:8000/docs](http://localhost:8000/docs) for the API. The readiness probe is `/health/ready` on port 8000.
 
-Docker Desktop groups the app under **reviewlens**. This is one Compose project with eight running service containers and a migration container that exits after setup. Acceptance tests use separate temporary projects. See the [Azure deployment plan](docs/operations/azure-deployment-plan.md) for the proposed hosted demo.
+Docker Desktop groups the app under **reviewlens**. This is one Compose project with eight running service containers and a migration container that exits after setup. Acceptance tests use separate temporary projects. The [Azure deployment guide](DEPLOYMENT.md) records the hosted topology, HTTPS, release process, backups, and current availability.
 
 ## Verification
 

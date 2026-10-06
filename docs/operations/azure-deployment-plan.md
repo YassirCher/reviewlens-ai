@@ -1,10 +1,10 @@
 # Azure deployment plan
 
-**Status: proposal; deployment has not started.** Checked on 2026-10-05. This plan covers a portfolio demo. Monthly budget, availability schedule, hostname, and data migration choices remain open.
+**Status: historical proposal, checked on 2026-10-05.** Azure infrastructure was deployed on 2026-10-06. Read [DEPLOYMENT.md](../../DEPLOYMENT.md) for the actual resources, operating steps, verified backups, and current caption-access blocker. The account findings and proposed actions below describe the pre-deployment snapshot.
 
-[Project overview](../../README.md) · [Architecture](../../APP.md) · [User guide](../../USERS.md) · [Admin guide](../../ADMIN.md)
+[Project overview](../../README.md) · [Architecture](../../APP.md) · [User guide](../../USERS.md) · [Admin guide](../../ADMIN.md) · [Actual deployment](../../DEPLOYMENT.md)
 
-## 1. Current state
+## 1. Pre-deployment snapshot
 
 - The local `reviewlens` Compose project has eight healthy running services and a successfully completed migration container. Its home page returns HTTP 200 and API readiness is `ready`.
 - The obsolete `reviewlens-binding` and `reviewlens-demo` test containers were removed. Their stored volumes were retained. The current application's volumes were retained.
