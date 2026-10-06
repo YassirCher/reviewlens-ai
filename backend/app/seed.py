@@ -71,8 +71,8 @@ def seed_foundation(config: Settings = settings) -> str:
         elif account_state.environment != config.app_env:
             raise RuntimeError("OpenRouter account state belongs to a different APP_ENV")
 
-        test_user = db.scalar(select(User).where(User.email == "test@test.com"))
-        if test_user is None:
+        test_user = db.scalar(select(User).where(User.email == "test@test.com")) if config.is_local_development else None
+        if config.is_local_development and test_user is None:
             db.add(
                 User(
                     id=uuid.uuid4(),

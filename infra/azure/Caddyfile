@@ -1,0 +1,13 @@
+{$REVIEWLENS_HOSTNAME} {
+    encode zstd gzip
+    @backend path /api/v2 /api/v2/* /health/live
+    handle @backend {
+        reverse_proxy api:8000 {
+            header_up X-Forwarded-For {remote_host}
+            flush_interval -1
+        }
+    }
+    handle {
+        reverse_proxy frontend:3000
+    }
+}

@@ -1,3 +1,5 @@
+name: reviewlens
+
 x-backend-service: &backend-service
   build:
     context: ./backend

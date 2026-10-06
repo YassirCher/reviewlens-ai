@@ -82,6 +82,8 @@ flowchart TB
 
 The Compose `migrate` service applies database migrations and seeds configuration before the API and workers start. Named volumes preserve the database and Markdown workspaces across restarts. See [the service definitions](docker-compose.yml) for the executable topology.
 
+Docker Desktop shows these services inside one **reviewlens** Compose group. Each service retains its own container; the migration container exits after setup. The [Azure deployment plan](docs/operations/azure-deployment-plan.md) describes a proposed hosted demo using this topology.
+
 ### V2 runtime architecture and retirement
 
 ReviewLens has one V2 runtime. The legacy application and wire contracts are retired. `/` serves the public intake, `/research` permanently redirects to `/`, and product APIs live under `/api/v2`.

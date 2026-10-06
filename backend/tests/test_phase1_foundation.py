@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import uuid
+from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.api.v2 import auth as auth_routes
@@ -15,6 +17,40 @@ from app.platform import health as health_module
 from app.platform.health import collect_health
 from app.security import generate_opaque_token, hash_password, keyed_hash, verify_password
 from app.services.admin_auth import SessionTokens
+
+
+@pytest.mark.parametrize("environment,expected_users", [("production", 0), ("development", 1), ("test", 1)])
+def test_foundation_seed_keeps_known_test_login_out_of_production(monkeypatch, tmp_path, environment, expected_users):
+    from app import seed
+    from app.db.models import ActiveConfiguration, AdminUser, OpenRouterAccountState, User
+    from app.tools import registry
+
+    config = _valid_settings(tmp_path).model_copy(update={
+        "app_env": environment,
+        "admin_email": "operator@example.test",
+        "admin_password_hash": hash_password("private-test-operator-password"),
+    })
+    added = []
+    records = {
+        ActiveConfiguration: ActiveConfiguration(id=1, environment=environment),
+        OpenRouterAccountState: OpenRouterAccountState(id=1, environment=environment, status="unknown"),
+    }
+    db = SimpleNamespace(
+        scalars=lambda statement: [AdminUser(identifier=config.admin_email, password_hash=config.admin_password_hash)],
+        get=lambda model, key: records[model],
+        scalar=lambda statement: None,
+        add=added.append,
+    )
+
+    @contextmanager
+    def isolated_session():
+        yield db
+
+    monkeypatch.setattr(seed, "session_scope", isolated_session)
+    monkeypatch.setattr(registry, "seed_tool_registry", lambda session: None)
+    assert seed.seed_foundation(config) == "already_seeded"
+    users = [record for record in added if isinstance(record, User)]
+    assert len(users) == expected_users
 
 
 def _valid_settings(tmp_path: Path) -> Settings:

@@ -64,6 +64,8 @@ For illustrated usage instructions, read the [user guide](USERS.md) and [admin g
 
 Open [http://localhost:3000](http://localhost:3000) for research, [http://localhost:3000/admin](http://localhost:3000/admin) for the protected cockpit, or [http://localhost:8000/docs](http://localhost:8000/docs) for the API. The readiness probe is `/health/ready` on port 8000.
 
+Docker Desktop groups the app under **reviewlens**. This is one Compose project with eight running service containers and a migration container that exits after setup. Acceptance tests use separate temporary projects. See the [Azure deployment plan](docs/operations/azure-deployment-plan.md) for the proposed hosted demo.
+
 ## Verification
 
 The repository includes backend contract and failure tests, mocked YouTube and OpenRouter upstreams, browser tests, and an isolated Compose acceptance stack. The local static gate runs backend tests, frontend lint/unit/build checks, dependency audits, and the documentation link audit:

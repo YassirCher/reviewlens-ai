@@ -1,0 +1,84 @@
+x-production-backend: &production-backend
+  image: ${REVIEWLENS_BACKEND_IMAGE:?A release backend image is required}
+  build: !reset null
+  volumes:
+    - ./infra/azure:/opt/reviewlens-operations:ro
+  logging: &bounded-logs
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: '3'
+
+services:
+  postgres:
+    ports: !reset []
+    logging: *bounded-logs
+  redis:
+    ports: !reset []
+    logging: *bounded-logs
+  neo4j:
+    ports: !reset []
+    environment:
+      NEO4J_server_memory_heap_initial__size: 256m
+      NEO4J_server_memory_heap_max__size: 512m
+      NEO4J_server_memory_pagecache_size: 256m
+    logging: *bounded-logs
+  qdrant:
+    ports: !reset []
+    environment:
+      QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY:?A Qdrant key is required}
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          bash -ec 'exec 3<>/dev/tcp/127.0.0.1/6333;
+          printf "GET /readyz HTTP/1.1\r\nHost: localhost\r\napi-key: %s\r\nConnection: close\r\n\r\n" "$${QDRANT__SERVICE__API_KEY}" >&3;
+          read -r status_line <&3;
+          [[ "$$status_line" == *" 200 "* ]]'
+    logging: *bounded-logs
+  migrate:
+    <<: *production-backend
+  api:
+    <<: *production-backend
+    ports: !reset []
+    command: [uvicorn, app.main:app, --host, 0.0.0.0, --port, '8000', --proxy-headers, --forwarded-allow-ips, 172.31.0.2]
+  worker:
+    <<: *production-backend
+  scheduler:
+    <<: *production-backend
+  frontend:
+    image: ${REVIEWLENS_FRONTEND_IMAGE:?A release frontend image is required}
+    build: !reset null
+    ports: !reset []
+    logging: *bounded-logs
+  proxy:
+    image: caddy:2.11.4-alpine
+    environment:
+      REVIEWLENS_HOSTNAME: ${REVIEWLENS_HOSTNAME:?A public hostname is required}
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./infra/azure/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      default:
+        ipv4_address: 172.31.0.2
+    depends_on:
+      frontend:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    logging: *bounded-logs
+    restart: unless-stopped
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.31.0.0/24
+
+volumes:
+  caddy_data:
+  caddy_config:
