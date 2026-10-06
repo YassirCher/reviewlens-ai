@@ -1,6 +1,6 @@
 # Azure deployment plan
 
-**Status: historical proposal, checked on 2026-10-05.** Azure infrastructure was deployed on 2026-10-06. Read [DEPLOYMENT.md](../../DEPLOYMENT.md) for the actual resources, operating steps, verified backups, and current caption-access blocker. The account findings and proposed actions below describe the pre-deployment snapshot.
+**Status: historical proposal, checked on 2026-10-05.** Azure infrastructure was deployed on 2026-10-06 and the VM was deallocated later that day at the owner's request. The hosted app is currently offline. Read [DEPLOYMENT.md](../../DEPLOYMENT.md) for the actual resources, verified backups, shutdown/restart steps, and remaining caption-access blocker. The account findings and proposed actions below describe the pre-deployment snapshot.
 
 [Project overview](../../README.md) · [Architecture](../../APP.md) · [User guide](../../USERS.md) · [Admin guide](../../ADMIN.md) · [Actual deployment](../../DEPLOYMENT.md)
 

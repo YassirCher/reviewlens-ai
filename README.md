@@ -8,7 +8,7 @@ ReviewLens compares selected YouTube product reviews and turns them into a buyin
 
 [User guide](USERS.md) · [Admin guide](ADMIN.md) · [App walkthrough & architecture](APP.md) · [Deployment](DEPLOYMENT.md) · [Real example](USERS.md#worked-example-sony-wh-1000xm5)
 
-**Hosted preview:** [ReviewLens on Azure](https://reviewlens-yassir.spaincentral.cloudapp.azure.com). The HTTPS deployment is running; new cloud research is paused while YouTube caption access is configured. See the [deployment status and verified checks](DEPLOYMENT.md).
+**Hosted deployment (currently offline):** [ReviewLens on Azure](https://reviewlens-yassir.spaincentral.cloudapp.azure.com). The VM is stopped and deallocated to pause compute charges; deployment data and backups are retained. See the [deployment status, verified checks, and restart commands](DEPLOYMENT.md), or [run the app locally](#run-locally).
 
 [See how it works](#how-it-works) · [Engineering decisions](#engineering-decisions) · [Run locally](#run-locally) · [Verification](#verification)
 

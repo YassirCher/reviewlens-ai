@@ -6,7 +6,7 @@
 
 This guide covers the public research app. Start at [http://localhost:3000](http://localhost:3000) after following the [local setup instructions](README.md#run-locally).
 
-The [Azure preview](https://reviewlens-yassir.spaincentral.cloudapp.azure.com) uses the same interface. New cloud research is currently paused pending caption access; see [DEPLOYMENT.md](DEPLOYMENT.md#4-research-availability-and-spend-limits). The example below remains a recorded local run.
+The [Azure deployment](https://reviewlens-yassir.spaincentral.cloudapp.azure.com) uses the same interface but is currently offline because its VM is stopped and deallocated. After restart, new cloud research remains paused pending caption access; see [DEPLOYMENT.md](DEPLOYMENT.md). The example below remains a recorded local run.
 
 The screenshots show the running local app and a real **Sony WH-1000XM5 headphones** analysis. Pages were captured after their content loaded; the review thumbnails were loaded before capturing the source cards. These are recorded results from one run, and a new analysis can return different sources, findings, and scores.
 

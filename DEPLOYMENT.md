@@ -2,13 +2,17 @@
 
 [Project overview](README.md) · [Architecture](APP.md) · [User guide](USERS.md) · [Admin guide](ADMIN.md)
 
-**Deployed on October 6, 2026.** The HTTPS site and production services are running. **New research is currently paused:** the first cloud analysis reached YouTube, but caption requests from Azure were blocked. A working caption proxy is needed before opening public research. No successful cloud buying report is claimed here.
+**Deployed on October 6, 2026; shut down the same day at the owner's request.** Azure confirmed `PowerState/deallocated` for `vm-reviewlens`. The hosted site and admin control plane are offline. The VM, disks, application data, and private backups are retained for a later restart.
+
+**New research remains paused in the saved configuration:** the first cloud analysis reached YouTube, but caption requests from Azure were blocked. A working caption proxy is needed before opening public research after restart. No successful cloud buying report is claimed here.
 
 **Site:** [ReviewLens on Azure](https://reviewlens-yassir.spaincentral.cloudapp.azure.com) · **Operators:** [Admin sign-in](https://reviewlens-yassir.spaincentral.cloudapp.azure.com/admin/login)
 
 This document records the actual deployment. The earlier [deployment proposal](docs/operations/azure-deployment-plan.md) explains the alternatives and initial estimates.
 
 ![Azure preview showing that new research is paused pending caption access](docs/assets/reviewlens-azure-preview.jpg)
+
+*Captured before shutdown on October 6. This screenshot records the deployed interface; the hosted site is currently offline.*
 
 ## 1. What we deployed
 
@@ -152,7 +156,7 @@ For infrastructure changes, validate `infra/azure/main.bicep` before applying a 
 
 The [backup coordinator](infra/azure/backup.sh) pauses API/worker/scheduler writers, exports PostgreSQL and both Markdown volumes, includes `release.json` and the private production environment, hashes the files, resumes writers, and uploads the snapshot using [managed identity](infra/azure/upload_backup.py). Redis queues and Neo4j/Qdrant projection databases are not included as authoritative backup data. Projection recovery follows the [recovery runbook](docs/operations/phase10-runbook.md).
 
-The systemd [service](infra/azure/reviewlens-backup.service) and [timer](infra/azure/reviewlens-backup.timer) run daily at **03:00 UTC** (04:00 Casablanca on the deployment date). Missed schedules run after the VM becomes available. This backup briefly interrupts backend requests.
+The systemd [service](infra/azure/reviewlens-backup.service) and [timer](infra/azure/reviewlens-backup.timer) are configured for daily backups at **03:00 UTC** (04:00 Casablanca on the deployment date). They cannot run while the VM is deallocated. The timer remains enabled and is configured to catch up on missed schedules after restart; check its journal when bringing the server back online. This backup briefly interrupts backend requests.
 
 ```bash
 sudo systemctl status reviewlens-backup.timer
@@ -162,7 +166,7 @@ sudo journalctl -u reviewlens-backup.service --since '1 day ago'
 
 The first verified snapshot was `20261006T033755Z`. All six offsite files matched their local SHA-256 hashes. Its isolated restore recovered one analysis run, 21 context-node versions, one administrator, and 21 Markdown files. The verification database had no network and used temporary storage; it never overwrote production. The paired PostgreSQL/Markdown restore is verified, but a complete VM rebuild and projection reconstruction have not been rehearsed.
 
-The scheduled backup service was also run manually against the final release. Snapshot `20261006T034454Z` completed with systemd `Result=success` and exit status zero; backend health recovered before the upload finished. Its next scheduled run is October 7 at 03:00 UTC.
+The scheduled backup service was also run manually against the final release. Snapshot `20261006T034454Z` completed with systemd `Result=success` and exit status zero; backend health recovered before the upload finished. The subsequent VM shutdown suspends future scheduled backups until restart.
 
 For recovery: obtain the paired snapshot and its secret environment through approved private access, verify `SHA256SUMS`, restore PostgreSQL and both Markdown roots together while writers are stopped, apply compatible images, then reconstruct projections and verify readiness and report links. Keep secrets and database dumps out of Git and public screenshots.
 
@@ -172,18 +176,24 @@ Azure Blob soft delete is configured for 14 days. It is a recovery window for de
 
 The previously checked Spain Central Linux retail compute rate was $0.0912/hour, approximately **$66.58 for 730 running hours**. This excludes disks, public IP, backups, bandwidth, taxes, and model/proxy services. See the [dated price lookup and sources](docs/operations/azure-deployment-plan.md#3-cost-and-availability). Remaining student credit has not been verified, and no Azure budget alert or shutdown schedule is configured.
 
-The VM currently stays running. To take the demo offline and stop compute allocation, use Azure deallocation rather than only shutting down Ubuntu:
+The VM is currently **stopped and deallocated**. We ran the deallocation command and verified its final power state through Azure's instance view. Compute allocation charges stop in this state. These commands stop or restart the retained deployment:
 
 ```bash
 az vm deallocate --resource-group rg-reviewlens-demo --name vm-reviewlens
 az vm start --resource-group rg-reviewlens-demo --name vm-reviewlens
+az vm get-instance-view --resource-group rg-reviewlens-demo --name vm-reviewlens \
+  --query "instanceView.statuses[?starts_with(code, 'PowerState/')].displayStatus" --output tsv
 ```
 
 Disks and other retained resources can still incur charges while the VM is deallocated. [Azure VM states and billing](https://learn.microsoft.com/en-us/azure/virtual-machines/states-billing).
 
+After a manual restart, wait for service readiness and inspect the backup timer before using the hosted app. Public research stays paused until caption access is fixed and explicitly activated. No automatic VM restart is configured.
+
 This is a single-host portfolio deployment. It has no failover or load benchmark, and sustained CPU use can exhaust B-series credits. No rollback rehearsal, completed cloud report/PDF check, or production admin browser walkthrough is claimed. Before wider use, resolve caption access, confirm credit and operating budget, monitor backups, and verify the remaining application flows.
 
 ## 8. Recorded verification
+
+The application checks below were recorded while the VM was running, before the requested shutdown.
 
 | Check | Result |
 |---|---|
@@ -199,4 +209,5 @@ This is a single-host portfolio deployment. It has no failover or load benchmark
 | Real analysis and reload of progress page | Run started; committed progress/error recovered after reload |
 | Complete buying report / PDF | Blocked by YouTube caption access |
 | Private Blob backup / isolated paired restore | Passed |
+| Requested Azure shutdown | Confirmed `PowerState/deallocated` on October 6, 2026; hosted app offline |
 
